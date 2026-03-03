@@ -83,6 +83,7 @@ public class RepositoryContext<T> : IRepositoryContext<T>
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error adding entities to database of type {type}.", typeof(T));
+            throw;
         }
         
         return list;
@@ -116,6 +117,7 @@ public class RepositoryContext<T> : IRepositoryContext<T>
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating entities in database of type {type}.", typeof(T));
+            throw;
         }
         
         return list;
@@ -156,6 +158,7 @@ public class RepositoryContext<T> : IRepositoryContext<T>
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating entities in database of type {type} when soft deleting.", typeof(T));
+            throw;
         }
         
         return list;
@@ -195,7 +198,8 @@ public class RepositoryContext<T> : IRepositoryContext<T>
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error updating entities in database of type {type} when restoring.", typeof(T));       
+            _logger.LogError(ex, "Error updating entities in database of type {type} when restoring.", typeof(T));
+            throw;
         }
         
         return list;
@@ -223,7 +227,7 @@ public class RepositoryContext<T> : IRepositoryContext<T>
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting entities from database of type {type}.", typeof(T));
-            return false;
+            throw;
         }
     }
 }

@@ -41,7 +41,14 @@ public class IdentityMiddleware(RequestDelegate next, IOptions<IdentityMiddlewar
             return;
         }
 
-        // Check password change first (before 2FA)
+        // Check if user is disabled first (before any other checks)
+        if (!userInfo.IsEnabled)
+        {
+            context.Response.Redirect(_options.AccessDeniedRoute);
+            return;
+        }
+
+        // Check password change (before 2FA)
         if (_options.RequirePasswordChange && userInfo.RequiresPasswordChange)
         {
             if (!path.StartsWith(_options.ChangePasswordRoute, StringComparison.OrdinalIgnoreCase))
@@ -59,13 +66,6 @@ public class IdentityMiddleware(RequestDelegate next, IOptions<IdentityMiddlewar
                 context.Response.Redirect(_options.TwoFactorRoute);
                 return;
             }
-        }
-
-        // Check if user is disabled
-        if (!userInfo.IsEnabled)
-        {
-            context.Response.Redirect(_options.AccessDeniedRoute);
-            return;
         }
 
         await _next(context);

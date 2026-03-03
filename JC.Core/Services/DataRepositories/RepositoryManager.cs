@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace JC.Core.Services.DataRepositories;
 
-public class RepositoryManager : IRepositoryManager
+public class RepositoryManager : IRepositoryManager, IDisposable, IAsyncDisposable
 {
     private readonly DbContext _context;
     private readonly IServiceProvider _serviceProvider;
@@ -56,5 +56,15 @@ public class RepositoryManager : IRepositoryManager
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public void Dispose()
+    {
+        _currentTransaction?.Dispose();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_currentTransaction != null) await _currentTransaction.DisposeAsync();
     }
 }

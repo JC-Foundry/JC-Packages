@@ -15,5 +15,5 @@ public class DefaultClaims
     public const string LastLoginUtc = "last_login_utc";
     public const string IsEnabled = "is_enabled";
     
-    public const string RequirePasswordChange = "require_passsword_change";
+    public const string RequirePasswordChange = "require_password_change";
 }
