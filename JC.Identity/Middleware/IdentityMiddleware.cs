@@ -7,7 +7,6 @@ namespace JC.Identity.Middleware;
 
 public class IdentityMiddleware(RequestDelegate next, IOptions<IdentityMiddlewareOptions> options)
 {
-    private readonly RequestDelegate _next = next;
     private readonly IdentityMiddlewareOptions _options = options.Value;
 
     private static readonly string[] StaticFileExtensions =
@@ -23,21 +22,21 @@ public class IdentityMiddleware(RequestDelegate next, IOptions<IdentityMiddlewar
         // Skip static files
         if (IsStaticFile(path))
         {
-            await _next(context);
+            await next(context);
             return;
         }
 
         // Skip if not authenticated
         if (!context.User.Identity?.IsAuthenticated ?? true)
         {
-            await _next(context);
+            await next(context);
             return;
         }
 
         // Skip excluded paths
         if (IsExcludedPath(path))
         {
-            await _next(context);
+            await next(context);
             return;
         }
 
@@ -68,7 +67,7 @@ public class IdentityMiddleware(RequestDelegate next, IOptions<IdentityMiddlewar
             }
         }
 
-        await _next(context);
+        await next(context);
     }
 
     private static bool IsStaticFile(string path)

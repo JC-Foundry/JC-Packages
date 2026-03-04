@@ -25,7 +25,7 @@ public class UserInfoMiddleware(RequestDelegate next)
             }
             else
             {
-                userInfo.Username = context.User.Identity.Name ?? UserInfo.UNKNOWN_USER_NAME;
+                userInfo.Username = context.User.Identity?.Name ?? UserInfo.UNKNOWN_USER_NAME;
                 userInfo.Email = context.User.FindFirst(io.Value.ClaimsIdentity.EmailClaimType)?.Value ?? UserInfo.UNKNOWN_USER_EMAIL;
                 userInfo.UserId = context.User.FindFirst(io.Value.ClaimsIdentity.UserIdClaimType)?.Value ?? UserInfo.UNKNOWN_USER_ID;
                 

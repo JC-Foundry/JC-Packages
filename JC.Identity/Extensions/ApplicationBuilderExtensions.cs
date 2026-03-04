@@ -169,7 +169,7 @@ public static class ApplicationBuilderExtensions
 
         var admin = new TUser
         {
-            UserName = email,
+            UserName = username,
             Email = email,
             EmailConfirmed = true,
             DisplayName = displayName ?? "System Administrator",

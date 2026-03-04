@@ -7,7 +7,7 @@ public sealed class Tenant : AuditModel
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     
-    public string Name { get; set; }
+    public required string Name { get; set; }
     public string? Description { get; set; }
     
     public string? Domain { get; set; }

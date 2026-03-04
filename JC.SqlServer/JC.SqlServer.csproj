@@ -4,10 +4,17 @@
         <TargetFramework>net9.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+
+        <!-- NuGet Package -->
+        <PackageId>JC.SqlServer</PackageId>
+        <Version>1.0.0</Version>
+        <Authors>jcraik</Authors>
+        <Description>SQL Server database provider extensions for JC.Core using Microsoft.EntityFrameworkCore.SqlServer.</Description>
+        <IsPackable>true</IsPackable>
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\JC.Core\JC.Core.csproj" />
+      <PackageReference Include="JC.Core" Version="1.0.0" />
     </ItemGroup>
 
     <ItemGroup>
