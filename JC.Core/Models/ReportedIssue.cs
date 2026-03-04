@@ -10,7 +10,7 @@ public class ReportedIssue
     public string Id { get; private set; } = Guid.NewGuid().ToString();
     
     public IssueType Type { get; set; }
-    public string Description { get; set; }
+    public required string Description { get; set; }
     
     public byte[]? Image { get; set; }
     public bool ReportSent { get; set; }

@@ -1,11 +1,12 @@
 using JC.Core.Models;
 using JC.Identity.Extensions.Options;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace JC.Identity.Middleware;
 
-public class IdentityMiddleware(RequestDelegate next, IOptions<IdentityMiddlewareOptions> options)
+public class IdentityMiddleware(RequestDelegate next, IOptions<IdentityMiddlewareOptions> options, ILogger<IdentityMiddleware> logger)
 {
     private readonly IdentityMiddlewareOptions _options = options.Value;
 
@@ -43,6 +44,7 @@ public class IdentityMiddleware(RequestDelegate next, IOptions<IdentityMiddlewar
         // Check if user is disabled first (before any other checks)
         if (!userInfo.IsEnabled)
         {
+            logger.LogWarning("Disabled user {UserId} attempted to access {Path} — redirecting to access denied.", userInfo.UserId, path);
             context.Response.Redirect(_options.AccessDeniedRoute);
             return;
         }
@@ -52,6 +54,7 @@ public class IdentityMiddleware(RequestDelegate next, IOptions<IdentityMiddlewar
         {
             if (!path.StartsWith(_options.ChangePasswordRoute, StringComparison.OrdinalIgnoreCase))
             {
+                logger.LogInformation("User {UserId} requires password change — redirecting from {Path}.", userInfo.UserId, path);
                 context.Response.Redirect(_options.ChangePasswordRoute);
                 return;
             }
@@ -62,6 +65,7 @@ public class IdentityMiddleware(RequestDelegate next, IOptions<IdentityMiddlewar
         {
             if (!path.StartsWith(_options.TwoFactorRoute, StringComparison.OrdinalIgnoreCase))
             {
+                logger.LogInformation("User {UserId} requires 2FA setup — redirecting from {Path}.", userInfo.UserId, path);
                 context.Response.Redirect(_options.TwoFactorRoute);
                 return;
             }

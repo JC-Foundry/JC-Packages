@@ -25,7 +25,6 @@ public class DataDbContext : DbContext, IDataDbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Action).IsRequired();
-            entity.Property(e => e.ActionData).HasMaxLength(-1);
             entity.Property(e => e.AuditDate).IsRequired();
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.TableName);

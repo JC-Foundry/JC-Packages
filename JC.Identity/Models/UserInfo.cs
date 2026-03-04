@@ -31,7 +31,6 @@ public class UserInfo : IUserInfo
     public DateTime? LastLoginUtc { get; set; }
     public bool IsEnabled { get; set; }
     public bool RequiresPasswordChange { get; set; }
-    public bool EnforceTwoFactor { get; set; }
 
     public bool IsSetup { get; set; }
     public bool MultiTenancyEnabled { get; set; }

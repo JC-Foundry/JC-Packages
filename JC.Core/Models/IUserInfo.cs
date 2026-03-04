@@ -23,8 +23,7 @@ public interface IUserInfo
     DateTime? LastLoginUtc { get; set; }
     bool IsEnabled { get; set; }
     bool RequiresPasswordChange { get; set; }
-    public bool EnforceTwoFactor { get; set; }
-    
+
     bool IsSetup { get; set; }
     bool MultiTenancyEnabled { get; set; }
     

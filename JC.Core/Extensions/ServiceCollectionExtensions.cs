@@ -1,9 +1,11 @@
 using JC.Core.Data;
+using JC.Core.Helpers;
 using JC.Core.Models;
 using JC.Core.Models.Auditing;
 using JC.Core.Services;
 using JC.Core.Services.DataRepositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -11,9 +13,13 @@ namespace JC.Core.Extensions;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddCore<TContext>(this IServiceCollection services)
+    public static IServiceCollection AddCore<TContext>(this IServiceCollection services, IConfiguration configuration)
         where TContext : DbContext, IDataDbContext
     {
+        var gitUrl = configuration["Github:Url"] ?? throw new InvalidOperationException("Configuration value 'Github:Url' not found.");
+        var gitApiKey = configuration["Github:ApiKey"] ?? throw new InvalidOperationException("Configuration value 'Github:ApiKey' not found.");
+
+        services.TryAddSingleton(new GitHelper(gitUrl, gitApiKey));
         services.TryAddScoped<BugReportService>();
         services.TryAddScoped<AuditService>();
         services.TryAddScoped<IDataDbContext>(sp => sp.GetRequiredService<TContext>());

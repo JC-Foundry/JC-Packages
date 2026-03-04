@@ -15,7 +15,7 @@ public class RepositoryContext<T> : IRepositoryContext<T>
     private readonly bool _isAuditModel;
     private readonly bool _hasIsDeletedProperty;
 
-    public RepositoryContext(DbContext context, 
+    public RepositoryContext(DbContext context,
         IUserInfo userInfo,
         ILogger<RepositoryContext<T>> logger)
     {
@@ -29,8 +29,8 @@ public class RepositoryContext<T> : IRepositoryContext<T>
     }
 
     private string GetUserId(string? userId) => userId ?? _userInfo.UserId;
-    
-    
+
+
     public IQueryable<T> AsQueryable()
         => _context.Set<T>().AsQueryable();
 
@@ -40,30 +40,30 @@ public class RepositoryContext<T> : IRepositoryContext<T>
     public IQueryable<T> GetAll(Expression<Func<T, bool>> predicate, Func<IQueryable<T>, IOrderedQueryable<T>> orderBy)
         => orderBy(GetAll(predicate));
 
-    public async Task<List<T>> GetAllAsync(Expression<Func<T, bool>> predicate)
-        => await GetAll(predicate).ToListAsync();
+    public async Task<List<T>> GetAllAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
+        => await GetAll(predicate).ToListAsync(cancellationToken);
 
-    public async Task<List<T>> GetAllAsync(Expression<Func<T, bool>> predicate, Func<IQueryable<T>, IOrderedQueryable<T>> orderBy)
-        => await GetAll(predicate, orderBy).ToListAsync();
+    public async Task<List<T>> GetAllAsync(Expression<Func<T, bool>> predicate, Func<IQueryable<T>, IOrderedQueryable<T>> orderBy, CancellationToken cancellationToken = default)
+        => await GetAll(predicate, orderBy).ToListAsync(cancellationToken);
 
-    public async Task<T?> GetByIdAsync(int id)
-        => await _context.Set<T>().FindAsync(id);
+    public async Task<T?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+        => await _context.Set<T>().FindAsync([id], cancellationToken);
 
-    public async Task<T?> GetByIdAsync(string id)
-        => await _context.Set<T>().FindAsync(id);
+    public async Task<T?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
+        => await _context.Set<T>().FindAsync([id], cancellationToken);
 
     public async Task<T?> GetByIdAsync(params object[] id)
         => await _context.Set<T>().FindAsync(id);
 
 
 
-    public async Task<T> AddAsync(T entity, string? userId = null, bool saveNow = true)
-        => (await AddRangeAsync([entity], userId, saveNow)).First();
+    public async Task<T> AddAsync(T entity, string? userId = null, bool saveNow = true, CancellationToken cancellationToken = default)
+        => (await AddRangeAsync([entity], userId, saveNow, cancellationToken)).First();
 
-    public async Task<List<T>> AddAsync(IEnumerable<T> entities, string? userId = null, bool saveNow = true)
-        => await AddRangeAsync(entities, userId, saveNow);
+    public async Task<List<T>> AddAsync(IEnumerable<T> entities, string? userId = null, bool saveNow = true, CancellationToken cancellationToken = default)
+        => await AddRangeAsync(entities, userId, saveNow, cancellationToken);
 
-    public async Task<List<T>> AddRangeAsync(IEnumerable<T> entities, string? userId = null, bool saveNow = true)
+    public async Task<List<T>> AddRangeAsync(IEnumerable<T> entities, string? userId = null, bool saveNow = true, CancellationToken cancellationToken = default)
     {
         var list = entities.ToList();
 
@@ -76,28 +76,28 @@ public class RepositoryContext<T> : IRepositoryContext<T>
                     audit?.FillCreated(GetUserId(userId));
                 }
             }
-            
-            await _context.AddRangeAsync(list);
-            if (saveNow) await _context.SaveChangesAsync();
+
+            await _context.AddRangeAsync(list, cancellationToken);
+            if (saveNow) await _context.SaveChangesAsync(cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error adding entities to database of type {type}.", typeof(T));
             throw;
         }
-        
+
         return list;
     }
 
 
 
-    public async Task<T> UpdateAsync(T entity, string? userId = null, bool saveNow = true)
-        => (await UpdateRangeAsync([entity], userId, saveNow)).First();
+    public async Task<T> UpdateAsync(T entity, string? userId = null, bool saveNow = true, CancellationToken cancellationToken = default)
+        => (await UpdateRangeAsync([entity], userId, saveNow, cancellationToken)).First();
 
-    public async Task<List<T>> UpdateAsync(IEnumerable<T> entities, string? userId = null, bool saveNow = true)
-        => await UpdateRangeAsync(entities, userId, saveNow);
+    public async Task<List<T>> UpdateAsync(IEnumerable<T> entities, string? userId = null, bool saveNow = true, CancellationToken cancellationToken = default)
+        => await UpdateRangeAsync(entities, userId, saveNow, cancellationToken);
 
-    public async Task<List<T>> UpdateRangeAsync(IEnumerable<T> entities, string? userId = null, bool saveNow = true)
+    public async Task<List<T>> UpdateRangeAsync(IEnumerable<T> entities, string? userId = null, bool saveNow = true, CancellationToken cancellationToken = default)
     {
         var list = entities.ToList();
 
@@ -105,33 +105,33 @@ public class RepositoryContext<T> : IRepositoryContext<T>
         {
             if (_isAuditModel)
             {
-                foreach (var audit in list.Select(e => e as AuditModel)) 
+                foreach (var audit in list.Select(e => e as AuditModel))
                 {
                     audit?.FillModified(GetUserId(userId));
                 }
             }
-            
+
             _context.UpdateRange(list);
-            if (saveNow) await _context.SaveChangesAsync();
+            if (saveNow) await _context.SaveChangesAsync(cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating entities in database of type {type}.", typeof(T));
             throw;
         }
-        
+
         return list;
     }
 
 
 
-    public async Task<T> SoftDeleteAsync(T entity, string? userId = null, bool saveNow = true)
-        => (await SoftDeleteRangeAsync([entity], userId, saveNow)).First();
+    public async Task<T> SoftDeleteAsync(T entity, string? userId = null, bool saveNow = true, CancellationToken cancellationToken = default)
+        => (await SoftDeleteRangeAsync([entity], userId, saveNow, cancellationToken)).First();
 
-    public async Task<List<T>> SoftDeleteAsync(IEnumerable<T> entities, string? userId = null, bool saveNow = true)
-        => await SoftDeleteRangeAsync(entities, userId, saveNow);
-    
-    public async Task<List<T>> SoftDeleteRangeAsync(IEnumerable<T> entities, string? userId = null, bool saveNow = true)
+    public async Task<List<T>> SoftDeleteAsync(IEnumerable<T> entities, string? userId = null, bool saveNow = true, CancellationToken cancellationToken = default)
+        => await SoftDeleteRangeAsync(entities, userId, saveNow, cancellationToken);
+
+    public async Task<List<T>> SoftDeleteRangeAsync(IEnumerable<T> entities, string? userId = null, bool saveNow = true, CancellationToken cancellationToken = default)
     {
         var list = entities.ToList();
 
@@ -139,7 +139,7 @@ public class RepositoryContext<T> : IRepositoryContext<T>
         {
             if (_isAuditModel)
             {
-                foreach (var audit in list.Select(e => e as AuditModel)) 
+                foreach (var audit in list.Select(e => e as AuditModel))
                 {
                     audit?.FillDeleted(GetUserId(userId));
                 }
@@ -149,30 +149,30 @@ public class RepositoryContext<T> : IRepositoryContext<T>
                 foreach (var entity in list)
                 {
                     entity.GetType().GetProperty("IsDeleted")?.SetValue(entity, true);
-                }           
+                }
             }
-            
+
             _context.UpdateRange(list);
-            if (saveNow) await _context.SaveChangesAsync();
+            if (saveNow) await _context.SaveChangesAsync(cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating entities in database of type {type} when soft deleting.", typeof(T));
             throw;
         }
-        
+
         return list;
     }
 
-    
-    
-    public async Task<T> RestoreAsync(T entity, string? userId = null, bool saveNow = true)
-        => (await RestoreRangeAsync([entity], userId, saveNow)).First();
 
-    public async Task<List<T>> RestoreAsync(IEnumerable<T> entities, string? userId = null, bool saveNow = true)
-        => await RestoreRangeAsync(entities, userId, saveNow);
 
-    public async Task<List<T>> RestoreRangeAsync(IEnumerable<T> entities, string? userId = null, bool saveNow = true)
+    public async Task<T> RestoreAsync(T entity, string? userId = null, bool saveNow = true, CancellationToken cancellationToken = default)
+        => (await RestoreRangeAsync([entity], userId, saveNow, cancellationToken)).First();
+
+    public async Task<List<T>> RestoreAsync(IEnumerable<T> entities, string? userId = null, bool saveNow = true, CancellationToken cancellationToken = default)
+        => await RestoreRangeAsync(entities, userId, saveNow, cancellationToken);
+
+    public async Task<List<T>> RestoreRangeAsync(IEnumerable<T> entities, string? userId = null, bool saveNow = true, CancellationToken cancellationToken = default)
     {
         var list = entities.ToList();
 
@@ -180,7 +180,7 @@ public class RepositoryContext<T> : IRepositoryContext<T>
         {
             if (_isAuditModel)
             {
-                foreach (var audit in list.Select(e => e as AuditModel)) 
+                foreach (var audit in list.Select(e => e as AuditModel))
                 {
                     audit?.FillRestored(GetUserId(userId));
                 }
@@ -190,38 +190,38 @@ public class RepositoryContext<T> : IRepositoryContext<T>
                 foreach (var entity in list)
                 {
                     entity.GetType().GetProperty("IsDeleted")?.SetValue(entity, false);
-                }           
+                }
             }
-            
+
             _context.UpdateRange(list);
-            if (saveNow) await _context.SaveChangesAsync();
+            if (saveNow) await _context.SaveChangesAsync(cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating entities in database of type {type} when restoring.", typeof(T));
             throw;
         }
-        
+
         return list;
     }
 
-    
-    
-    public async Task<bool> DeleteAsync(T entity, bool saveNow = true)
-        => await DeleteRangeAsync([entity], saveNow);
 
-    public async Task<bool> DeleteAsync(IEnumerable<T> entities, bool saveNow = true)
-        => await DeleteRangeAsync(entities, saveNow);
 
-    public async Task<bool> DeleteRangeAsync(IEnumerable<T> entities, bool saveNow = true)
+    public async Task<bool> DeleteAsync(T entity, bool saveNow = true, CancellationToken cancellationToken = default)
+        => await DeleteRangeAsync([entity], saveNow, cancellationToken);
+
+    public async Task<bool> DeleteAsync(IEnumerable<T> entities, bool saveNow = true, CancellationToken cancellationToken = default)
+        => await DeleteRangeAsync(entities, saveNow, cancellationToken);
+
+    public async Task<bool> DeleteRangeAsync(IEnumerable<T> entities, bool saveNow = true, CancellationToken cancellationToken = default)
     {
         var list = entities.ToList();
-        
+
         try
         {
             _context.Set<T>().RemoveRange(list);
-            if (saveNow) await _context.SaveChangesAsync();
-            
+            if (saveNow) await _context.SaveChangesAsync(cancellationToken);
+
             return true;
         }
         catch (Exception ex)

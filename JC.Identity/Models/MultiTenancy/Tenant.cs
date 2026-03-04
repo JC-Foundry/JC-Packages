@@ -1,5 +1,5 @@
+using System.Text.Json;
 using JC.Core.Models.Auditing;
-using Newtonsoft.Json;
 
 namespace JC.Identity.Models.MultiTenancy;
 
@@ -17,7 +17,7 @@ public sealed class Tenant : AuditModel
 
     public void SetSettings(IEnumerable<TenantSettings> settings)
     {
-        var json = JsonConvert.SerializeObject(settings);
+        var json = JsonSerializer.Serialize(settings);
         Settings = json;
     }
 
@@ -43,7 +43,7 @@ public sealed class Tenant : AuditModel
     }
     
     public List<TenantSettings> GetSettings()
-        => JsonConvert.DeserializeObject<List<TenantSettings>>(Settings) ?? [];
+        => JsonSerializer.Deserialize<List<TenantSettings>>(Settings) ?? [];
 }
 
 public sealed class TenantSettings

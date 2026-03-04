@@ -11,16 +11,11 @@ public class ColourHelper
     {
         var rgb = ExtractRGB(col);
 
-        rgb.R = (int)(rgb.R + (255 - rgb.R) * 0.4);
-        rgb.R = Math.Min(255, Math.Max(0, rgb.R));
-        
-        rgb.G = (int)(rgb.G + (255 - rgb.G) * 0.4);
-        rgb.G = Math.Min(255, Math.Max(0, rgb.G));
-        
-        rgb.B = (int)(rgb.B + (255 - rgb.B) * 0.4);
-        rgb.B = Math.Min(255, Math.Max(0, rgb.B));
+        var r = (int)(rgb.R + (255 - rgb.R) * 0.4);
+        var g = (int)(rgb.G + (255 - rgb.G) * 0.4);
+        var b = (int)(rgb.B + (255 - rgb.B) * 0.4);
 
-        return $"#{rgb.R:X2}{rgb.G:X2}{rgb.B:X2}";
+        return $"#{r:X2}{g:X2}{b:X2}";
     }
 
     /// <summary>
