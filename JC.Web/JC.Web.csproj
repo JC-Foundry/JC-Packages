@@ -1,21 +1,14 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net9.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-
-        <!-- NuGet Package -->
         <PackageId>JC.Web</PackageId>
-        <Version>1.0.2</Version>
-        <Authors>jcraik</Authors>
-        <Description>Web helpers for ASP.NET Core including dropdown builders, HTML tag builder, model state wrapper, and QR code generation.</Description>
-        <IsPackable>true</IsPackable>
+        <Version>1.1.0</Version>
+        <Description>Web helpers for ASP.NET Core including dropdown builders, HTML tag builder, pagination tag helper, model state wrapper, and QR code generation.</Description>
     </PropertyGroup>
 
     <ItemGroup>
       <FrameworkReference Include="Microsoft.AspNetCore.App" />
-      <PackageReference Include="JC.Core" Version="1.0.2" />
+      <PackageReference Include="JC.Core" Version="1.1.0" />
       <PackageReference Include="QRCoder" Version="1.7.0" />
     </ItemGroup>
 

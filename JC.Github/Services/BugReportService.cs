@@ -1,28 +1,32 @@
 using JC.Core.Data;
 using JC.Core.Helpers;
 using JC.Core.Models;
+using JC.Core.Services.DataRepositories;
+using JC.Github.Data;
+using JC.Github.Helpers;
+using JC.Github.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-namespace JC.Core.Services;
+namespace JC.Github.Services;
 
 /// <summary>
 /// Service for recording bug reports and feature suggestions, with optional GitHub issue creation.
 /// </summary>
 public class BugReportService
 {
-    private readonly IDataDbContext _context;
+    private readonly IRepositoryContext<ReportedIssue> _reportedIssues;
     private readonly GitHelper _gitHelper;
     private readonly ILogger<BugReportService> _logger;
     private readonly string _owner;
     private readonly string _repo;
 
     public BugReportService(IConfiguration config,
-        IDataDbContext context,
+        IRepositoryContext<ReportedIssue> reportedIssues,
         GitHelper gitHelper,
         ILogger<BugReportService> logger)
     {
-        _context = context;
+        _reportedIssues = reportedIssues;
         _gitHelper = gitHelper;
         _logger = logger;
         _owner = config["Github:Owner"] ?? throw new InvalidOperationException("Configuration value 'Github:Owner' not found.");
@@ -60,9 +64,8 @@ public class BugReportService
         {
             _logger.LogError(ex, "Error recording issue in Github.");
         }
-
-        await _context.ReportedIssues.AddAsync(ri);
-        await _context.SaveChangesAsync();
+        
+        await _reportedIssues.AddAsync(ri);
         return ri;
     }
 }

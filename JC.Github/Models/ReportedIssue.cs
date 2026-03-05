@@ -1,4 +1,4 @@
-namespace JC.Core.Models;
+namespace JC.Github.Models;
 
 /// <summary>
 /// The type of issue being reported.

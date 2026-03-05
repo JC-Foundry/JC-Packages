@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JC.Identity", "JC.Identity\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JC.Web", "JC.Web\JC.Web.csproj", "{314900C4-3789-4FD0-AA0A-285354F312AE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JC.Github", "JC.Github\JC.Github.csproj", "{05534183-1E71-469A-8927-A5BCE265F3E8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,5 +38,9 @@ Global
 		{314900C4-3789-4FD0-AA0A-285354F312AE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{314900C4-3789-4FD0-AA0A-285354F312AE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{314900C4-3789-4FD0-AA0A-285354F312AE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{05534183-1E71-469A-8927-A5BCE265F3E8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{05534183-1E71-469A-8927-A5BCE265F3E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{05534183-1E71-469A-8927-A5BCE265F3E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{05534183-1E71-469A-8927-A5BCE265F3E8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

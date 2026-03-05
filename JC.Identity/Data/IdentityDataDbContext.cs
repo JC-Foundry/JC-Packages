@@ -32,9 +32,6 @@ public class IdentityDataDbContext<TUser, TRole> : IdentityDbContext<TUser, TRol
     }
 
     /// <inheritdoc />
-    public DbSet<ReportedIssue> ReportedIssues => Set<ReportedIssue>();
-
-    /// <inheritdoc />
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
     /// <summary>Gets the set of tenants.</summary>
@@ -43,12 +40,6 @@ public class IdentityDataDbContext<TUser, TRole> : IdentityDbContext<TUser, TRol
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-
-        modelBuilder.Entity<ReportedIssue>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Description).IsRequired();
-        });
 
         modelBuilder.Entity<AuditEntry>(entity =>
         {

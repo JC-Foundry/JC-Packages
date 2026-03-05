@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Authors>jcraik</Authors>
+    <IsPackable>true</IsPackable>
+    <RepositoryUrl>https://github.com/johncraik/JC-Packages</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>jc-packages</PackageTags>
+  </PropertyGroup>
+</Project>

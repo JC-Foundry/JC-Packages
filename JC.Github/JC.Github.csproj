@@ -1,9 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <PackageId>JC.SqlServer</PackageId>
-        <Version>1.0.3</Version>
-        <Description>SQL Server database provider extensions for JC.Core using Microsoft.EntityFrameworkCore.SqlServer.</Description>
+        <PackageId>JC.Github</PackageId>
+        <Version>1.0.0</Version>
+        <Description>GitHub integration for JC.Core providing bug report and issue tracking services.</Description>
     </PropertyGroup>
 
     <ItemGroup>
@@ -11,7 +11,8 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.11" />
+      <PackageReference Include="Flurl.Http" Version="4.0.2" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.11" />
       <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.11" />
     </ItemGroup>
 

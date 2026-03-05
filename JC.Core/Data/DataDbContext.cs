@@ -19,20 +19,11 @@ public class DataDbContext : DbContext, IDataDbContext
     }
 
     /// <inheritdoc />
-    public DbSet<ReportedIssue> ReportedIssues => Set<ReportedIssue>();
-
-    /// <inheritdoc />
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<ReportedIssue>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Description).IsRequired();
-        });
-
         modelBuilder.Entity<AuditEntry>(entity =>
         {
             entity.HasKey(e => e.Id);

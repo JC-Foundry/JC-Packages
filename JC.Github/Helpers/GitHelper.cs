@@ -1,6 +1,6 @@
 using Flurl.Http;
 
-namespace JC.Core.Helpers;
+namespace JC.Github.Helpers;
 
 public class GitHelper(string url, string apiKey)
 {

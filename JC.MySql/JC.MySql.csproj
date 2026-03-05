@@ -1,20 +1,13 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net9.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-
-        <!-- NuGet Package -->
         <PackageId>JC.MySql</PackageId>
-        <Version>1.0.2</Version>
-        <Authors>jcraik</Authors>
+        <Version>1.0.3</Version>
         <Description>MySQL database provider extensions for JC.Core using Pomelo.EntityFrameworkCore.MySql.</Description>
-        <IsPackable>true</IsPackable>
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="JC.Core" Version="1.0.2" />
+      <PackageReference Include="JC.Core" Version="1.1.0" />
     </ItemGroup>
 
     <ItemGroup>

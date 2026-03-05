@@ -10,11 +10,6 @@ namespace JC.Core.Data;
 public interface IDataDbContext
 {
     /// <summary>
-    /// Gets the set of reported issues (bugs and suggestions).
-    /// </summary>
-    DbSet<ReportedIssue> ReportedIssues { get; }
-
-    /// <summary>
     /// Gets the set of audit trail entries.
     /// </summary>
     DbSet<AuditEntry> AuditEntries { get; }

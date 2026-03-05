@@ -1,6 +1,4 @@
 using JC.Core.Data;
-using JC.Core.Helpers;
-using JC.Core.Models;
 using JC.Core.Models.Auditing;
 using JC.Core.Services;
 using JC.Core.Services.DataRepositories;
@@ -17,29 +15,21 @@ namespace JC.Core.Extensions;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers all JC.Core services including <see cref="GitHelper"/>, <see cref="BugReportService"/>,
-    /// <see cref="AuditService"/>, the data context, repository manager, and default repository contexts.
+    /// Registers all JC.Core services including <see cref="AuditService"/>,
+    /// the data context, repository manager, and default repository contexts.
     /// </summary>
     /// <typeparam name="TContext">The DbContext type implementing <see cref="IDataDbContext"/>.</typeparam>
     /// <param name="services">The service collection to register services into.</param>
-    /// <param name="configuration">The application configuration, used to resolve GitHub API settings.</param>
     /// <returns>The service collection for chaining.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if required GitHub configuration values are missing.</exception>
-    public static IServiceCollection AddCore<TContext>(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddCore<TContext>(this IServiceCollection services)
         where TContext : DbContext, IDataDbContext
     {
-        var gitUrl = configuration["Github:Url"] ?? throw new InvalidOperationException("Configuration value 'Github:Url' not found.");
-        var gitApiKey = configuration["Github:ApiKey"] ?? throw new InvalidOperationException("Configuration value 'Github:ApiKey' not found.");
-
-        services.TryAddSingleton(new GitHelper(gitUrl, gitApiKey));
-        services.TryAddScoped<BugReportService>();
         services.TryAddScoped<AuditService>();
         services.TryAddScoped<IDataDbContext>(sp => sp.GetRequiredService<TContext>());
         services.TryAddScoped<DbContext>(sp => sp.GetRequiredService<TContext>());
         services.TryAddScoped<IRepositoryManager, RepositoryManager>();
 
         services.RegisterRepositoryContexts(
-            typeof(ReportedIssue),
             typeof(AuditModel));
 
         return services;
