@@ -1,7 +1,7 @@
 # JC-Packages Solution - Comprehensive Review
 
 > **Generated:** 2026-03-04
-> **Updated:** 2026-03-05 (v1.0.2 review)
+> **Updated:** 2026-03-05 (v1.1.0 review)
 > **Target Framework:** .NET 9.0 (all projects)
 > **Author:** jcraik
 
@@ -13,6 +13,7 @@
 - [Dependency Graph](#dependency-graph)
 - [Configuration Requirements](#configuration-requirements)
 - [JC.Core](#jccore)
+- [JC.Github](#jcgithub)
 - [JC.Identity](#jcidentity)
 - [JC.MySql](#jcmysql)
 - [JC.SqlServer](#jcsqlserver)
@@ -25,17 +26,18 @@
 
 ## Solution Overview
 
-JC-Packages is a modular NuGet package suite providing reusable infrastructure for .NET 9.0 web applications. The solution is organised into five projects, each with a focused responsibility:
+JC-Packages is a modular NuGet package suite providing reusable infrastructure for .NET 9.0 web applications. The solution is organised into six projects, each with a focused responsibility:
 
-| Project | Purpose | Dependencies | Files |
-|---------|---------|--------------|-------|
-| **JC.Core** | Repository pattern, auditing, soft-delete, utilities | EF Core 9.0.11, Flurl.Http 4.0.2 | 14 .cs files |
-| **JC.Identity** | ASP.NET Core Identity, multi-tenancy, middleware | JC.Core, Identity.EFC 9.0.11 | 12 .cs files |
-| **JC.MySql** | MySQL database provider registration | JC.Core, Pomelo.EFC.MySql 9.0.0 | 1 .cs file |
-| **JC.SqlServer** | SQL Server database provider registration | JC.Core, EFC.SqlServer 9.0.11 | 1 .cs file |
-| **JC.Web** | HTML helpers, dropdowns, QR codes, model state | JC.Core, QRCoder 1.7.0 | 5 .cs files |
+| Project | Version | Purpose | Key Dependencies | Source Files |
+|---------|---------|---------|------------------|-------------|
+| **JC.Core** | 1.1.0 | Repository pattern, auditing, soft-delete, pagination, utilities | EF Core 9.0.11 | 19 .cs files |
+| **JC.Github** | 1.0.0 | GitHub issue tracking and bug reporting | JC.Core, Flurl.Http 4.0.2 | 4 .cs files |
+| **JC.Identity** | 1.1.0 | ASP.NET Core Identity, multi-tenancy, middleware | JC.Core, Identity.EFC 9.0.11 | 12 .cs files |
+| **JC.MySql** | 1.1.0 | MySQL database provider registration + health checks | JC.Core, Pomelo.EFC.MySql 9.0.0 | 1 .cs file |
+| **JC.SqlServer** | 1.1.0 | SQL Server database provider registration + health checks | JC.Core, EFC.SqlServer 9.0.11 | 1 .cs file |
+| **JC.Web** | 1.1.0 | HTML builders, tag helpers, dropdowns, QR codes | JC.Core, QRCoder 1.7.0 | 10 .cs files |
 
-All projects are version **1.0.2** and are configured as **packable** NuGet packages.
+All projects are configured as **packable** NuGet packages.
 
 **Build status:** Zero warnings, zero errors.
 
@@ -45,13 +47,14 @@ All projects are version **1.0.2** and are configured as **packable** NuGet pack
 
 ```
 JC.Core (foundation)
+  ├── JC.Github    (depends on JC.Core)
   ├── JC.Identity  (depends on JC.Core)
   ├── JC.MySql     (depends on JC.Core)
   ├── JC.SqlServer (depends on JC.Core)
   └── JC.Web       (depends on JC.Core)
 ```
 
-JC.Core is the foundation package — all other projects depend on it. There are no circular dependencies and no cross-references between the leaf packages (Identity, MySql, SqlServer, Web).
+JC.Core is the foundation package — all other projects depend on it. There are no circular dependencies and no cross-references between the leaf packages.
 
 **Note:** Each leaf project includes both a `ProjectReference` (for local development) and a `PackageReference` (for NuGet resolution when the local project isn't available). The `ProjectReference` takes precedence when both are present.
 
@@ -59,9 +62,7 @@ JC.Core is the foundation package — all other projects depend on it. There are
 
 ## Configuration Requirements
 
-The following configuration keys are required by the packages:
-
-### JC.Core (`AddCore<TContext>()`)
+### JC.Github (`AddGithub<TContext>()`)
 
 | Key | Required | Used By |
 |-----|----------|---------|
@@ -89,14 +90,13 @@ The following configuration keys are required by the packages:
 
 ## JC.Core
 
-**Package:** `JC.Core` v1.0.2
-**Description:** Core library providing repository pattern, auditing, soft-delete, and utility helpers for .NET applications.
+**Package:** `JC.Core` v1.1.0
+**Description:** Core library providing repository pattern, auditing, soft-delete, pagination, and utility helpers for .NET applications.
 
 ### NuGet Dependencies
 
 | Package | Version |
 |---------|---------|
-| Flurl.Http | 4.0.2 |
 | Microsoft.EntityFrameworkCore | 9.0.11 |
 | Microsoft.EntityFrameworkCore.Relational | 9.0.11 |
 | Microsoft.Extensions.Configuration.Abstractions | 9.0.11 |
@@ -111,25 +111,29 @@ JC.Core/
 ├── Enums/
 │   └── DeletedQueryType.cs
 ├── Extensions/
+│   ├── DateTimeExtensions.cs
 │   ├── EnumExtensions.cs
+│   ├── PaginationExtensions.cs
 │   ├── QueryExtensions.cs
 │   ├── ServiceCollectionExtensions.cs
-│   └── ServiceProviderExtensions.cs
+│   ├── ServiceProviderExtensions.cs
+│   └── StringExtensions.cs
 ├── Helpers/
 │   ├── ColourHelper.cs
 │   ├── ConstHelper.cs
 │   ├── CountryHelper.cs
-│   └── GitHelper.cs
+│   └── PaginationHelper.cs
 ├── Models/
 │   ├── IUserInfo.cs
-│   ├── ReportedIssue.cs
-│   └── Auditing/
-│       ├── AuditAction.cs
-│       ├── AuditEntry.cs
-│       └── AuditModel.cs
+│   ├── Auditing/
+│   │   ├── AuditAction.cs
+│   │   ├── AuditEntry.cs
+│   │   └── AuditModel.cs
+│   └── Pagination/
+│       ├── IPagination.cs
+│       └── PagedList.cs
 └── Services/
     ├── AuditService.cs
-    ├── BugReportService.cs
     └── DataRepositories/
         ├── IRepositoryContext.cs
         ├── IRepositoryManager.cs
@@ -141,13 +145,11 @@ JC.Core/
 
 #### `IDataDbContext` (Interface)
 Contract for the data context, exposes:
-- `DbSet<ReportedIssue> ReportedIssues`
 - `DbSet<AuditEntry> AuditEntries`
 - `Task<int> SaveChangesAsync(CancellationToken)`
 
 #### `DataDbContext` (Class : DbContext, IDataDbContext)
 Default EF Core DbContext implementation. Configures:
-- **ReportedIssue:** PK on `Id`, `Description` required
 - **AuditEntry:** PK on `Id`, `Action` required, `AuditDate` required, indexes on `UserId`, `TableName`, `AuditDate`
 
 ### Enums
@@ -172,27 +174,10 @@ Comprehensive user contract with 20+ properties covering:
 - **Authorisation:** `Roles` (IReadOnlyList\<string>), `Claims` (IReadOnlyList\<Claim>)
 - **Method:** `bool IsInRole(string role)`
 
-#### `ReportedIssue` (Class)
-Bug/suggestion tracking entity:
-
-| Property | Type | Notes |
-|----------|------|-------|
-| `Id` | string | GUID, private set |
-| `Type` | IssueType (enum) | `Suggestion` or `Bug` |
-| `Description` | required string | Required (enforced at compile time and DB level) |
-| `Image` | byte[]? | Optional screenshot |
-| `ReportSent` | bool | Sent to GitHub |
-| `ExternalId` | int? | GitHub issue number |
-| `Closed` | bool | Resolution status |
-| `Created` | DateTime | Creation timestamp |
-| `UserId` | string? | Reporter ID |
-| `UserDisplay` | string? | Reporter display name |
-
 #### `AuditAction` (Enum)
 `Create` (0), `Update` (1), `Delete` (2), `Restore` (3)
 
 #### `AuditEntry` (Class)
-Audit trail record:
 
 | Property | Type | Notes |
 |----------|------|-------|
@@ -221,6 +206,36 @@ Base class for auditable entities. Provides automatic audit field population:
 
 All setters are **private** — state is only changed through the `Fill*` methods, ensuring consistency. `FillDeleted` clears restore fields; `FillRestored` clears delete fields.
 
+### Pagination
+
+#### `IPagination<T>` (Interface : IReadOnlyList\<T>)
+
+| Property | Type | Notes |
+|----------|------|-------|
+| `Items` | IReadOnlyList\<T> | The page items |
+| `PageNumber` | int | Current page (1-based) |
+| `PageSize` | int | Items per page |
+| `TotalCount` | int | Total items across all pages |
+| `TotalPages` | int | Computed |
+| `HasPreviousPage` | bool | Default implementation |
+| `HasNextPage` | bool | Default implementation |
+| `IsFirstPage` | bool | Default implementation |
+| `IsLastPage` | bool | Default implementation |
+
+#### `PagedList<T>` (Implementation)
+Implements `IPagination<T>` and `IReadOnlyList<T>`. Constructor validates `pageNumber >= 1` and `pageSize >= 1`.
+
+#### `PaginationHelper` (Static, Internal)
+Internal helper with skip/take logic and page validation.
+
+#### `PaginationExtensions` (Static)
+
+| Method | Description |
+|--------|-------------|
+| `ToPagedList<T>(IEnumerable, page, pageSize)` | In-memory pagination |
+| `ToPagedListAsync<T>(IQueryable, page, pageSize, ct)` | Async EF Core pagination |
+| `ToPagedList<T>(IQueryable, page, pageSize)` | Synchronous queryable pagination |
+
 ### Extensions
 
 #### `EnumExtensions` (Static)
@@ -228,9 +243,26 @@ All setters are **private** — state is only changed through the `Fill*` method
 | Method | Description |
 |--------|-------------|
 | `GetAllOptions<T>()` | Returns `List<(string Name, int Value)>` for all enum members |
-| `ToDisplayName()` | Converts PascalCase/underscore enum names to human-readable display strings (e.g. `MyValue` → `"My value"`, `Some_Thing` → `"Some thing"`) |
+| `ToDisplayName()` | Converts PascalCase/underscore enum names to human-readable display strings |
 | `GetDescription()` | Returns `[Description]` attribute value or falls back to `ToDisplayName()` |
 | `TryParse<T>(string?, T)` | Case-insensitive parse with default fallback |
+
+#### `StringExtensions` (Static, Partial)
+
+| Method | Description |
+|--------|-------------|
+| `Truncate(maxLength, suffix)` | Truncates with suffix (default `"..."`): `"Hello World".Truncate(8)` → `"Hello..."` |
+| `ToSlug()` | URL-friendly slug: `"My Blog Post!"` → `"my-blog-post"`. Uses source-generated regex |
+| `ToTitleCase(culture?)` | Culture-aware title casing via `TextInfo.ToTitleCase` |
+| `Mask(visibleChars)` | Masks with asterisks: `"john@email.com".Mask(3)` → `"joh***********"` |
+
+#### `DateTimeExtensions` (Static)
+
+| Method | Description |
+|--------|-------------|
+| `ToRelativeTime()` | Human-readable relative time: `"5 minutes ago"`, `"yesterday"`, `"in 3 days"`, `"just now"`. Handles past and future |
+| `ToFriendlyDate(culture?)` | Full date format: `"Wednesday 5 March 2026"` |
+| `Age()` | Whole years from date of birth, accounts for birthday not yet occurred |
 
 #### `QueryExtensions` (Static)
 
@@ -242,7 +274,7 @@ All setters are **private** — state is only changed through the `Fill*` method
 
 | Method | Description |
 |--------|-------------|
-| `AddCore<TContext>(IConfiguration)` | Registers GitHelper (singleton from config), BugReportService, AuditService, IDataDbContext, DbContext, IRepositoryManager, and repository contexts for ReportedIssue and AuditModel |
+| `AddCore<TContext>()` | Registers AuditService, IDataDbContext, DbContext, IRepositoryManager, and repository contexts for AuditModel |
 | `RegisterRepositoryContext<T>()` | Registers a single `IRepositoryContext<T>` / `RepositoryContext<T>` pair |
 | `RegisterRepositoryContexts(params Type[])` | Registers multiple repository contexts via reflection |
 
@@ -260,7 +292,6 @@ All setters are **private** — state is only changed through the `Fill*` method
 |--------|-------------|
 | `HoverColour(string hex)` | Lightens a hex colour by 40% for hover states |
 | `FontColour(string hex)` | Returns `#000000` or `#ffffff` based on luminance (WCAG-style threshold at 0.5) |
-| `ExtractRGB(string)` | Private — parses hex `#RRGGBB` to (R, G, B) tuple |
 
 #### `ConstHelper` (Static)
 
@@ -272,22 +303,12 @@ All setters are **private** — state is only changed through the `Fill*` method
 
 | Method | Description |
 |--------|-------------|
-| `GetCountries()` | Returns `IReadOnlyList<Country>` from .NET CultureInfo data (cached, deduplicated, sorted) |
+| `GetCountries(ILogger?)` | Returns `IReadOnlyList<Country>` from .NET CultureInfo data (cached, deduplicated, sorted). Logs warnings for failed cultures |
 | `GetCountriesDictionary()` | Returns `Dictionary<string, string>` (Code → Name) |
 | `GetCountryName(string code)` | Looks up country name by ISO 3166-1 alpha-2 code |
 | `GetCountryCode(string name)` | Looks up country code by name |
 
 **Nested:** `record Country(string Code, string Name)`
-
-#### `GitHelper` (Class)
-GitHub API integration using Flurl.Http. Registered as a **singleton** in `AddCore()` from `Github:Url` and `Github:ApiKey` configuration values.
-
-| Method | Description |
-|--------|-------------|
-| Constructor | Configures FlurlClient with Bearer token, `X-GitHub-Api-Version: 2022-11-28` header, `User-Agent: JC.Core` |
-| `RecordIssue(owner, repo, title, desc)` | Creates a GitHub issue, returns issue number |
-
-**Nested response classes:** `NewCommentResponse`, `NewIssueResponse`
 
 ### Services
 
@@ -302,13 +323,6 @@ GitHub API integration using Flurl.Http. Registered as a **singleton** in `AddCo
 | `LogUpdateAsync(tableName, data?)` | Convenience for `AuditAction.Update` |
 | `LogDeleteAsync(tableName, data?)` | Convenience for `AuditAction.Delete` |
 | `LogRestoreAsync(tableName, data?)` | Convenience for `AuditAction.Restore` |
-
-#### `BugReportService`
-**Dependencies:** `IConfiguration`, `IDataDbContext`, `GitHelper`, `ILogger<BugReportService>`
-
-| Method | Description |
-|--------|-------------|
-| `RecordIssue(description, issueType, creatorId?, creatorName?)` | Creates ReportedIssue entity, attempts to create GitHub issue (graceful failure with logging), saves to DB |
 
 ### Repository Pattern
 
@@ -339,20 +353,103 @@ All write operations accept optional `userId` (defaults to current user), `saveN
 
 ---
 
+## JC.Github
+
+**Package:** `JC.Github` v1.0.0
+**Description:** GitHub integration for JC.Core providing bug report and issue tracking services.
+
+### NuGet Dependencies
+
+| Package | Version |
+|---------|---------|
+| JC.Core | 1.1.0 |
+| Flurl.Http | 4.0.2 |
+| Microsoft.EntityFrameworkCore | 9.0.11 |
+| Microsoft.Extensions.Configuration.Abstractions | 9.0.11 |
+
+### Project Structure
+
+```
+JC.Github/
+├── Data/
+│   └── IGithubDbContext.cs
+├── Extensions/
+│   └── ServiceCollectionExtensions.cs
+├── Helpers/
+│   └── GitHelper.cs
+├── Models/
+│   └── ReportedIssue.cs
+└── Services/
+    └── BugReportService.cs
+```
+
+### Data
+
+#### `IGithubDbContext` (Interface)
+- `DbSet<ReportedIssue> ReportedIssues`
+
+### Models
+
+#### `ReportedIssue` (Class)
+
+| Property | Type | Notes |
+|----------|------|-------|
+| `Id` | string | GUID, private set |
+| `Type` | IssueType (enum) | `Suggestion` or `Bug` |
+| `Description` | required string | Required |
+| `Image` | byte[]? | Optional screenshot |
+| `ReportSent` | bool | Sent to GitHub |
+| `ExternalId` | int? | GitHub issue number |
+| `Closed` | bool | Resolution status |
+| `Created` | DateTime | Creation timestamp |
+| `UserId` | string? | Reporter ID |
+| `UserDisplay` | string? | Reporter display name |
+
+### Helpers
+
+#### `GitHelper` (Class)
+GitHub API integration using Flurl.Http. Registered as a **singleton** in `AddGithub()` from `Github:Url` and `Github:ApiKey` configuration values.
+
+| Method | Description |
+|--------|-------------|
+| Constructor | Configures FlurlClient with Bearer token, `X-GitHub-Api-Version: 2022-11-28` header, `User-Agent: JC.Core` |
+| `RecordIssue(owner, repo, title, desc)` | Creates a GitHub issue, returns issue number |
+
+**Nested:** Private `NewIssueResponse` class for JSON deserialisation.
+
+### Services
+
+#### `BugReportService`
+**Dependencies:** `IConfiguration`, `IGithubDbContext`, `GitHelper`, `ILogger<BugReportService>`
+
+| Method | Description |
+|--------|-------------|
+| `RecordIssue(description, issueType, creatorId?, creatorName?)` | Creates ReportedIssue entity, attempts to create GitHub issue (graceful failure with logging), saves to DB |
+
+### Extensions
+
+#### `ServiceCollectionExtensions` (Static)
+
+| Method | Description |
+|--------|-------------|
+| `AddGithub<TContext>()` | Registers `GitHelper` (singleton from config), `BugReportService`, `IGithubDbContext`, and repository context for `ReportedIssue`. Throws `InvalidOperationException` if config values missing |
+
+---
+
 ## JC.Identity
 
-**Package:** `JC.Identity` v1.0.2
+**Package:** `JC.Identity` v1.1.0
 **Description:** Identity library providing ASP.NET Core Identity integration, multi-tenancy, middleware, and user management helpers.
 
 ### NuGet Dependencies
 
 | Package | Version |
 |---------|---------|
-| JC.Core | 1.0.2 |
+| JC.Core | 1.1.0 |
 | Microsoft.AspNetCore.Identity.EntityFrameworkCore | 9.0.11 |
 | Microsoft.AspNetCore.App | Framework Reference |
 
-**Note:** All JSON serialisation now uses `System.Text.Json` (the Newtonsoft.Json dependency has been removed).
+**Note:** All JSON serialisation uses `System.Text.Json`.
 
 ### Project Structure
 
@@ -402,10 +499,9 @@ Built-in roles:
 #### `IdentityDataDbContext<TUser, TRole>`
 Extends `IdentityDbContext<TUser, TRole, string>` and implements `IDataDbContext`.
 
-**DbSets:** `ReportedIssues`, `AuditEntries`, `Tenants`
+**DbSets:** `AuditEntries`, `Tenants`
 
 **OnModelCreating** configures:
-- ReportedIssue (PK, required Description)
 - AuditEntry (PK, required Action/AuditDate, indexes on UserId, TableName, AuditDate)
 - Tenant (PK, required Name, index on Domain)
 - Calls `ApplyTenantQueryFilters()` for automatic multi-tenancy filtering
@@ -413,7 +509,6 @@ Extends `IdentityDbContext<TUser, TRole, string>` and implements `IDataDbContext
 ### Models
 
 #### `BaseUser` (: IdentityUser, IMultiTenancy)
-Extends ASP.NET Core IdentityUser with:
 
 | Property | Type | Default |
 |----------|------|---------|
@@ -425,7 +520,6 @@ Extends ASP.NET Core IdentityUser with:
 | `RequirePasswordChange` | bool | false |
 
 #### `BaseRole` (: IdentityRole)
-Extends IdentityRole with:
 - `Description` (string?) — Role description
 
 #### `UserInfo` (: IUserInfo)
@@ -441,6 +535,7 @@ Runtime user state populated from claims. Includes:
 Contract: `TenantId` (string?) and `Tenant` (Tenant?) navigation property.
 
 #### `Tenant` (sealed : AuditModel)
+
 | Property | Type | Notes |
 |----------|------|-------|
 | `Id` | string | GUID default |
@@ -481,9 +576,8 @@ Pipeline enforcement:
 5. **Checks `RequiresPasswordChange`** (if enabled) → redirects to ChangePassword route (logged as info)
 6. **Checks 2FA enforcement** (if enabled via global option) → redirects to TwoFactor setup route (logged as info)
 
-**Note:** 2FA enforcement (`EnforceTwoFactor`) is a **global** option in `IdentityMiddlewareOptions`. When enabled, all users without 2FA configured are redirected. There is no per-user 2FA enforcement — this is by design for v1.0.2.
-
 #### `IdentityMiddlewareOptions`
+
 | Property | Type | Default |
 |----------|------|---------|
 | `RequirePasswordChange` | bool | `true` |
@@ -527,23 +621,17 @@ Pipeline enforcement:
 
 ## JC.MySql
 
-**Package:** `JC.MySql` v1.0.2
+**Package:** `JC.MySql` v1.1.0
 **Description:** MySQL database provider extensions for JC.Core using Pomelo.EntityFrameworkCore.MySql.
 
 ### NuGet Dependencies
 
 | Package | Version |
 |---------|---------|
-| JC.Core | 1.0.2 |
+| JC.Core | 1.1.0 |
 | Pomelo.EntityFrameworkCore.MySql | 9.0.0 |
+| AspNetCore.HealthChecks.MySql | 9.0.0 |
 | Microsoft.Extensions.Configuration.Abstractions | 9.0.11 |
-
-### Project Structure
-
-```
-JC.MySql/
-└── Extension.cs
-```
 
 ### `ServiceCollectionExtensions` (Static)
 
@@ -560,6 +648,7 @@ JC.MySql/
 | `migrationsAssembly` | string | required |
 | `connectionStringName` | string | `"DefaultConnection"` |
 | `mySqlOptions` | Action\<MySqlDbContextOptionsBuilder>? | null |
+| `addHealthCheck` | bool | `false` |
 
 **Behaviour:**
 - Retrieves connection string from `IConfiguration.GetConnectionString()`
@@ -567,28 +656,23 @@ JC.MySql/
 - Auto-detects MySQL server version via `ServerVersion.AutoDetect()`
 - Configures migrations assembly
 - Invokes optional custom MySQL options callback
+- When `addHealthCheck` is `true`, registers a MySQL health check via `AspNetCore.HealthChecks.MySql`
 
 ---
 
 ## JC.SqlServer
 
-**Package:** `JC.SqlServer` v1.0.2
+**Package:** `JC.SqlServer` v1.1.0
 **Description:** SQL Server database provider extensions for JC.Core using Microsoft.EntityFrameworkCore.SqlServer.
 
 ### NuGet Dependencies
 
 | Package | Version |
 |---------|---------|
-| JC.Core | 1.0.2 |
+| JC.Core | 1.1.0 |
 | Microsoft.EntityFrameworkCore.SqlServer | 9.0.11 |
+| AspNetCore.HealthChecks.SqlServer | 9.0.0 |
 | Microsoft.Extensions.Configuration.Abstractions | 9.0.11 |
-
-### Project Structure
-
-```
-JC.SqlServer/
-└── Extension.cs
-```
 
 ### `ServiceCollectionExtensions` (Static)
 
@@ -605,21 +689,22 @@ JC.SqlServer/
 | `migrationsAssembly` | string | required |
 | `connectionStringName` | string | `"DefaultConnection"` |
 | `sqlServerOptions` | Action\<SqlServerDbContextOptionsBuilder>? | null |
+| `addHealthCheck` | bool | `false` |
 
-**Behaviour:** Identical pattern to JC.MySql — retrieves connection string, validates, registers DbContext with SQL Server provider.
+**Behaviour:** Identical pattern to JC.MySql — retrieves connection string, validates, registers DbContext with SQL Server provider. When `addHealthCheck` is `true`, registers a SQL Server health check via `AspNetCore.HealthChecks.SqlServer`.
 
 ---
 
 ## JC.Web
 
-**Package:** `JC.Web` v1.0.2
-**Description:** Web helpers for ASP.NET Core including dropdown builders, HTML tag builder, model state wrapper, and QR code generation.
+**Package:** `JC.Web` v1.1.0
+**Description:** Web helpers for ASP.NET Core including dropdown builders, HTML tag builder, pagination tag helper, model state wrapper, and QR code generation.
 
 ### NuGet Dependencies
 
 | Package | Version |
 |---------|---------|
-| JC.Core | 1.0.2 |
+| JC.Core | 1.1.0 |
 | QRCoder | 1.7.0 |
 | Microsoft.AspNetCore.App | Framework Reference |
 
@@ -630,13 +715,84 @@ JC.Web/
 ├── Helpers/
 │   ├── DropdownHelper.cs
 │   ├── ModelStateWrapper.cs
+│   ├── QrCodeHelper.cs
 │   └── HTML/
+│       ├── AlertHelper.cs
+│       ├── BreadcrumbBuilder.cs
 │       ├── HtmlHelper.cs
-│       └── HtmlTagBuilder.cs
-└── QrCodeHelper.cs
+│       ├── HtmlTagBuilder.cs
+│       └── TableBuilder.cs
+└── TagHelpers/
+    ├── AlertTagHelper.cs
+    ├── BreadcrumbTagHelper.cs
+    └── PaginationTagHelper.cs
 ```
 
-### `DropdownHelper` (Static)
+### HTML Builders
+
+#### `HtmlTagBuilder` (Class)
+
+Fluent HTML tag builder with internal constructor. Attribute values are HTML-encoded via `WebUtility.HtmlEncode`.
+
+| Method | Description |
+|--------|-------------|
+| `AddClass(className)` | Adds CSS class (ignores empty) |
+| `AddAttribute(name, value)` | Adds/overwrites HTML attribute (value HTML-encoded) |
+| `AddActiveAttribute()` | Adds "active" CSS class |
+| `AddCurrentPageAttribute()` | Adds `aria-current="page"` |
+| `AddDisabledClass()` | Adds "disabled" CSS class |
+| `SetContent(content)` | Sets inner HTML content |
+| `Build()` | Returns final HTML string |
+| `implicit operator string` | Auto-converts to string via `Build()` |
+
+Supports self-closing tags (e.g., `<input />`, `<br />`).
+
+#### `HtmlHelper` (Static)
+
+| Method | Description |
+|--------|-------------|
+| `CreateElement(tag, content, isActive, isDisabled, attributes, classes)` | Generic element builder |
+| `PaginationItem(content, isActive, isDisabled)` | `<li class="page-item">` with active/disabled states |
+| `PaginationLink(text, href, buttonClass, isActive)` | `<a class="page-link">` with aria-current support |
+
+#### `AlertHelper` (Static)
+
+DRY design — single private `Alert(message, cssClass, dismissible)` method; public methods pass the Bootstrap class:
+
+| Method | Description |
+|--------|-------------|
+| `Success(message, dismissible)` | `alert-success` alert |
+| `Warning(message, dismissible)` | `alert-warning` alert |
+| `Error(message, dismissible)` | `alert-danger` alert |
+| `Info(message, dismissible)` | `alert-info` alert |
+| `ForType(AlertType, message, dismissible)` | Renders by enum value |
+
+**Enum `AlertType`:** `Success`, `Warning`, `Error`, `Info`
+
+Dismissible alerts (default) include `alert-dismissible fade show` classes and a Bootstrap close button.
+
+#### `BreadcrumbBuilder` (Class)
+
+Fluent builder for Bootstrap 5 breadcrumb navigation. Last item is always rendered as active with `aria-current="page"`. All labels and URLs are HTML-encoded. Implicit string conversion.
+
+| Method | Description |
+|--------|-------------|
+| `Add(label, url?)` | Adds a breadcrumb item. Items with URL get `<a>` tags |
+| `Build()` | Returns complete `<nav><ol class="breadcrumb">...</ol></nav>` |
+
+#### `TableBuilder<T>` (Class)
+
+Generic fluent builder for rendering Bootstrap HTML tables. All cell content is HTML-encoded to prevent XSS. Column CSS classes apply to both `<th>` and `<td>`.
+
+| Method | Description |
+|--------|-------------|
+| `AddColumn(header, Func<T, string?>, cssClass?)` | Adds a column with string value selector |
+| `AddColumn(header, Func<T, object?>, cssClass?)` | Adds a column with object selector (`.ToString()`) |
+| `Build(items, tableClass?)` | Returns complete `<table>` HTML. Default class: `"table"` |
+
+### Other Helpers
+
+#### `DropdownHelper` (Static)
 
 | Method | Description |
 |--------|-------------|
@@ -647,32 +803,7 @@ JC.Web/
 | `GetCountryDropdown(selected?)` | Pre-built country dropdown from `CountryHelper` |
 | `WithPlaceholder(items, text, value)` | Extension: inserts placeholder item at index 0 (default: "Please select...") |
 
-### `HtmlTagBuilder` (Class)
-
-Fluent HTML tag builder with internal constructor:
-
-| Method | Description |
-|--------|-------------|
-| `AddClass(className)` | Adds CSS class (ignores empty) |
-| `AddAttribute(name, value)` | Adds/overwrites HTML attribute |
-| `AddActiveAttribute()` | Adds "active" CSS class |
-| `AddCurrentPageAttribute()` | Adds `aria-current="page"` |
-| `AddDisabledClass()` | Adds "disabled" CSS class |
-| `SetContent(content)` | Sets inner HTML content |
-| `Build()` | Returns final HTML string |
-| `implicit operator string` | Auto-converts to string via `Build()` |
-
-Supports self-closing tags (e.g., `<input />`, `<br />`).
-
-### `HtmlHelper` (Static)
-
-| Method | Description |
-|--------|-------------|
-| `CreateElement(tag, content, isActive, isDisabled, attributes, classes)` | Generic element builder |
-| `PaginationItem(content, isActive, isDisabled)` | `<li class="page-item">` with active/disabled states |
-| `PaginationLink(text, href, buttonClass, isActive)` | `<a class="page-link">` with aria-current support |
-
-### `ModelStateWrapper` (Class)
+#### `ModelStateWrapper` (Class)
 
 Wraps `ModelStateDictionary` with automatic key prefixing. Uses primary constructor syntax.
 
@@ -691,20 +822,69 @@ Wraps `ModelStateDictionary` with automatic key prefixing. Uses primary construc
 | `GetErrors(key)` | Returns all errors for prefixed key |
 | `GetAllErrors()` | Returns `Dictionary<string, string[]>` of all errors |
 
-### `QrCodeHelper` (Class)
+#### `QrCodeHelper` (Class)
 
 | Constructor | Description |
 |-------------|-------------|
 | `QrCodeHelper()` | SVG format, 10px/module, ECC level M |
-| `QrCodeHelper(format, pixelsPerModule, eccLevel)` | Custom configuration (clamps pixelsPerModule to minimum 10 if ≤ 0) |
+| `QrCodeHelper(format, pixelsPerModule, eccLevel)` | Custom configuration (clamps pixelsPerModule to minimum 10 if <= 0) |
 
 | Method | Description |
 |--------|-------------|
-| `GenerateQrCode(content)` | Returns SVG string or base64 PNG data URI. Throws `ArgumentException` for empty content. |
+| `GenerateQrCode(content)` | Returns SVG string or base64 PNG data URI. Throws `ArgumentException` for empty content |
 
 **Enum `QrCodeFormat`:** `Svg` (0), `Base64` (1)
 
-**Constant:** `Base64ImgPrefix = "data:image/png;base64,"`
+### Tag Helpers
+
+#### `PaginationTagHelper`
+
+Renders Bootstrap pagination from an `IPagination<T>` model.
+
+```html
+<pagination model="Model.Items" href-format="/items?page={0}" />
+```
+
+| Attribute | Type | Default |
+|-----------|------|---------|
+| `model` | IPagination\<object>? | required |
+| `href-format` | string | `"?page={0}"` |
+| `max-pages` | int | 5 |
+| `previous-text` | string | `&laquo;` |
+| `next-text` | string | `&raquo;` |
+| `show-first-last` | bool | true |
+| `container-class` | string? | null |
+
+Features: first/last links, previous/next, page numbers with ellipsis, active/disabled states.
+
+#### `AlertTagHelper`
+
+Renders a Bootstrap 5 alert. Delegates to `AlertHelper.ForType()`.
+
+```html
+<alert type="Success" message="Saved successfully!" />
+<alert type="Error" message="Something went wrong." dismissible="false" />
+```
+
+| Attribute | Type | Default |
+|-----------|------|---------|
+| `type` | AlertType | `Info` |
+| `message` | string? | required |
+| `dismissible` | bool | true |
+
+#### `BreadcrumbTagHelper` + `CrumbTagHelper`
+
+Nested tag helper pattern — children pass data to parent via `TagHelperContext.Items`.
+
+```html
+<breadcrumb>
+  <crumb label="Home" href="/" />
+  <crumb label="Products" href="/products" />
+  <crumb label="Widget" />
+</breadcrumb>
+```
+
+Last crumb is automatically rendered as the active page.
 
 ---
 
@@ -727,7 +907,7 @@ The entire solution uses **`System.Text.Json`** consistently:
 | **Multi-Tenancy** | Global EF Core query filters via `IMultiTenancy` interface |
 | **Claims-Based Identity** | Custom `DefaultClaimsPrincipalFactory` with 12 extended claims |
 | **Middleware Pipeline** | `UserInfoMiddleware` → `IdentityMiddleware` for request processing |
-| **Builder** | `HtmlTagBuilder` fluent API |
+| **Builder** | `HtmlTagBuilder`, `BreadcrumbBuilder`, `TableBuilder<T>` fluent APIs |
 | **Options Pattern** | `IdentityMiddlewareOptions` via `IOptions<T>` |
 
 ### Dependency Injection Registration
@@ -736,11 +916,12 @@ A consuming application would typically wire up:
 
 ```csharp
 // Program.cs
-services.AddCore<MyDbContext>(configuration);                // JC.Core (requires IConfiguration)
-services.AddIdentity<MyUser, MyRole>();                      // JC.Identity
-services.AddMySqlDatabase<MyDbContext>(config, "MyApp");     // JC.MySql (or JC.SqlServer)
+services.AddCore<MyDbContext>();                                                // JC.Core
+services.AddGithub<MyDbContext>(configuration);                                // JC.Github
+services.AddIdentity<MyUser, MyRole>();                                        // JC.Identity
+services.AddMySqlDatabase<MyDbContext>(config, "MyApp", addHealthCheck: true);  // JC.MySql (or JC.SqlServer)
 
-app.UseIdentity();                                           // JC.Identity middleware
+app.UseIdentity();                                                              // JC.Identity middleware
 await app.ConfigureAdminAndRolesAsync<MyUser, MyRoles, MyRole>();
 await app.Services.MigrateDatabaseAsync<MyDbContext>();
 ```
@@ -771,7 +952,7 @@ The order matters:
 
 ### Strengths
 
-1. **Clean separation of concerns** — Each project has a focused responsibility with no circular dependencies
+1. **Clean separation of concerns** — Six projects, each with a focused responsibility, no circular dependencies
 2. **Consistent patterns** — Repository pattern, DI registration, and extension methods follow a uniform style throughout
 3. **Comprehensive auditing** — Full CRUD audit trail with user tracking, timestamps, and JSON data serialisation
 4. **Flexible multi-tenancy** — Global query filters with admin bypass and tenant settings system
@@ -780,64 +961,59 @@ The order matters:
 7. **Packable architecture** — All projects configured as NuGet packages for reuse across applications
 8. **Consistent serialisation** — Entire solution standardised on `System.Text.Json`
 9. **CancellationToken support** — All repository async operations propagate cancellation tokens
-10. **Middleware logging** — Both middleware classes log meaningful events at appropriate levels (debug for routine, info for redirects, warning for disabled users)
-11. **DI-friendly design** — `TryAddScoped` throughout prevents double-registration conflicts when consuming apps customise services
+10. **Middleware logging** — Both middleware classes log meaningful events at appropriate levels
+11. **DI-friendly design** — `TryAddScoped` throughout prevents double-registration conflicts
 12. **Clean build** — Zero warnings, zero errors
-
-### Remaining Considerations
-
-1. ~~**`CountryHelper` silent exception handling**~~ — **Resolved.** Broad catch retained (to prevent app crashes from unexpected failures) but now logs a warning with the culture name and exception via an optional `ILogger?` parameter on `GetCountries()`.
-
-2. ~~**`AuditService` lacks `CancellationToken`**~~ — **Dismissed.** `CancellationToken` is valuable at boundaries (HTTP, background tasks, external APIs) and for potentially long-running operations. `AuditService` is a focused internal service writing a single row — the operation is too quick for cancellation to add practical value.
-
-3. ~~**`BugReportService` exception type**~~ — **Resolved.** Changed from `ArgumentNullException` to `InvalidOperationException` with descriptive messages, matching the pattern used in `AddCore()` and `SeedDefaultAdminAsync()`.
-
-4. ~~**`GitHelper.NewCommentResponse`**~~ — **Resolved.** Removed unused class. `NewIssueResponse` also made private since it's only used internally.
-
-5. ~~**`ColourHelper` and `ConstHelper` are non-static classes with only static methods**~~ — **Resolved.** Both classes marked `static`.
-
-6. ~~**`IUserInfo` has mutable setters on all properties**~~ — **Acknowledged.** Setters must remain on `IUserInfo` because `UserInfoMiddleware` writes through the interface. XML documentation documents all properties as "Gets" to signal read-only intent to consumers.
-
-7. ~~**No XML documentation on public APIs**~~ — **Resolved.** Full XML documentation with `<summary>`, `<param>`, `<typeparam>`, `<returns>`, and `<exception>` tags added to all public types, methods, properties, and enum members across all five projects.
-
-8. ~~**`HtmlTagBuilder` doesn't HTML-encode attribute values**~~ — **Resolved.** Attribute values are now encoded via `System.Net.WebUtility.HtmlEncode` in the `Build()` method.
-
-9. ~~**`SeedDefaultAdminAsync` reads `tenantIdConfigKey` but ignores its value**~~ — **Resolved.** Removed the `tenantIdConfigKey` parameter entirely. When `setupTenancy` is true, the method now finds an existing "Default Tenant" or creates one if it doesn't exist.
+13. **XSS prevention** — `HtmlTagBuilder` encodes attribute values; `TableBuilder` encodes all cell content; `BreadcrumbBuilder` encodes labels and URLs
+14. **Rich utility extensions** — String (truncate, slug, mask, title case), DateTime (relative time, friendly date, age), enum (display name, description, parse), and pagination extensions eliminate boilerplate in consuming apps
+15. **Comprehensive tag helpers** — Pagination, alerts, and breadcrumbs all available as both programmatic helpers and declarative Razor tag helpers
+16. **Health check support** — Optional database health check registration in both MySql and SqlServer packages
 
 ### Reviewed & Dismissed
 
 1. **No test projects** — Acknowledged. Testing is not a priority for this package suite at this time.
-
-2. **`ChangePasswordRoute` default** — The route `/Identity/Account/Manage/SetPassword` is intentionally correct. After logging in with their current password, users are redirected to the "set password" page — requiring them to re-enter their current password would be poor UX.
+2. **`ChangePasswordRoute` default** — The route `/Identity/Account/Manage/SetPassword` is intentionally correct.
 
 ---
 
 ## Changelog
 
+### v1.1.0 (2026-03-05)
+
+| Change | Project | Details |
+|--------|---------|---------|
+| **New project: JC.Github** | JC.Github | Extracted GitHub integration (GitHelper, BugReportService, ReportedIssue, IGithubDbContext) from JC.Core into a standalone package |
+| **Pagination system** | JC.Core | `IPagination<T>`, `PagedList<T>`, `PaginationHelper`, `PaginationExtensions` (`ToPagedList`, `ToPagedListAsync`) |
+| **Pagination tag helper** | JC.Web | `<pagination>` tag helper with first/last/prev/next, ellipsis, configurable max pages |
+| **String extensions** | JC.Core | `Truncate`, `ToSlug` (source-generated regex), `ToTitleCase`, `Mask` |
+| **DateTime extensions** | JC.Core | `ToRelativeTime` (past + future), `ToFriendlyDate`, `Age` |
+| **AlertHelper + tag helper** | JC.Web | DRY `AlertHelper` (Success/Warning/Error/Info) + `<alert>` tag helper with dismissible support |
+| **BreadcrumbBuilder + tag helper** | JC.Web | Fluent `BreadcrumbBuilder` + nested `<breadcrumb>`/`<crumb>` tag helpers with auto-active last item |
+| **TableBuilder** | JC.Web | Generic `TableBuilder<T>` with HTML-encoded cells, column CSS classes, string and object selectors |
+| **Health check registration** | JC.MySql, JC.SqlServer | Optional `addHealthCheck` parameter (default `false`) using `AspNetCore.HealthChecks.MySql`/`.SqlServer` v9.0.0 |
+| **Flurl.Http removed from JC.Core** | JC.Core | Moved to JC.Github; JC.Core no longer has HTTP client dependencies |
+| **Version bump** | All | JC.Core, JC.Identity, JC.Web → 1.1.0; JC.MySql, JC.SqlServer → 1.1.0; JC.Github → 1.0.0 |
+
 ### v1.0.2 (2026-03-05)
 
 | Change | Details |
 |--------|---------|
-| **Full XML documentation** | All public types, methods, properties, and enum members across all five projects now have XML documentation with `<summary>`, `<param>`, `<returns>`, and `<exception>` tags |
-| **`CountryHelper` logging** | `GetCountries()` now accepts an optional `ILogger?` parameter; exceptions during `RegionInfo` creation are logged as warnings instead of silently swallowed |
-| **`BugReportService` exception type** | Changed from `ArgumentNullException` to `InvalidOperationException` with descriptive messages for missing config values, matching the pattern used throughout the solution |
-| **Removed `GitHelper.NewCommentResponse`** | Unused response class removed; `NewIssueResponse` made private |
-| **`ColourHelper` and `ConstHelper` made static** | Both classes now marked `static` to prevent accidental instantiation |
-| **`HtmlTagBuilder` attribute encoding** | Attribute values are now HTML-encoded via `System.Net.WebUtility.HtmlEncode` to prevent malformed HTML and XSS |
-| **`SeedDefaultAdminAsync` simplified** | Removed unused `tenantIdConfigKey` parameter; when `setupTenancy` is true, the method now finds an existing "Default Tenant" or creates one automatically |
-| **Version bump** | All packages updated to v1.0.2; all JC.Core package references updated to require 1.0.2 |
+| **Full XML documentation** | All public types, methods, properties, and enum members across all projects |
+| **`CountryHelper` logging** | `GetCountries()` now accepts an optional `ILogger?` parameter |
+| **`BugReportService` exception type** | Changed from `ArgumentNullException` to `InvalidOperationException` |
+| **Removed `GitHelper.NewCommentResponse`** | Unused class removed; `NewIssueResponse` made private |
+| **`ColourHelper` and `ConstHelper` made static** | Prevent accidental instantiation |
+| **`HtmlTagBuilder` attribute encoding** | Attribute values HTML-encoded via `WebUtility.HtmlEncode` |
+| **`SeedDefaultAdminAsync` simplified** | Removed unused `tenantIdConfigKey` parameter |
 
 ### v1.0.1 (2026-03-04)
 
 | Change | Details |
 |--------|---------|
-| **GitHelper registered in DI** | `AddCore<TContext>()` now requires `IConfiguration` and registers `GitHelper` as a singleton from `Github:Url` and `Github:ApiKey` config values |
-| **Standardised on System.Text.Json** | `Tenant` settings serialisation migrated from Newtonsoft.Json to System.Text.Json; Newtonsoft.Json package reference removed from JC.Identity |
-| **Removed `DatabaseProvider` enum** | Unused enum (`SqlServer`, `MySql`) deleted from JC.Core — provider selection is handled by which package (JC.MySql or JC.SqlServer) is referenced |
-| **Added CancellationToken support** | All async methods on `IRepositoryContext<T>` and `RepositoryContext<T>` now accept and propagate `CancellationToken` (defaults to `default` for backwards compatibility) |
-| **Added middleware logging** | `UserInfoMiddleware` logs debug-level messages for user population; `IdentityMiddleware` logs warnings for disabled users and info for password change / 2FA redirects |
-| **Removed `EnforceTwoFactor` from `IUserInfo`** | Property was never populated from claims or written by the claims factory — 2FA enforcement is handled exclusively via the global `IdentityMiddlewareOptions.EnforceTwoFactor` setting |
-| **Removed `HasMaxLength(-1)` from AuditEntry.ActionData** | SQL Server-specific convention that could produce unexpected behaviour with MySQL/Pomelo; `string?` properties default to unbounded text in both providers |
-| **Simplified `ColourHelper.HoverColour`** | Removed redundant `Math.Min/Max` clamping — the lightening formula mathematically cannot produce values outside the 0–255 range for valid hex inputs |
-| **`ReportedIssue.Description` marked `required`** | Enforces non-null at compile time, eliminating CS8618 warning |
-| **Version bump** | All packages updated to v1.0.1; all JC.Core package references updated to require 1.0.1 |
+| **GitHelper registered in DI** | `AddCore<TContext>()` registers `GitHelper` as singleton from config |
+| **Standardised on System.Text.Json** | Newtonsoft.Json removed from JC.Identity |
+| **Removed `DatabaseProvider` enum** | Unused; provider selection handled by package choice |
+| **Added CancellationToken support** | All async repository methods propagate cancellation tokens |
+| **Added middleware logging** | Debug/info/warning level logging in both middleware classes |
+| **Removed `EnforceTwoFactor` from `IUserInfo`** | 2FA enforcement via global `IdentityMiddlewareOptions` only |
+| **`ReportedIssue.Description` marked `required`** | Compile-time null safety |

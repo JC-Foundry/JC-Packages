@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.SqlServer</PackageId>
-        <Version>1.0.3</Version>
+        <Version>1.1.0</Version>
         <Description>SQL Server database provider extensions for JC.Core using Microsoft.EntityFrameworkCore.SqlServer.</Description>
     </PropertyGroup>
 
@@ -11,6 +11,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <PackageReference Include="AspNetCore.HealthChecks.SqlServer" Version="9.0.0" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.11" />
       <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.11" />
     </ItemGroup>

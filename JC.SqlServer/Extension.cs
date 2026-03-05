@@ -1,3 +1,4 @@
+using HealthChecks.SqlServer;
 using JC.Core.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -19,6 +20,7 @@ public static class ServiceCollectionExtensions
     /// <param name="migrationsAssembly">The assembly name containing EF Core migrations.</param>
     /// <param name="connectionStringName">The connection string name in configuration. Defaults to <c>"DefaultConnection"</c>.</param>
     /// <param name="sqlServerOptions">Optional callback to configure SQL Server-specific options.</param>
+    /// <param name="addHealthCheck">Whether to register a SQL Server health check. Defaults to <c>false</c>.</param>
     /// <returns>The service collection for chaining.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the connection string is not found.</exception>
     public static IServiceCollection AddSqlServerDatabase(
@@ -26,9 +28,10 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration,
         string migrationsAssembly,
         string connectionStringName = "DefaultConnection",
-        Action<SqlServerDbContextOptionsBuilder>? sqlServerOptions = null)
+        Action<SqlServerDbContextOptionsBuilder>? sqlServerOptions = null,
+        bool addHealthCheck = false)
     {
-        services.AddSqlServerDatabase<DataDbContext>(configuration, migrationsAssembly, connectionStringName, sqlServerOptions);
+        services.AddSqlServerDatabase<DataDbContext>(configuration, migrationsAssembly, connectionStringName, sqlServerOptions, addHealthCheck);
         return services;
     }
 
@@ -41,6 +44,7 @@ public static class ServiceCollectionExtensions
     /// <param name="migrationsAssembly">The assembly name containing EF Core migrations.</param>
     /// <param name="connectionStringName">The connection string name in configuration. Defaults to <c>"DefaultConnection"</c>.</param>
     /// <param name="sqlServerOptions">Optional callback to configure SQL Server-specific options.</param>
+    /// <param name="addHealthCheck">Whether to register a SQL Server health check. Defaults to <c>false</c>.</param>
     /// <returns>The service collection for chaining.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the connection string is not found.</exception>
     public static IServiceCollection AddSqlServerDatabase<TContext>(
@@ -48,7 +52,8 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration,
         string migrationsAssembly,
         string connectionStringName = "DefaultConnection",
-        Action<SqlServerDbContextOptionsBuilder>? sqlServerOptions = null)
+        Action<SqlServerDbContextOptionsBuilder>? sqlServerOptions = null,
+        bool addHealthCheck = false)
         where TContext : DbContext, IDataDbContext
     {
         var connectionString = configuration.GetConnectionString(connectionStringName)
@@ -60,6 +65,9 @@ public static class ServiceCollectionExtensions
                 sql.MigrationsAssembly(migrationsAssembly);
                 sqlServerOptions?.Invoke(sql);
             }));
+
+        if (addHealthCheck)
+            services.AddHealthChecks().AddSqlServer(connectionString, name: "sqlserver");
 
         return services;
     }

@@ -1,3 +1,4 @@
+using HealthChecks.MySql;
 using JC.Core.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -19,6 +20,7 @@ public static class ServiceCollectionExtensions
     /// <param name="migrationsAssembly">The assembly name containing EF Core migrations.</param>
     /// <param name="connectionStringName">The connection string name in configuration. Defaults to <c>"DefaultConnection"</c>.</param>
     /// <param name="mySqlOptions">Optional callback to configure MySQL-specific options.</param>
+    /// <param name="addHealthCheck">Whether to register a MySQL health check. Defaults to <c>false</c>.</param>
     /// <returns>The service collection for chaining.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the connection string is not found.</exception>
     public static IServiceCollection AddMySqlDatabase(
@@ -26,9 +28,10 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration,
         string migrationsAssembly,
         string connectionStringName = "DefaultConnection",
-        Action<MySqlDbContextOptionsBuilder>? mySqlOptions = null)
+        Action<MySqlDbContextOptionsBuilder>? mySqlOptions = null,
+        bool addHealthCheck = false)
     {
-        services.AddMySqlDatabase<DataDbContext>(configuration, migrationsAssembly, connectionStringName, mySqlOptions);
+        services.AddMySqlDatabase<DataDbContext>(configuration, migrationsAssembly, connectionStringName, mySqlOptions, addHealthCheck);
         return services;
     }
 
@@ -42,6 +45,7 @@ public static class ServiceCollectionExtensions
     /// <param name="migrationsAssembly">The assembly name containing EF Core migrations.</param>
     /// <param name="connectionStringName">The connection string name in configuration. Defaults to <c>"DefaultConnection"</c>.</param>
     /// <param name="mySqlOptions">Optional callback to configure MySQL-specific options.</param>
+    /// <param name="addHealthCheck">Whether to register a MySQL health check. Defaults to <c>false</c>.</param>
     /// <returns>The service collection for chaining.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the connection string is not found.</exception>
     public static IServiceCollection AddMySqlDatabase<TContext>(
@@ -49,7 +53,8 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration,
         string migrationsAssembly,
         string connectionStringName = "DefaultConnection",
-        Action<MySqlDbContextOptionsBuilder>? mySqlOptions = null)
+        Action<MySqlDbContextOptionsBuilder>? mySqlOptions = null,
+        bool addHealthCheck = false)
         where TContext : DbContext, IDataDbContext
     {
         var connectionString = configuration.GetConnectionString(connectionStringName)
@@ -61,6 +66,9 @@ public static class ServiceCollectionExtensions
                 mysql.MigrationsAssembly(migrationsAssembly);
                 mySqlOptions?.Invoke(mysql);
             }));
+
+        if (addHealthCheck)
+            services.AddHealthChecks().AddMySql(connectionString, name: "mysql");
 
         return services;
     }

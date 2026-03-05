@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.MySql</PackageId>
-        <Version>1.0.3</Version>
+        <Version>1.1.0</Version>
         <Description>MySQL database provider extensions for JC.Core using Pomelo.EntityFrameworkCore.MySql.</Description>
     </PropertyGroup>
 
@@ -11,6 +11,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <PackageReference Include="AspNetCore.HealthChecks.MySql" Version="9.0.0" />
       <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.11" />
       <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0" />
     </ItemGroup>
