@@ -2,23 +2,19 @@
 
     <PropertyGroup>
         <PackageId>JC.Github</PackageId>
-        <Version>1.1.0</Version>
+        <Version>1.1.1</Version>
         <Description>GitHub integration for JC.Core providing bug report and issue tracking services.</Description>
     </PropertyGroup>
 
     <ItemGroup>
       <FrameworkReference Include="Microsoft.AspNetCore.App" />
-      <PackageReference Include="JC.Core" Version="1.1.0" />
+      <PackageReference Include="JC.Core" Version="1.1.1" />
     </ItemGroup>
 
     <ItemGroup>
       <PackageReference Include="Flurl.Http" Version="4.0.2" />
       <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.11" />
       <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.11" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <ProjectReference Include="..\JC.Core\JC.Core.csproj" />
     </ItemGroup>
 
 </Project>

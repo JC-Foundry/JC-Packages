@@ -29,15 +29,12 @@ internal static class GithubWebhookEndpoint
             body = await reader.ReadToEndAsync();
 
         // Validate signature
-        if (!string.IsNullOrEmpty(options.WebhookSecret))
-        {
-            var signature = context.Request.Headers["X-Hub-Signature-256"].FirstOrDefault();
+        var signature = context.Request.Headers["X-Hub-Signature-256"].FirstOrDefault();
 
-            if (string.IsNullOrEmpty(signature) || !ValidateSignature(body, signature, options.WebhookSecret))
-            {
-                logger.LogWarning("GitHub webhook signature validation failed");
-                return Results.Unauthorized();
-            }
+        if (string.IsNullOrEmpty(signature) || !ValidateSignature(body, signature, options.WebhookSecret))
+        {
+            logger.LogWarning("GitHub webhook signature validation failed");
+            return Results.Unauthorized();
         }
 
         // Get event type

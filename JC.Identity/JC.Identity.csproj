@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.Identity</PackageId>
-        <Version>1.1.0</Version>
+        <Version>1.1.1</Version>
         <Description>Identity library providing ASP.NET Core Identity integration, multi-tenancy, middleware, and user management helpers.</Description>
     </PropertyGroup>
 
@@ -12,11 +12,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="JC.Core" Version="1.1.0" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <ProjectReference Include="..\JC.Core\JC.Core.csproj" />
+      <PackageReference Include="JC.Core" Version="1.1.1" />
     </ItemGroup>
 
 </Project>

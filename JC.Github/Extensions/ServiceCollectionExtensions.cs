@@ -41,7 +41,7 @@ public static class ServiceCollectionExtensions
 
         optionsBuilder.Configure(options =>
         {
-            options.WebhookSecret = configuration["Github:Secret"];
+            options.WebhookSecret = configuration["Github:Secret"] ?? throw new InvalidOperationException("Configuration value 'Github:Secret' not found.");
         });
 
         if (configure is not null)

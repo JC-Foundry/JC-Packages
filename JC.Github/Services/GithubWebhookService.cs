@@ -45,25 +45,32 @@ public class GithubWebhookService(
 
         if (issue is null)
         {
-            await reportedIssues.AddAsync(new ReportedIssue
+            try
             {
-                Description = webhookIssue.Body ?? webhookIssue.Title,
-                Type = IssueType.Bug, // Default — no reliable way to determine type from GitHub payload without labels
-                Created = DateTime.UtcNow,
-                ReportSent = true,
-                ExternalId = webhookIssue.Number,
-                Closed = webhookIssue.State == "closed"
-            });
+                await reportedIssues.AddAsync(new ReportedIssue
+                {
+                    Description = webhookIssue.Body ?? webhookIssue.Title,
+                    Type = IssueType.Bug, // Default — no reliable way to determine type from GitHub payload without labels
+                    Created = DateTime.UtcNow,
+                    ReportSent = true,
+                    ExternalId = webhookIssue.Number,
+                    Closed = webhookIssue.State == "closed"
+                });
 
-            logger.LogInformation("Created ReportedIssue from GitHub issue #{IssueNumber}", webhookIssue.Number);
+                logger.LogInformation("Created ReportedIssue from GitHub issue #{IssueNumber}", webhookIssue.Number);
+            }
+            catch (DbUpdateException ex)
+            {
+                logger.LogDebug(ex, "ReportedIssue for GitHub issue #{IssueNumber} already exists, skipping", webhookIssue.Number);
+            }
         }
         else
         {
+            issue.Description = webhookIssue.Body ?? webhookIssue.Title;
             issue.Closed = webhookIssue.State == "closed";
             await reportedIssues.UpdateAsync(issue);
 
-            logger.LogInformation("Updated ReportedIssue state for GitHub issue #{IssueNumber} to {State}",
-                webhookIssue.Number, webhookIssue.State);
+            logger.LogInformation("Updated ReportedIssue for GitHub issue #{IssueNumber}", webhookIssue.Number);
         }
     }
 
@@ -76,18 +83,26 @@ public class GithubWebhookService(
         switch (action)
         {
             case "created" when existing is null:
-                await issueComments.AddAsync(new IssueComment
+                try
                 {
-                    IssueNumber = webhookIssue.Number,
-                    CommentId = comment.Id,
-                    Body = comment.Body,
-                    Author = comment.User.Login,
-                    CreatedAt = comment.CreatedAt,
-                    UpdatedAt = comment.UpdatedAt
-                });
+                    await issueComments.AddAsync(new IssueComment
+                    {
+                        IssueNumber = webhookIssue.Number,
+                        CommentId = comment.Id,
+                        Body = comment.Body,
+                        Author = comment.User.Login,
+                        CreatedAt = comment.CreatedAt,
+                        UpdatedAt = comment.UpdatedAt
+                    });
 
-                logger.LogInformation("Created comment {CommentId} for issue #{IssueNumber}",
-                    comment.Id, webhookIssue.Number);
+                    logger.LogInformation("Created comment {CommentId} for issue #{IssueNumber}",
+                        comment.Id, webhookIssue.Number);
+                }
+                catch (DbUpdateException ex)
+                {
+                    logger.LogDebug(ex, "Comment {CommentId} for issue #{IssueNumber} already exists, skipping",
+                        comment.Id, webhookIssue.Number);
+                }
                 break;
 
             case "edited" when existing is not null:
