@@ -2,19 +2,32 @@ using QRCoder;
 
 namespace JC.Web.Helpers;
 
+/// <summary>
+/// Specifies the output format for generated QR codes.
+/// </summary>
 public enum QrCodeFormat
 {
+    /// <summary>SVG markup string.</summary>
     Svg,
+
+    /// <summary>Base64-encoded PNG data URI.</summary>
     Base64
 }
 
+/// <summary>
+/// Helper for generating QR codes in SVG or Base64 PNG format using QRCoder.
+/// </summary>
 public class QrCodeHelper
 {
     private readonly QRCodeGenerator.ECCLevel _eccLevel;
     private readonly QrCodeFormat _format;
     private readonly int _pixelsPerModule;
+    /// <summary>The data URI prefix for base64-encoded PNG images.</summary>
     public const string Base64ImgPrefix = "data:image/png;base64,";
 
+    /// <summary>
+    /// Creates a QR code helper with default settings (SVG format, 10px/module, ECC level M).
+    /// </summary>
     public QrCodeHelper() : this(QrCodeFormat.Svg, 10)
     {
     }

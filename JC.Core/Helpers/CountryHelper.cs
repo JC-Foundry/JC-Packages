@@ -1,4 +1,5 @@
 using System.Globalization;
+using Microsoft.Extensions.Logging;
 
 namespace JC.Core.Helpers;
 
@@ -10,7 +11,7 @@ public static class CountryHelper
     /// Gets all countries derived from .NET's culture/region data.
     /// Results are cached after first call.
     /// </summary>
-    public static IReadOnlyList<Country> GetCountries()
+    public static IReadOnlyList<Country> GetCountries(ILogger? logger = null)
     {
         return _countries ??= CultureInfo
             .GetCultures(CultureTypes.SpecificCultures)
@@ -21,8 +22,9 @@ public static class CountryHelper
                     var region = new RegionInfo(culture.Name);
                     return new Country(region.TwoLetterISORegionName, region.EnglishName);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    logger?.LogWarning(ex, "Failed to create RegionInfo for culture '{CultureName}'.", culture.Name);
                     return null;
                 }
             })

@@ -29,15 +29,7 @@ public class GitHelper(string url, string apiKey)
         return response.Number;
     }
     
-    
-    public class NewCommentResponse
-    {
-        public long Id { get; set; }
-        public string? Url { get; set; }
-        public string? Html_Url { get; set; }
-    }
-    
-    public class NewIssueResponse
+    private class NewIssueResponse
     {
         public long Id { get; set; }
         public int Number { get; set; }

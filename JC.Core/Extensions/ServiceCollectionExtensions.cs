@@ -11,8 +11,20 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace JC.Core.Extensions;
 
+/// <summary>
+/// Extension methods for <see cref="IServiceCollection"/> providing JC.Core service registration.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Registers all JC.Core services including <see cref="GitHelper"/>, <see cref="BugReportService"/>,
+    /// <see cref="AuditService"/>, the data context, repository manager, and default repository contexts.
+    /// </summary>
+    /// <typeparam name="TContext">The DbContext type implementing <see cref="IDataDbContext"/>.</typeparam>
+    /// <param name="services">The service collection to register services into.</param>
+    /// <param name="configuration">The application configuration, used to resolve GitHub API settings.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if required GitHub configuration values are missing.</exception>
     public static IServiceCollection AddCore<TContext>(this IServiceCollection services, IConfiguration configuration)
         where TContext : DbContext, IDataDbContext
     {
@@ -33,10 +45,23 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Registers a single <see cref="IRepositoryContext{T}"/> / <see cref="RepositoryContext{T}"/> pair for the specified entity type.
+    /// </summary>
+    /// <typeparam name="T">The entity type to register a repository context for.</typeparam>
+    /// <param name="services">The service collection to register into.</param>
+    /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection RegisterRepositoryContext<T>(this IServiceCollection services)
         where T : class
         => services.RegisterRepositoryContexts(typeof(T));
 
+    /// <summary>
+    /// Registers <see cref="IRepositoryContext{T}"/> / <see cref="RepositoryContext{T}"/> pairs for multiple entity types via reflection.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="types">The entity types to register repository contexts for. Each must be a class.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <exception cref="ArgumentException">Thrown if any of the provided types is not a class.</exception>
     public static IServiceCollection RegisterRepositoryContexts(this IServiceCollection services, params Type[] types)
     {
         foreach (var type in types)

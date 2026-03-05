@@ -5,6 +5,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace JC.Core.Services.DataRepositories;
 
+/// <summary>
+/// Unit of work implementation providing thread-safe repository caching and transaction management.
+/// </summary>
 public class RepositoryManager : IRepositoryManager, IDisposable, IAsyncDisposable
 {
     private readonly DbContext _context;

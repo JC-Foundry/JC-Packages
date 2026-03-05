@@ -7,14 +7,14 @@
 
         <!-- NuGet Package -->
         <PackageId>JC.SqlServer</PackageId>
-        <Version>1.0.1</Version>
+        <Version>1.0.2</Version>
         <Authors>jcraik</Authors>
         <Description>SQL Server database provider extensions for JC.Core using Microsoft.EntityFrameworkCore.SqlServer.</Description>
         <IsPackable>true</IsPackable>
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="JC.Core" Version="1.0.1" />
+      <PackageReference Include="JC.Core" Version="1.0.2" />
     </ItemGroup>
 
     <ItemGroup>

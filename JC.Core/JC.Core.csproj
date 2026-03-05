@@ -7,7 +7,7 @@
 
         <!-- NuGet Package -->
         <PackageId>JC.Core</PackageId>
-        <Version>1.0.1</Version>
+        <Version>1.0.2</Version>
         <Authors>jcraik</Authors>
         <Description>Core library providing repository pattern, auditing, soft-delete, and utility helpers for .NET applications.</Description>
         <IsPackable>true</IsPackable>

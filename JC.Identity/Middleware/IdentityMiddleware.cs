@@ -6,6 +6,11 @@ using Microsoft.Extensions.Options;
 
 namespace JC.Identity.Middleware;
 
+/// <summary>
+/// Middleware that enforces identity business rules: disabled account redirection,
+/// password change enforcement, and optional 2FA enforcement. Skips static files,
+/// unauthenticated requests, and excluded paths.
+/// </summary>
 public class IdentityMiddleware(RequestDelegate next, IOptions<IdentityMiddlewareOptions> options, ILogger<IdentityMiddleware> logger)
 {
     private readonly IdentityMiddlewareOptions _options = options.Value;
@@ -16,6 +21,12 @@ public class IdentityMiddleware(RequestDelegate next, IOptions<IdentityMiddlewar
         ".woff", ".woff2", ".ttf", ".eot", ".map", ".json", ".xml"
     ];
 
+    /// <summary>
+    /// Evaluates identity business rules and invokes the next middleware if all checks pass.
+    /// </summary>
+    /// <param name="context">The HTTP context for the current request.</param>
+    /// <param name="userInfo">The current user information.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public async Task InvokeAsync(HttpContext context, IUserInfo userInfo)
     {
         var path = context.Request.Path.Value ?? string.Empty;

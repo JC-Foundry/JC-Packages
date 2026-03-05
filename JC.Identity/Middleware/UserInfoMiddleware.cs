@@ -9,8 +9,17 @@ using Microsoft.Extensions.Options;
 
 namespace JC.Identity.Middleware;
 
+/// <summary>
+/// Middleware that populates <see cref="IUserInfo"/> from the current <see cref="System.Security.Claims.ClaimsPrincipal"/>
+/// on first request per scope. Assigns system user constants for unauthenticated requests.
+/// </summary>
 public class UserInfoMiddleware(RequestDelegate next, ILogger<UserInfoMiddleware> logger)
 {
+    /// <summary>
+    /// Populates the scoped <see cref="IUserInfo"/> instance and invokes the next middleware.
+    /// </summary>
+    /// <param name="context">The HTTP context for the current request.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public async Task InvokeAsync(HttpContext context)
     {
         var userInfo = (IUserInfo)context.RequestServices.GetRequiredService(typeof(IUserInfo));

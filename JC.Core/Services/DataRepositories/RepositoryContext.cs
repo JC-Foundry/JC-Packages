@@ -6,6 +6,12 @@ using Microsoft.Extensions.Logging;
 
 namespace JC.Core.Services.DataRepositories;
 
+/// <inheritdoc />
+/// <summary>
+/// Default repository context implementation. Auto-detects if <typeparamref name="T"/> extends
+/// <see cref="AuditModel"/> for audit field population, and falls back to reflection-based
+/// <c>IsDeleted</c> property detection for non-AuditModel entities.
+/// </summary>
 public class RepositoryContext<T> : IRepositoryContext<T>
     where T : class
 {

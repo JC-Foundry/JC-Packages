@@ -1,6 +1,6 @@
 namespace JC.Core.Helpers;
 
-public class ColourHelper
+public static class ColourHelper
 {
     /// <summary>
     /// Generates a hover colour by lightening the given background colour using a fixed factor.

@@ -1,7 +1,7 @@
 # JC-Packages Solution - Comprehensive Review
 
 > **Generated:** 2026-03-04
-> **Updated:** 2026-03-04 (v1.0.1 review)
+> **Updated:** 2026-03-05 (v1.0.2 review)
 > **Target Framework:** .NET 9.0 (all projects)
 > **Author:** jcraik
 
@@ -19,7 +19,7 @@
 - [JC.Web](#jcweb)
 - [Cross-Cutting Concerns](#cross-cutting-concerns)
 - [Observations & Recommendations](#observations--recommendations)
-- [Changelog (v1.0.0 → v1.0.1)](#changelog-v100--v101)
+- [Changelog](#changelog)
 
 ---
 
@@ -35,7 +35,7 @@ JC-Packages is a modular NuGet package suite providing reusable infrastructure f
 | **JC.SqlServer** | SQL Server database provider registration | JC.Core, EFC.SqlServer 9.0.11 | 1 .cs file |
 | **JC.Web** | HTML helpers, dropdowns, QR codes, model state | JC.Core, QRCoder 1.7.0 | 5 .cs files |
 
-All projects are version **1.0.1** and are configured as **packable** NuGet packages.
+All projects are version **1.0.2** and are configured as **packable** NuGet packages.
 
 **Build status:** Zero warnings, zero errors.
 
@@ -78,7 +78,6 @@ The following configuration keys are required by the packages:
 | `Admin:Email` | Yes | Configurable via parameter |
 | `Admin:Password` | Yes | Configurable via parameter |
 | `Admin:DisplayName` | No | Falls back to "System Administrator" |
-| `Admin:TenantId` | Only if `setupTenancy=true` | Configurable via parameter |
 
 ### JC.MySql / JC.SqlServer
 
@@ -90,7 +89,7 @@ The following configuration keys are required by the packages:
 
 ## JC.Core
 
-**Package:** `JC.Core` v1.0.1
+**Package:** `JC.Core` v1.0.2
 **Description:** Core library providing repository pattern, auditing, soft-delete, and utility helpers for .NET applications.
 
 ### NuGet Dependencies
@@ -342,14 +341,14 @@ All write operations accept optional `userId` (defaults to current user), `saveN
 
 ## JC.Identity
 
-**Package:** `JC.Identity` v1.0.1
+**Package:** `JC.Identity` v1.0.2
 **Description:** Identity library providing ASP.NET Core Identity integration, multi-tenancy, middleware, and user management helpers.
 
 ### NuGet Dependencies
 
 | Package | Version |
 |---------|---------|
-| JC.Core | 1.0.1 |
+| JC.Core | 1.0.2 |
 | Microsoft.AspNetCore.Identity.EntityFrameworkCore | 9.0.11 |
 | Microsoft.AspNetCore.App | Framework Reference |
 
@@ -482,7 +481,7 @@ Pipeline enforcement:
 5. **Checks `RequiresPasswordChange`** (if enabled) → redirects to ChangePassword route (logged as info)
 6. **Checks 2FA enforcement** (if enabled via global option) → redirects to TwoFactor setup route (logged as info)
 
-**Note:** 2FA enforcement (`EnforceTwoFactor`) is a **global** option in `IdentityMiddlewareOptions`. When enabled, all users without 2FA configured are redirected. There is no per-user 2FA enforcement — this is by design for v1.0.1.
+**Note:** 2FA enforcement (`EnforceTwoFactor`) is a **global** option in `IdentityMiddlewareOptions`. When enabled, all users without 2FA configured are redirected. There is no per-user 2FA enforcement — this is by design for v1.0.2.
 
 #### `IdentityMiddlewareOptions`
 | Property | Type | Default |
@@ -528,14 +527,14 @@ Pipeline enforcement:
 
 ## JC.MySql
 
-**Package:** `JC.MySql` v1.0.1
+**Package:** `JC.MySql` v1.0.2
 **Description:** MySQL database provider extensions for JC.Core using Pomelo.EntityFrameworkCore.MySql.
 
 ### NuGet Dependencies
 
 | Package | Version |
 |---------|---------|
-| JC.Core | 1.0.1 |
+| JC.Core | 1.0.2 |
 | Pomelo.EntityFrameworkCore.MySql | 9.0.0 |
 | Microsoft.Extensions.Configuration.Abstractions | 9.0.11 |
 
@@ -573,14 +572,14 @@ JC.MySql/
 
 ## JC.SqlServer
 
-**Package:** `JC.SqlServer` v1.0.1
+**Package:** `JC.SqlServer` v1.0.2
 **Description:** SQL Server database provider extensions for JC.Core using Microsoft.EntityFrameworkCore.SqlServer.
 
 ### NuGet Dependencies
 
 | Package | Version |
 |---------|---------|
-| JC.Core | 1.0.1 |
+| JC.Core | 1.0.2 |
 | Microsoft.EntityFrameworkCore.SqlServer | 9.0.11 |
 | Microsoft.Extensions.Configuration.Abstractions | 9.0.11 |
 
@@ -613,14 +612,14 @@ JC.SqlServer/
 
 ## JC.Web
 
-**Package:** `JC.Web` v1.0.1
+**Package:** `JC.Web` v1.0.2
 **Description:** Web helpers for ASP.NET Core including dropdown builders, HTML tag builder, model state wrapper, and QR code generation.
 
 ### NuGet Dependencies
 
 | Package | Version |
 |---------|---------|
-| JC.Core | 1.0.1 |
+| JC.Core | 1.0.2 |
 | QRCoder | 1.7.0 |
 | Microsoft.AspNetCore.App | Framework Reference |
 
@@ -787,38 +786,48 @@ The order matters:
 
 ### Remaining Considerations
 
-1. **No test projects** — The solution has no unit or integration test projects. Given the complexity of the repository pattern, multi-tenancy filters, and middleware pipeline, automated tests would significantly increase confidence. Priority areas for testing:
-   - `RepositoryContext<T>` — CRUD operations, audit model detection, soft delete for non-AuditModel entities
-   - `QueryExtensions.FilterDeleted` — all three `DeletedQueryType` values
-   - `ApplyTenantQueryFilters` / `AllTenants` — tenant scoping and SystemAdmin bypass
-   - `UserInfoMiddleware` — claim extraction for authenticated and unauthenticated requests
-   - `IdentityMiddleware` — redirect logic for disabled users, password change, 2FA
-   - `EnumExtensions.ToDisplayName` — PascalCase, underscores, acronyms (e.g. `XMLParser`)
-   - `ColourHelper` — edge cases (pure black, pure white, mid-range colours)
+1. ~~**`CountryHelper` silent exception handling**~~ — **Resolved.** Broad catch retained (to prevent app crashes from unexpected failures) but now logs a warning with the culture name and exception via an optional `ILogger?` parameter on `GetCountries()`.
 
-2. **`ChangePasswordRoute` default** — Points to `/Identity/Account/Manage/SetPassword` which is the ASP.NET Core scaffolded "set password" page (for external login users without a password). If the intent is to force users to *change* an existing password, verify this is the correct route in the consuming application.
+2. ~~**`AuditService` lacks `CancellationToken`**~~ — **Dismissed.** `CancellationToken` is valuable at boundaries (HTTP, background tasks, external APIs) and for potentially long-running operations. `AuditService` is a focused internal service writing a single row — the operation is too quick for cancellation to add practical value.
 
-3. **`CountryHelper` silent exception handling** — Silently catches all exceptions during `RegionInfo` creation (`catch { return null; }`). This is necessary for invalid cultures but could mask unexpected issues. Consider catching only `ArgumentException` for more precise error handling.
+3. ~~**`BugReportService` exception type**~~ — **Resolved.** Changed from `ArgumentNullException` to `InvalidOperationException` with descriptive messages, matching the pattern used in `AddCore()` and `SeedDefaultAdminAsync()`.
 
-4. **`AuditService` lacks `CancellationToken`** — Unlike the repository methods, `AuditService.LogAsync()` and its convenience methods don't accept or propagate `CancellationToken`. For consistency, consider adding it.
+4. ~~**`GitHelper.NewCommentResponse`**~~ — **Resolved.** Removed unused class. `NewIssueResponse` also made private since it's only used internally.
 
-5. **`BugReportService` exception type** — Uses `ArgumentNullException(nameof(config))` when config values are missing. `InvalidOperationException` would be more accurate (the config object itself isn't null; specific values within it are missing). This matches the pattern used in `AddCore()` and `SeedDefaultAdminAsync()`.
+5. ~~**`ColourHelper` and `ConstHelper` are non-static classes with only static methods**~~ — **Resolved.** Both classes marked `static`.
 
-6. **`GitHelper.NewCommentResponse`** — Defined but not used anywhere in the codebase. Consider removing it or adding a method that uses it (e.g. commenting on an existing issue).
+6. ~~**`IUserInfo` has mutable setters on all properties**~~ — **Acknowledged.** Setters must remain on `IUserInfo` because `UserInfoMiddleware` writes through the interface. XML documentation documents all properties as "Gets" to signal read-only intent to consumers.
 
-7. **`ColourHelper` and `ConstHelper` are non-static classes with only static methods** — Consider making the classes `static` for consistency and to prevent accidental instantiation.
+7. ~~**No XML documentation on public APIs**~~ — **Resolved.** Full XML documentation with `<summary>`, `<param>`, `<typeparam>`, `<returns>`, and `<exception>` tags added to all public types, methods, properties, and enum members across all five projects.
 
-8. **`IUserInfo` has mutable setters on all properties** — This is necessary for `UserInfoMiddleware` to populate the object, but means any code with access to `IUserInfo` can modify user state. Consider splitting into a read-only interface for general consumption and keeping setters internal/package-visible.
+8. ~~**`HtmlTagBuilder` doesn't HTML-encode attribute values**~~ — **Resolved.** Attribute values are now encoded via `System.Net.WebUtility.HtmlEncode` in the `Build()` method.
 
-9. **No XML documentation on public APIs** — NuGet package consumers would benefit from XML docs on public types and methods for IntelliSense support. Key areas: `IRepositoryContext<T>` write methods, `ServiceCollectionExtensions`, and `ApplicationBuilderExtensions`.
+9. ~~**`SeedDefaultAdminAsync` reads `tenantIdConfigKey` but ignores its value**~~ — **Resolved.** Removed the `tenantIdConfigKey` parameter entirely. When `setupTenancy` is true, the method now finds an existing "Default Tenant" or creates one if it doesn't exist.
 
-10. **`HtmlTagBuilder` doesn't HTML-encode attribute values** — The `AddAttribute` method writes values directly into the HTML string without encoding. If user-supplied data is passed as an attribute value, this could produce malformed HTML. Consider using `System.Net.WebUtility.HtmlEncode` for attribute values.
+### Reviewed & Dismissed
 
-11. **`SeedDefaultAdminAsync` reads `tenantIdConfigKey` but ignores its value** — When `setupTenancy` is true, the method reads `tenantId` from config and validates it's not empty, but then creates a brand new `Tenant` with a generated GUID rather than using the config value. The config value is effectively unused.
+1. **No test projects** — Acknowledged. Testing is not a priority for this package suite at this time.
+
+2. **`ChangePasswordRoute` default** — The route `/Identity/Account/Manage/SetPassword` is intentionally correct. After logging in with their current password, users are redirected to the "set password" page — requiring them to re-enter their current password would be poor UX.
 
 ---
 
-## Changelog (v1.0.0 → v1.0.1)
+## Changelog
+
+### v1.0.2 (2026-03-05)
+
+| Change | Details |
+|--------|---------|
+| **Full XML documentation** | All public types, methods, properties, and enum members across all five projects now have XML documentation with `<summary>`, `<param>`, `<returns>`, and `<exception>` tags |
+| **`CountryHelper` logging** | `GetCountries()` now accepts an optional `ILogger?` parameter; exceptions during `RegionInfo` creation are logged as warnings instead of silently swallowed |
+| **`BugReportService` exception type** | Changed from `ArgumentNullException` to `InvalidOperationException` with descriptive messages for missing config values, matching the pattern used throughout the solution |
+| **Removed `GitHelper.NewCommentResponse`** | Unused response class removed; `NewIssueResponse` made private |
+| **`ColourHelper` and `ConstHelper` made static** | Both classes now marked `static` to prevent accidental instantiation |
+| **`HtmlTagBuilder` attribute encoding** | Attribute values are now HTML-encoded via `System.Net.WebUtility.HtmlEncode` to prevent malformed HTML and XSS |
+| **`SeedDefaultAdminAsync` simplified** | Removed unused `tenantIdConfigKey` parameter; when `setupTenancy` is true, the method now finds an existing "Default Tenant" or creates one automatically |
+| **Version bump** | All packages updated to v1.0.2; all JC.Core package references updated to require 1.0.2 |
+
+### v1.0.1 (2026-03-04)
 
 | Change | Details |
 |--------|---------|

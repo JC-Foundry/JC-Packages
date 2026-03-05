@@ -6,6 +6,9 @@ using Microsoft.Extensions.Logging;
 
 namespace JC.Core.Services;
 
+/// <summary>
+/// Service for recording bug reports and feature suggestions, with optional GitHub issue creation.
+/// </summary>
 public class BugReportService
 {
     private readonly IDataDbContext _context;
@@ -22,10 +25,19 @@ public class BugReportService
         _context = context;
         _gitHelper = gitHelper;
         _logger = logger;
-        _owner = config["Github:Owner"] ?? throw new ArgumentNullException(nameof(config));
-        _repo = config["Github:Repo"] ?? throw new ArgumentNullException(nameof(config));
+        _owner = config["Github:Owner"] ?? throw new InvalidOperationException("Configuration value 'Github:Owner' not found.");
+        _repo = config["Github:Repo"] ?? throw new InvalidOperationException("Configuration value 'Github:Repo' not found.");
     }
     
+    /// <summary>
+    /// Records a new issue, attempts to create a corresponding GitHub issue, and persists it to the database.
+    /// GitHub failures are logged but do not prevent the local record from being saved.
+    /// </summary>
+    /// <param name="description">The issue description.</param>
+    /// <param name="issueType">The type of issue (bug or suggestion).</param>
+    /// <param name="creatorId">Optional identifier of the reporting user.</param>
+    /// <param name="creatorName">Optional display name of the reporting user.</param>
+    /// <returns>The persisted <see cref="ReportedIssue"/> entity.</returns>
     public async Task<ReportedIssue> RecordIssue(string description, IssueType issueType, string? creatorId = null, string? creatorName = null)
     {
         var ri = new ReportedIssue

@@ -7,14 +7,14 @@
 
         <!-- NuGet Package -->
         <PackageId>JC.MySql</PackageId>
-        <Version>1.0.1</Version>
+        <Version>1.0.2</Version>
         <Authors>jcraik</Authors>
         <Description>MySQL database provider extensions for JC.Core using Pomelo.EntityFrameworkCore.MySql.</Description>
         <IsPackable>true</IsPackable>
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="JC.Core" Version="1.0.1" />
+      <PackageReference Include="JC.Core" Version="1.0.2" />
     </ItemGroup>
 
     <ItemGroup>

@@ -8,8 +8,19 @@ using Microsoft.EntityFrameworkCore;
 
 namespace JC.Identity.Extensions;
 
+/// <summary>
+/// Query extension methods for multi-tenancy filtering.
+/// </summary>
 public static class QueryExtensions
 {
+    /// <summary>
+    /// Bypasses tenant query filters for <see cref="SystemRoles.SystemAdmin"/> users,
+    /// allowing them to query across all tenants. Non-admin users receive the unmodified query.
+    /// </summary>
+    /// <typeparam name="T">The entity type.</typeparam>
+    /// <param name="query">The source queryable.</param>
+    /// <param name="userInfo">The current user information, used to check the SystemAdmin role.</param>
+    /// <returns>The queryable, optionally with query filters ignored.</returns>
     public static IQueryable<T> AllTenants<T>(this IQueryable<T> query, IUserInfo userInfo)
         where T : class
         => userInfo.IsInRole(SystemRoles.SystemAdmin) ? query.IgnoreQueryFilters() : query; 

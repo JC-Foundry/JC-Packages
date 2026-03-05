@@ -5,6 +5,12 @@ using Microsoft.Extensions.Options;
 
 namespace JC.Identity.Authentication;
 
+/// <summary>
+/// Custom claims principal factory that extends the default identity claims with all 12
+/// <see cref="DefaultClaims"/> from the user entity.
+/// </summary>
+/// <typeparam name="TUser">The user type, extending <see cref="BaseUser"/>.</typeparam>
+/// <typeparam name="TRole">The role type, extending <see cref="BaseRole"/>.</typeparam>
 public class DefaultClaimsPrincipalFactory<TUser, TRole>(
     UserManager<TUser> userManager,
     RoleManager<TRole> roleManager,
@@ -13,6 +19,7 @@ public class DefaultClaimsPrincipalFactory<TUser, TRole>(
     where TUser : BaseUser
     where TRole : BaseRole
 {
+    /// <inheritdoc />
     protected override async Task<ClaimsIdentity> GenerateClaimsAsync(TUser user)
     {
         var defaultClaims = await base.GenerateClaimsAsync(user);

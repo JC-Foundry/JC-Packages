@@ -5,6 +5,7 @@ using JC.Identity.Models;
 using JC.Identity.Models.MultiTenancy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -33,12 +34,11 @@ public static class ApplicationBuilderExtensions
     /// Configures the system by setting up the default administrator account and seeding system roles if they do not already exist.
     /// </summary>
     /// <param name="app">The application builder instance used to configure the application services.</param>
-    /// <param name="setupTenancy">Specifies whether tenancy should be configured for the admin user.</param>
+    /// <param name="setupTenancy">Specifies whether tenancy should be configured for the admin user. When <c>true</c>, a default tenant is found or created.</param>
     /// <param name="usernameConfigKey">The configuration key for the admin username.</param>
     /// <param name="emailConfigKey">The configuration key for the admin email.</param>
     /// <param name="passwordConfigKey">The configuration key for the admin password.</param>
     /// <param name="displayNameConfigKey">The configuration key for the admin display name.</param>
-    /// <param name="tenantIdConfigKey">The configuration key for the tenant ID of the admin user.</param>
     /// <param name="additionalRoles">A collection of additional roles to be seeded into the system.</param>
     /// <typeparam name="TUser">The user entity type representing the administrator, inheriting from BaseUser.</typeparam>
     /// <typeparam name="TRoles">The type representing the system roles, inheriting from SystemRoles.</typeparam>
@@ -54,7 +54,6 @@ public static class ApplicationBuilderExtensions
         string emailConfigKey = "Admin:Email",
         string passwordConfigKey = "Admin:Password",
         string displayNameConfigKey = "Admin:DisplayName",
-        string tenantIdConfigKey = "Admin:TenantId",
         IEnumerable<string>? additionalRoles = null)
         where TUser : BaseUser, new()
         where TRoles : SystemRoles
@@ -62,8 +61,8 @@ public static class ApplicationBuilderExtensions
     {
         await app.SeedRolesAsync<TRoles, TRole>();
         await app.SeedDefaultAdminAsync<TUser, TRole>
-            (setupTenancy, usernameConfigKey, emailConfigKey, passwordConfigKey, displayNameConfigKey, tenantIdConfigKey, additionalRoles);
-        
+            (setupTenancy, usernameConfigKey, emailConfigKey, passwordConfigKey, displayNameConfigKey, additionalRoles);
+
         return app;
     }
 
@@ -103,14 +102,14 @@ public static class ApplicationBuilderExtensions
 
     /// <summary>
     /// Seeds a default administrator account to the database with specified configuration settings.
+    /// When <paramref name="setupTenancy"/> is <c>true</c>, finds or creates a "Default Tenant" and assigns it to the admin user.
     /// </summary>
     /// <param name="app">The application builder instance used to access services.</param>
-    /// <param name="setupTenancy">Indicates whether tenancy is enabled during the operation.</param>
+    /// <param name="setupTenancy">Indicates whether a default tenant should be found or created for the admin user.</param>
     /// <param name="usernameConfigKey">The configuration key for the administrator's username.</param>
     /// <param name="emailConfigKey">The configuration key for the administrator's email address.</param>
     /// <param name="passwordConfigKey">The configuration key for the administrator's password.</param>
     /// <param name="displayNameConfigKey">The configuration key for the administrator's display name.</param>
-    /// <param name="tenantIdConfigKey">The configuration key for the administrator's tenant ID.</param>
     /// <param name="additionalRoles">A collection of additional roles to assign to the administrator.</param>
     /// <typeparam name="TUser">The type representing the user entity inheriting from BaseUser.</typeparam>
     /// <typeparam name="TRole">The type representing the role entity inheriting from BaseRole.</typeparam>
@@ -125,7 +124,6 @@ public static class ApplicationBuilderExtensions
         string emailConfigKey = "Admin:Email",
         string passwordConfigKey = "Admin:Password",
         string displayNameConfigKey = "Admin:DisplayName",
-        string tenantIdConfigKey = "Admin:TenantId",
         IEnumerable<string>? additionalRoles = null)
         where TUser : BaseUser, new()
         where TRole : BaseRole
@@ -138,24 +136,23 @@ public static class ApplicationBuilderExtensions
         var email = config[emailConfigKey] ?? throw new InvalidOperationException($"Configuration value '{emailConfigKey}' not found.");
         var password = config[passwordConfigKey] ?? throw new InvalidOperationException($"Configuration value '{passwordConfigKey}' not found.");
         var displayName = config[displayNameConfigKey];
-        var tenantId = config[tenantIdConfigKey];
-        
+
         var existingAdmin = await userManager.FindByEmailAsync(email);
         if (existingAdmin != null)
             return app;
-        
+
         existingAdmin = await userManager.FindByNameAsync(username);
         if (existingAdmin != null)
             return app;
 
         Tenant? tenant = null;
-        switch (setupTenancy)
+        if (setupTenancy)
         {
-            case true when string.IsNullOrEmpty(tenantId):
-                throw new InvalidOperationException($"Configuration value '{tenantIdConfigKey}' not found.");
-            case true:
+            var context = scope.ServiceProvider.GetRequiredService<IdentityDataDbContext<TUser, TRole>>();
+            tenant = await context.Tenants.FirstOrDefaultAsync(t => t.Name == "Default Tenant");
+
+            if (tenant == null)
             {
-                var context = scope.ServiceProvider.GetRequiredService<IdentityDataDbContext<TUser, TRole>>();
                 tenant = new Tenant
                 {
                     Name = "Default Tenant",
@@ -163,7 +160,6 @@ public static class ApplicationBuilderExtensions
                 };
                 await context.Tenants.AddAsync(tenant);
                 await context.SaveChangesAsync();
-                break;
             }
         }
 
@@ -180,12 +176,12 @@ public static class ApplicationBuilderExtensions
         var result = await userManager.CreateAsync(admin, password);
 
         if (!result.Succeeded) return app;
-        
+
         await userManager.AddToRoleAsync(admin, SystemRoles.SystemAdmin);
         if (!setupTenancy) await userManager.AddToRoleAsync(admin, SystemRoles.Admin);
 
         if (additionalRoles == null) return app;
-        
+
         var roles = additionalRoles.ToList();
         foreach (var role in roles)
             await userManager.AddToRoleAsync(admin, role);

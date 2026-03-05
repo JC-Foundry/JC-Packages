@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 
 namespace JC.Web.Helpers.HTML;
@@ -85,7 +86,7 @@ public class HtmlTagBuilder
         // Add other attributes
         foreach (var attr in _attributes)
         {
-            sb.Append(' ').Append(attr.Key).Append("=\"").Append(attr.Value).Append('"');
+            sb.Append(' ').Append(attr.Key).Append("=\"").Append(WebUtility.HtmlEncode(attr.Value)).Append('"');
         }
 
         if (_selfClosing)
