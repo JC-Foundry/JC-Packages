@@ -1,4 +1,5 @@
 using Flurl.Http;
+using JC.Github.Models.Responses;
 
 namespace JC.Github.Helpers;
 
@@ -27,14 +28,5 @@ public class GitHelper(string url, string apiKey)
             })
             .ReceiveJson<NewIssueResponse>();
         return response.Number;
-    }
-    
-    private class NewIssueResponse
-    {
-        public long Id { get; set; }
-        public int Number { get; set; }
-        public string? Title { get; set; }
-        public string? State { get; set; }
-        public string? Html_Url { get; set; }
     }
 }

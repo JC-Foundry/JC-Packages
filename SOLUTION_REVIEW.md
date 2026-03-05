@@ -31,7 +31,7 @@ JC-Packages is a modular NuGet package suite providing reusable infrastructure f
 | Project | Version | Purpose | Key Dependencies | Source Files |
 |---------|---------|---------|------------------|-------------|
 | **JC.Core** | 1.1.0 | Repository pattern, auditing, soft-delete, pagination, utilities | EF Core 9.0.11 | 19 .cs files |
-| **JC.Github** | 1.0.0 | GitHub issue tracking and bug reporting | JC.Core, Flurl.Http 4.0.2 | 4 .cs files |
+| **JC.Github** | 1.1.0 | GitHub issue tracking, bug reporting, and webhook sync | JC.Core, Flurl.Http 4.0.2 | 9 .cs files |
 | **JC.Identity** | 1.1.0 | ASP.NET Core Identity, multi-tenancy, middleware | JC.Core, Identity.EFC 9.0.11 | 12 .cs files |
 | **JC.MySql** | 1.1.0 | MySQL database provider registration + health checks | JC.Core, Pomelo.EFC.MySql 9.0.0 | 1 .cs file |
 | **JC.SqlServer** | 1.1.0 | SQL Server database provider registration + health checks | JC.Core, EFC.SqlServer 9.0.11 | 1 .cs file |
@@ -70,6 +70,7 @@ JC.Core is the foundation package — all other projects depend on it. There are
 | `Github:ApiKey` | Yes | `GitHelper` — GitHub API bearer token |
 | `Github:Owner` | Yes | `BugReportService` — Repository owner |
 | `Github:Repo` | Yes | `BugReportService` — Repository name |
+| `Github:Secret` | No | `GithubWebhookEndpoint` — HMAC-SHA256 webhook signature secret |
 
 ### JC.Identity (`SeedDefaultAdminAsync()`)
 
@@ -355,8 +356,8 @@ All write operations accept optional `userId` (defaults to current user), `saveN
 
 ## JC.Github
 
-**Package:** `JC.Github` v1.0.0
-**Description:** GitHub integration for JC.Core providing bug report and issue tracking services.
+**Package:** `JC.Github` v1.1.0
+**Description:** GitHub integration for JC.Core providing bug report and issue tracking services with webhook synchronisation.
 
 ### NuGet Dependencies
 
@@ -366,6 +367,7 @@ All write operations accept optional `userId` (defaults to current user), `saveN
 | Flurl.Http | 4.0.2 |
 | Microsoft.EntityFrameworkCore | 9.0.11 |
 | Microsoft.Extensions.Configuration.Abstractions | 9.0.11 |
+| Microsoft.AspNetCore.App | Framework Reference |
 
 ### Project Structure
 
@@ -374,19 +376,29 @@ JC.Github/
 ├── Data/
 │   └── IGithubDbContext.cs
 ├── Extensions/
+│   ├── ApplicationBuilderExtensions.cs
 │   └── ServiceCollectionExtensions.cs
 ├── Helpers/
 │   └── GitHelper.cs
 ├── Models/
-│   └── ReportedIssue.cs
+│   ├── IssueComment.cs
+│   ├── ReportedIssue.cs
+│   ├── Options/
+│   │   └── GithubOptions.cs
+│   └── Responses/
+│       ├── NewIssueResponse.cs
+│       └── WebhookPayload.cs
 └── Services/
-    └── BugReportService.cs
+    ├── BugReportService.cs
+    ├── GithubWebhookEndpoint.cs
+    └── GithubWebhookService.cs
 ```
 
 ### Data
 
 #### `IGithubDbContext` (Interface)
 - `DbSet<ReportedIssue> ReportedIssues`
+- `DbSet<IssueComment> IssueComments`
 
 ### Models
 
@@ -405,6 +417,28 @@ JC.Github/
 | `UserId` | string? | Reporter ID |
 | `UserDisplay` | string? | Reporter display name |
 
+#### `IssueComment` (Class)
+Comment synced from GitHub via webhook. Linked to `ReportedIssue` via `IssueNumber` (matches `ReportedIssue.ExternalId`).
+
+| Property | Type | Notes |
+|----------|------|-------|
+| `Id` | string | GUID, private set |
+| `IssueNumber` | int | GitHub issue number |
+| `CommentId` | long | GitHub's comment identifier (for edits/deletes) |
+| `Body` | required string | Comment text |
+| `Author` | required string | GitHub username |
+| `CreatedAt` | DateTime | Creation timestamp from GitHub |
+| `UpdatedAt` | DateTime? | Last update timestamp from GitHub |
+| `Deleted` | bool | Soft-delete flag (set on webhook delete event) |
+
+#### `GithubOptions` (Class)
+
+| Property | Type | Default |
+|----------|------|---------|
+| `EnableWebhooks` | bool | `true` |
+| `WebhookPath` | string | `"/api/github/webhook"` |
+| `WebhookSecret` | string? | Set from `Github:Secret` config (internal set) |
+
 ### Helpers
 
 #### `GitHelper` (Class)
@@ -415,16 +449,39 @@ GitHub API integration using Flurl.Http. Registered as a **singleton** in `AddGi
 | Constructor | Configures FlurlClient with Bearer token, `X-GitHub-Api-Version: 2022-11-28` header, `User-Agent: JC.Core` |
 | `RecordIssue(owner, repo, title, desc)` | Creates a GitHub issue, returns issue number |
 
-**Nested:** Private `NewIssueResponse` class for JSON deserialisation.
-
 ### Services
 
 #### `BugReportService`
-**Dependencies:** `IConfiguration`, `IGithubDbContext`, `GitHelper`, `ILogger<BugReportService>`
+**Dependencies:** `IConfiguration`, `IRepositoryContext<ReportedIssue>`, `GitHelper`, `ILogger<BugReportService>`
 
 | Method | Description |
 |--------|-------------|
 | `RecordIssue(description, issueType, creatorId?, creatorName?)` | Creates ReportedIssue entity, attempts to create GitHub issue (graceful failure with logging), saves to DB |
+
+#### `GithubWebhookEndpoint` (Internal, Static)
+Minimal API POST endpoint for receiving GitHub webhook events. Handles:
+
+1. **Signature validation** — HMAC-SHA256 with `Github:Secret`, constant-time comparison via `CryptographicOperations.FixedTimeEquals`
+2. **Ping handling** — Returns 200 immediately for webhook registration verification
+3. **PR filtering** — Ignores `issue_comment` events for pull requests
+4. **Error handling** — Catches and logs exceptions, returns 500
+
+#### `GithubWebhookService`
+**Dependencies:** `IRepositoryContext<ReportedIssue>`, `IRepositoryContext<IssueComment>`, `ILogger<GithubWebhookService>`
+
+Processes webhook events using the repository pattern:
+
+| Event | Action | Behaviour |
+|-------|--------|-----------|
+| `issues` | `opened` | Creates new `ReportedIssue` (defaults to `IssueType.Bug`) |
+| `issues` | `closed`/`reopened` | Updates `Closed` state on existing `ReportedIssue` |
+| `issue_comment` | `created` | Creates new `IssueComment` record |
+| `issue_comment` | `edited` | Updates `Body` and `UpdatedAt` on existing comment |
+| `issue_comment` | `deleted` | Soft-deletes comment (`Deleted = true`) |
+
+### Webhook Payload Models
+
+`WebhookPayload`, `WebhookIssue`, `WebhookComment`, `WebhookUser` — minimal deserialisation models using `System.Text.Json` attributes. Only the fields needed for processing are mapped; unknown properties are ignored.
 
 ### Extensions
 
@@ -432,7 +489,13 @@ GitHub API integration using Flurl.Http. Registered as a **singleton** in `AddGi
 
 | Method | Description |
 |--------|-------------|
-| `AddGithub<TContext>()` | Registers `GitHelper` (singleton from config), `BugReportService`, `IGithubDbContext`, and repository context for `ReportedIssue`. Throws `InvalidOperationException` if config values missing |
+| `AddGithub<TContext>(config, configure?)` | Registers `GitHelper` (singleton), `BugReportService`, `GithubWebhookService`, `IGithubDbContext`, `GithubOptions` (options pattern), and repository contexts for `ReportedIssue` and `IssueComment`. Throws `InvalidOperationException` if config values missing |
+
+#### `ApplicationBuilderExtensions` (Static)
+
+| Method | Description |
+|--------|-------------|
+| `UseGithubWebhooks()` | Maps the webhook POST endpoint at `GithubOptions.WebhookPath` if `EnableWebhooks` is true |
 
 ---
 
@@ -908,20 +971,23 @@ The entire solution uses **`System.Text.Json`** consistently:
 | **Claims-Based Identity** | Custom `DefaultClaimsPrincipalFactory` with 12 extended claims |
 | **Middleware Pipeline** | `UserInfoMiddleware` → `IdentityMiddleware` for request processing |
 | **Builder** | `HtmlTagBuilder`, `BreadcrumbBuilder`, `TableBuilder<T>` fluent APIs |
-| **Options Pattern** | `IdentityMiddlewareOptions` via `IOptions<T>` |
+| **Options Pattern** | `IdentityMiddlewareOptions`, `GithubOptions` via `IOptions<T>` |
+| **Webhook** | `GithubWebhookEndpoint` — HMAC-SHA256 validated, event-driven GitHub sync |
 
 ### Dependency Injection Registration
 
 A consuming application would typically wire up:
 
 ```csharp
-// Program.cs
+// Program.cs — Services
 services.AddCore<MyDbContext>();                                                // JC.Core
 services.AddGithub<MyDbContext>(configuration);                                // JC.Github
 services.AddIdentity<MyUser, MyRole>();                                        // JC.Identity
 services.AddMySqlDatabase<MyDbContext>(config, "MyApp", addHealthCheck: true);  // JC.MySql (or JC.SqlServer)
 
+// Program.cs — Middleware
 app.UseIdentity();                                                              // JC.Identity middleware
+app.UseGithubWebhooks();                                                        // JC.Github webhook endpoint
 await app.ConfigureAdminAndRolesAsync<MyUser, MyRoles, MyRole>();
 await app.Services.MigrateDatabaseAsync<MyDbContext>();
 ```
@@ -982,7 +1048,11 @@ The order matters:
 
 | Change | Project | Details |
 |--------|---------|---------|
-| **New project: JC.Github** | JC.Github | Extracted GitHub integration (GitHelper, BugReportService, ReportedIssue, IGithubDbContext) from JC.Core into a standalone package |
+| **New project: JC.Github** | JC.Github | Extracted GitHub integration (GitHelper, BugReportService, ReportedIssue, IGithubDbContext) from JC.Core into a standalone package. Added webhook support for real-time issue and comment synchronisation |
+| **GitHub webhook endpoint** | JC.Github | `GithubWebhookEndpoint` with HMAC-SHA256 signature validation, ping handling, PR comment filtering, and error handling |
+| **GitHub webhook service** | JC.Github | `GithubWebhookService` processes issue open/close/reopen and comment create/edit/delete events via repository pattern |
+| **IssueComment model** | JC.Github | New entity for synced GitHub comments with soft-delete support |
+| **GithubOptions** | JC.Github | Options pattern for webhook configuration (enable/disable, path, secret) |
 | **Pagination system** | JC.Core | `IPagination<T>`, `PagedList<T>`, `PaginationHelper`, `PaginationExtensions` (`ToPagedList`, `ToPagedListAsync`) |
 | **Pagination tag helper** | JC.Web | `<pagination>` tag helper with first/last/prev/next, ellipsis, configurable max pages |
 | **String extensions** | JC.Core | `Truncate`, `ToSlug` (source-generated regex), `ToTitleCase`, `Mask` |
@@ -992,7 +1062,7 @@ The order matters:
 | **TableBuilder** | JC.Web | Generic `TableBuilder<T>` with HTML-encoded cells, column CSS classes, string and object selectors |
 | **Health check registration** | JC.MySql, JC.SqlServer | Optional `addHealthCheck` parameter (default `false`) using `AspNetCore.HealthChecks.MySql`/`.SqlServer` v9.0.0 |
 | **Flurl.Http removed from JC.Core** | JC.Core | Moved to JC.Github; JC.Core no longer has HTTP client dependencies |
-| **Version bump** | All | JC.Core, JC.Identity, JC.Web → 1.1.0; JC.MySql, JC.SqlServer → 1.1.0; JC.Github → 1.0.0 |
+| **Version bump** | All | All packages → 1.1.0 (lockstep versioning) |
 
 ### v1.0.2 (2026-03-05)
 
