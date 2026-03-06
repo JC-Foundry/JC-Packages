@@ -74,7 +74,7 @@ public static class ServiceCollectionExtensions
     /// </exception>
     public static IServiceCollection AddCookieServices(
         this IServiceCollection services,
-        IConfiguration configuration,
+        IConfiguration? configuration = null,
         bool useEncryptedCookies = true,
         Action<CookieDefaultOptions>? configure = null)
     {
@@ -90,9 +90,15 @@ public static class ServiceCollectionExtensions
         if (!useEncryptedCookies)
         {
             services.AddScoped<ICookieService, CookieService>();
+            services.AddKeyedScoped<ICookieService>(ICookieService.StandardCookieDIKey,
+                (sp, _) => sp.GetRequiredService<ICookieService>());
             return services;
         }
 
+        if (configuration == null)
+            throw new ArgumentNullException(nameof(configuration),
+                "When configuring encrypted cookie services, you must pass IConfiguration as a parameter");
+        
         // Both services — register as keyed services requiring [FromKeyedServices] attribute
         var dataProtectionPath = configuration[EncryptedCookieService.DataProtectionConfigKey];
         if (string.IsNullOrEmpty(dataProtectionPath))
