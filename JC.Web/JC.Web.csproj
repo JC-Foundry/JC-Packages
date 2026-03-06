@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.Web</PackageId>
-        <Version>1.1.1</Version>
+        <Version>1.1.2</Version>
         <Description>Web helpers for ASP.NET Core including dropdown builders, HTML tag builder, pagination tag helper, model state wrapper, and QR code generation.</Description>
     </PropertyGroup>
 

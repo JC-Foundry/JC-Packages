@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.Github</PackageId>
-        <Version>1.1.1</Version>
+        <Version>1.1.2</Version>
         <Description>GitHub integration for JC.Core providing bug report and issue tracking services.</Description>
     </PropertyGroup>
 
