@@ -8,8 +8,15 @@
 
     <ItemGroup>
       <FrameworkReference Include="Microsoft.AspNetCore.App" />
-      <PackageReference Include="JC.Core" Version="1.1.1" />
-      <PackageReference Include="QRCoder" Version="1.7.0" />
+      <PackageReference Include="QRCoder" VersionOverride="1.7.0" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' == 'true'">
+        <ProjectReference Include="..\JC.Core\JC.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' != 'true'">
+        <PackageReference Include="JC.Core" />
     </ItemGroup>
 
 </Project>

@@ -8,11 +8,14 @@
 
     <ItemGroup>
       <FrameworkReference Include="Microsoft.AspNetCore.App" />
-      <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.11" />
+      <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" VersionOverride="9.0.11" />
     </ItemGroup>
 
-    <ItemGroup>
-      <PackageReference Include="JC.Core" Version="1.1.1" />
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' == 'true'">
+        <ProjectReference Include="..\JC.Core\JC.Core.csproj" />
     </ItemGroup>
 
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' != 'true'">
+        <PackageReference Include="JC.Core" />
+    </ItemGroup>
 </Project>

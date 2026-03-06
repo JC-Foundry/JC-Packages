@@ -6,14 +6,18 @@
         <Description>MySQL database provider extensions for JC.Core using Pomelo.EntityFrameworkCore.MySql.</Description>
     </PropertyGroup>
 
-    <ItemGroup>
-      <PackageReference Include="JC.Core" Version="1.1.1" />
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' == 'true'">
+        <ProjectReference Include="..\JC.Core\JC.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' != 'true'">
+        <PackageReference Include="JC.Core" />
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="AspNetCore.HealthChecks.MySql" Version="9.0.0" />
-      <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.11" />
-      <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0" />
+      <PackageReference Include="AspNetCore.HealthChecks.MySql" VersionOverride="9.0.0" />
+      <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" VersionOverride="9.0.11" />
+      <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" VersionOverride="9.0.0" />
     </ItemGroup>
 
 </Project>

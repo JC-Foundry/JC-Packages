@@ -8,13 +8,19 @@
 
     <ItemGroup>
       <FrameworkReference Include="Microsoft.AspNetCore.App" />
-      <PackageReference Include="JC.Core" Version="1.1.1" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' == 'true'">
+        <ProjectReference Include="..\JC.Core\JC.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' != 'true'">
+        <PackageReference Include="JC.Core" />
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Flurl.Http" Version="4.0.2" />
-      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.11" />
-      <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.11" />
+      <PackageReference Include="Flurl.Http" VersionOverride="4.0.2" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore" VersionOverride="9.0.11" />
+      <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" VersionOverride="9.0.11" />
     </ItemGroup>
-
 </Project>

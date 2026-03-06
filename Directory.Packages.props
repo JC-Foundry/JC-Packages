@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Internal/shared JC packages -->
+    <PackageVersion Include="JC.Core" Version="1.1.1" />
+  </ItemGroup>
+</Project>

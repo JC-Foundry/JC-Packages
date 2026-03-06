@@ -8,5 +8,8 @@
     <RepositoryUrl>https://github.com/johncraik/JC-Packages</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageTags>jc-packages</PackageTags>
+
+    <!-- When building inside this repo, prefer local project references -->
+    <UseLocalProjectReferences>true</UseLocalProjectReferences>
   </PropertyGroup>
 </Project>
