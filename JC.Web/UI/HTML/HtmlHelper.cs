@@ -11,7 +11,17 @@ public static class HtmlHelper
     /// </summary>
     private static HtmlTagBuilder Tag(string tagName) => new(tagName);
 
-    public static string CreateElement(string tagName, string content = "", bool isActive = false, bool isDisabled = false, 
+    /// <summary>
+    /// Creates a generic HTML element with optional content, state attributes, custom attributes, and CSS classes.
+    /// </summary>
+    /// <param name="tagName">The HTML tag name (e.g. <c>"div"</c>, <c>"span"</c>).</param>
+    /// <param name="content">The inner HTML content. Defaults to an empty string.</param>
+    /// <param name="isActive">Whether to add the <c>active</c> CSS class.</param>
+    /// <param name="isDisabled">Whether to add the <c>disabled</c> CSS class.</param>
+    /// <param name="attributes">Optional dictionary of HTML attributes to add.</param>
+    /// <param name="classes">Additional CSS classes to apply.</param>
+    /// <returns>The rendered HTML string.</returns>
+    public static string CreateElement(string tagName, string content = "", bool isActive = false, bool isDisabled = false,
         Dictionary<string, string>? attributes = null, params string[] classes)
     {
         var builder = Tag(tagName);

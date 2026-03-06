@@ -21,9 +21,7 @@
 
     <ItemGroup>
       <Folder Include="Extensions\" />
-      <Folder Include="Security\Cookies\" />
       <Folder Include="Security\Middleware\" />
-      <Folder Include="Security\Services\" />
       <Folder Include="UI\" />
     </ItemGroup>
 

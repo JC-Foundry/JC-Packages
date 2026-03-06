@@ -26,6 +26,8 @@ public class HtmlTagBuilder
     /// Adds a CSS class to the tag. Multiple classes can be added by calling this method multiple times.
     /// Empty or whitespace-only class names are ignored.
     /// </summary>
+    /// <param name="className">The CSS class name to add.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public HtmlTagBuilder AddClass(string className)
     {
         if (!string.IsNullOrWhiteSpace(className))
@@ -36,24 +38,39 @@ public class HtmlTagBuilder
     /// <summary>
     /// Adds or updates an HTML attribute. If the attribute already exists, its value is replaced.
     /// </summary>
+    /// <param name="name">The attribute name.</param>
+    /// <param name="value">The attribute value (will be HTML-encoded).</param>
+    /// <returns>The builder instance for chaining.</returns>
     public HtmlTagBuilder AddAttribute(string name, string value)
     {
         _attributes[name] = value;
         return this;
     }
 
+    /// <summary>
+    /// Adds the <c>active</c> CSS class to the tag, commonly used for Bootstrap active states.
+    /// </summary>
+    /// <returns>The builder instance for chaining.</returns>
     public HtmlTagBuilder AddActiveAttribute()
     {
         _classes.Add("active");
         return this;
     }
 
+    /// <summary>
+    /// Adds the <c>aria-current="page"</c> attribute, indicating the current page in navigation.
+    /// </summary>
+    /// <returns>The builder instance for chaining.</returns>
     public HtmlTagBuilder AddCurrentPageAttribute()
     {
         _attributes[ActiveKey] = "page";
         return this;
     }
 
+    /// <summary>
+    /// Adds the <c>disabled</c> CSS class to the tag.
+    /// </summary>
+    /// <returns>The builder instance for chaining.</returns>
     public HtmlTagBuilder AddDisabledClass()
     {
         _classes.Add("disabled");
@@ -63,6 +80,8 @@ public class HtmlTagBuilder
     /// <summary>
     /// Sets the inner HTML content of the tag. Overwrites any previously set content.
     /// </summary>
+    /// <param name="content">The inner HTML content.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public HtmlTagBuilder SetContent(string content)
     {
         _content = content;
@@ -70,8 +89,9 @@ public class HtmlTagBuilder
     }
 
     /// <summary>
-    /// Builds and returns the complete HTML tag as a string
+    /// Builds and returns the complete HTML tag as a string.
     /// </summary>
+    /// <returns>The rendered HTML string.</returns>
     public string Build()
     {
         var sb = new StringBuilder();

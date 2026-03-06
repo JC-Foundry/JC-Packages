@@ -141,26 +141,105 @@ public partial class ContentSecurityPolicyBuilder
 
     #region Directives
 
+    /// <summary>Adds sources to the <c>default-src</c> directive (fallback for other fetch directives).</summary>
+    /// <param name="sources">One or more CSP source expressions (keywords, schemes, hosts, nonces, or hashes).</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder DefaultSrc(params string[] sources) => AddDirective("default-src", sources);
+
+    /// <summary>Adds sources to the <c>script-src</c> directive (controls script execution).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder ScriptSrc(params string[] sources) => AddDirective("script-src", sources);
+
+    /// <summary>Adds sources to the <c>script-src-elem</c> directive (controls script element sources).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder ScriptSrcElem(params string[] sources) => AddDirective("script-src-elem", sources);
+
+    /// <summary>Adds sources to the <c>script-src-attr</c> directive (controls inline event handler sources).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder ScriptSrcAttr(params string[] sources) => AddDirective("script-src-attr", sources);
+
+    /// <summary>Adds sources to the <c>style-src</c> directive (controls stylesheet sources).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder StyleSrc(params string[] sources) => AddDirective("style-src", sources);
+
+    /// <summary>Adds sources to the <c>style-src-elem</c> directive (controls stylesheet element sources).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder StyleSrcElem(params string[] sources) => AddDirective("style-src-elem", sources);
+
+    /// <summary>Adds sources to the <c>style-src-attr</c> directive (controls inline style attribute sources).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder StyleSrcAttr(params string[] sources) => AddDirective("style-src-attr", sources);
+
+    /// <summary>Adds sources to the <c>img-src</c> directive (controls image sources).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder ImgSrc(params string[] sources) => AddDirective("img-src", sources);
+
+    /// <summary>Adds sources to the <c>font-src</c> directive (controls font sources).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder FontSrc(params string[] sources) => AddDirective("font-src", sources);
+
+    /// <summary>Adds sources to the <c>connect-src</c> directive (controls fetch, XHR, WebSocket, and EventSource connections).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder ConnectSrc(params string[] sources) => AddDirective("connect-src", sources);
+
+    /// <summary>Adds sources to the <c>media-src</c> directive (controls audio and video sources).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder MediaSrc(params string[] sources) => AddDirective("media-src", sources);
+
+    /// <summary>Adds sources to the <c>object-src</c> directive (controls plugin sources such as Flash).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder ObjectSrc(params string[] sources) => AddDirective("object-src", sources);
+
+    /// <summary>Adds sources to the <c>frame-src</c> directive (controls nested browsing context sources).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder FrameSrc(params string[] sources) => AddDirective("frame-src", sources);
+
+    /// <summary>Adds sources to the <c>child-src</c> directive (controls web worker and nested context sources).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder ChildSrc(params string[] sources) => AddDirective("child-src", sources);
+
+    /// <summary>Adds sources to the <c>worker-src</c> directive (controls web worker, shared worker, and service worker sources).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder WorkerSrc(params string[] sources) => AddDirective("worker-src", sources);
+
+    /// <summary>Adds sources to the <c>manifest-src</c> directive (controls application manifest sources).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder ManifestSrc(params string[] sources) => AddDirective("manifest-src", sources);
+
+    /// <summary>Adds sources to the <c>base-uri</c> directive (restricts URLs that can appear in the <c>&lt;base&gt;</c> element).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder BaseUri(params string[] sources) => AddDirective("base-uri", sources);
+
+    /// <summary>Adds sources to the <c>form-action</c> directive (restricts URLs that can be used as form submission targets).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder FormAction(params string[] sources) => AddDirective("form-action", sources);
+
+    /// <summary>Adds sources to the <c>frame-ancestors</c> directive (controls which parents can embed the page).</summary>
+    /// <param name="sources">One or more CSP source expressions.</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder FrameAncestors(params string[] sources) => AddDirective("frame-ancestors", sources);
 
+    /// <summary>
+    /// Adds the <c>upgrade-insecure-requests</c> directive, instructing browsers to upgrade HTTP requests to HTTPS.
+    /// </summary>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder UpgradeInsecureRequests()
     {
         if (!HasDirective("upgrade-insecure-requests"))
@@ -169,6 +248,13 @@ public partial class ContentSecurityPolicyBuilder
         return this;
     }
 
+    /// <summary>
+    /// Adds the <c>sandbox</c> directive with optional sandbox tokens.
+    /// Called with no arguments applies the most restrictive sandbox. Tokens selectively re-enable capabilities.
+    /// </summary>
+    /// <param name="values">Optional sandbox tokens (e.g. <c>"allow-scripts"</c>, <c>"allow-forms"</c>).</param>
+    /// <returns>The builder instance for chaining.</returns>
+    /// <exception cref="ArgumentException">Thrown when an invalid sandbox token is provided.</exception>
     public ContentSecurityPolicyBuilder Sandbox(params string[] values)
     {
         // sandbox with no values = most restrictive
@@ -199,6 +285,12 @@ public partial class ContentSecurityPolicyBuilder
         return this;
     }
 
+    /// <summary>
+    /// Sets the <c>report-uri</c> directive to the specified URI for CSP violation reporting.
+    /// </summary>
+    /// <param name="uri">A relative path (e.g. <c>/csp-report</c>) or absolute URI.</param>
+    /// <returns>The builder instance for chaining.</returns>
+    /// <exception cref="ArgumentException">Thrown when the URI is empty, protocol-relative, or otherwise invalid.</exception>
     public ContentSecurityPolicyBuilder ReportUri(string uri)
     {
         if (string.IsNullOrWhiteSpace(uri))
@@ -221,6 +313,12 @@ public partial class ContentSecurityPolicyBuilder
         return this;
     }
 
+    /// <summary>
+    /// Sets the <c>report-to</c> directive to the specified Reporting API group name.
+    /// </summary>
+    /// <param name="groupName">The Reporting API group name (must match a <c>Report-To</c> header group).</param>
+    /// <returns>The builder instance for chaining.</returns>
+    /// <exception cref="ArgumentException">Thrown when the group name is empty or whitespace.</exception>
     public ContentSecurityPolicyBuilder ReportTo(string groupName)
     {
         if (string.IsNullOrWhiteSpace(groupName))
@@ -234,14 +332,48 @@ public partial class ContentSecurityPolicyBuilder
 
     #region Nonce & Hash Helpers
 
+    /// <summary>Adds a nonce source to the <c>script-src</c> directive.</summary>
+    /// <param name="nonce">The raw base64 nonce value (without the <c>'nonce-...'</c> wrapper).</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder ScriptNonce(string nonce) => AddNonceDirective("script-src", nonce);
+
+    /// <summary>Adds a nonce source to the <c>script-src-elem</c> directive.</summary>
+    /// <param name="nonce">The raw base64 nonce value (without the <c>'nonce-...'</c> wrapper).</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder ScriptElemNonce(string nonce) => AddNonceDirective("script-src-elem", nonce);
+
+    /// <summary>Adds a nonce source to the <c>style-src</c> directive.</summary>
+    /// <param name="nonce">The raw base64 nonce value (without the <c>'nonce-...'</c> wrapper).</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder StyleNonce(string nonce) => AddNonceDirective("style-src", nonce);
+
+    /// <summary>Adds a nonce source to the <c>style-src-elem</c> directive.</summary>
+    /// <param name="nonce">The raw base64 nonce value (without the <c>'nonce-...'</c> wrapper).</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder StyleElemNonce(string nonce) => AddNonceDirective("style-src-elem", nonce);
 
+    /// <summary>Adds a hash source to the <c>script-src</c> directive.</summary>
+    /// <param name="algorithm">The hash algorithm: <c>sha256</c>, <c>sha384</c>, or <c>sha512</c>.</param>
+    /// <param name="base64Hash">The raw base64 hash value (without the <c>'sha...-...'</c> wrapper).</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder ScriptHash(string algorithm, string base64Hash) => AddHashDirective("script-src", algorithm, base64Hash);
+
+    /// <summary>Adds a hash source to the <c>script-src-elem</c> directive.</summary>
+    /// <param name="algorithm">The hash algorithm: <c>sha256</c>, <c>sha384</c>, or <c>sha512</c>.</param>
+    /// <param name="base64Hash">The raw base64 hash value (without the <c>'sha...-...'</c> wrapper).</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder ScriptElemHash(string algorithm, string base64Hash) => AddHashDirective("script-src-elem", algorithm, base64Hash);
+
+    /// <summary>Adds a hash source to the <c>style-src</c> directive.</summary>
+    /// <param name="algorithm">The hash algorithm: <c>sha256</c>, <c>sha384</c>, or <c>sha512</c>.</param>
+    /// <param name="base64Hash">The raw base64 hash value (without the <c>'sha...-...'</c> wrapper).</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder StyleHash(string algorithm, string base64Hash) => AddHashDirective("style-src", algorithm, base64Hash);
+
+    /// <summary>Adds a hash source to the <c>style-src-elem</c> directive.</summary>
+    /// <param name="algorithm">The hash algorithm: <c>sha256</c>, <c>sha384</c>, or <c>sha512</c>.</param>
+    /// <param name="base64Hash">The raw base64 hash value (without the <c>'sha...-...'</c> wrapper).</param>
+    /// <returns>The builder instance for chaining.</returns>
     public ContentSecurityPolicyBuilder StyleElemHash(string algorithm, string base64Hash) => AddHashDirective("style-src-elem", algorithm, base64Hash);
 
     private ContentSecurityPolicyBuilder AddNonceDirective(string directive, string nonce)
@@ -285,6 +417,7 @@ public partial class ContentSecurityPolicyBuilder
     /// Builds the Content-Security-Policy header value string.
     /// Returns <c>null</c> if no directives have been configured.
     /// </summary>
+    /// <returns>The complete CSP header value, or <c>null</c> if empty.</returns>
     public string? Build()
     {
         if (_directives.Count == 0)

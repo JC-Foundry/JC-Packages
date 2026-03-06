@@ -26,6 +26,12 @@ public class SecurityHeaderMiddleware
     private readonly string? _contentSecurityPolicy;
     private readonly string? _strictTransportSecurity;
 
+    /// <summary>
+    /// Initialises the middleware and pre-computes all header values from the provided options.
+    /// </summary>
+    /// <param name="next">The next middleware in the pipeline.</param>
+    /// <param name="options">The security header configuration options.</param>
+    /// <param name="environment">The host environment, used to determine whether HSTS should be applied.</param>
     public SecurityHeaderMiddleware(
         RequestDelegate next,
         IOptions<SecurityHeaderOptions> options,
@@ -61,6 +67,10 @@ public class SecurityHeaderMiddleware
         }
     }
 
+    /// <summary>
+    /// Applies security headers to the response and invokes the next middleware.
+    /// </summary>
+    /// <param name="context">The HTTP context for the current request.</param>
     public async Task InvokeAsync(HttpContext context)
     {
         context.Response.OnStarting(() =>
