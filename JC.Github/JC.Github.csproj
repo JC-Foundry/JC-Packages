@@ -20,7 +20,6 @@
 
     <ItemGroup>
       <PackageReference Include="Flurl.Http" VersionOverride="4.0.2" />
-      <PackageReference Include="Microsoft.EntityFrameworkCore" VersionOverride="9.0.11" />
-      <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" VersionOverride="9.0.11" />
+      <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     </ItemGroup>
 </Project>

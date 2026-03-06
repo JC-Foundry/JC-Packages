@@ -12,5 +12,5 @@ public class GithubOptions
     public string WebhookPath { get; set; } = "/api/github/webhook";
 
     /// <summary>Gets the HMAC-SHA256 secret used to validate incoming webhook payloads from GitHub. Set from configuration.</summary>
-    public string WebhookSecret { get; internal set; }
+    public string WebhookSecret { get; internal set; } = string.Empty;
 }
