@@ -15,45 +15,21 @@ namespace JC.Web.Security.Services;
 /// to create a scoped <see cref="IDataProtector"/> per operation.
 /// Throws <see cref="ArgumentException"/> if <see cref="CookieSettings.IsEncrypted"/> is <c>false</c>.
 /// </summary>
-public class EncryptedCookieService : ICookieService
+public class EncryptedCookieService(
+    IHttpContextAccessor httpContextAccessor,
+    IDataProtectionProvider dataProtectionProvider,
+    IOptions<CookieDefaultOptions> defaults,
+    ILogger<EncryptedCookieService> logger) : ICookieService
 {
-    internal const string DataProtectionConfigKey = "Cookies:DataProtection_Path";
-    private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly IDataProtectionProvider _dataProtectionProvider;
-    private readonly ILogger<EncryptedCookieService> _logger;
-    private readonly CookieDefaultOptions _defaults;
-
-    public EncryptedCookieService(
-        IHttpContextAccessor httpContextAccessor,
-        IDataProtectionProvider dataProtectionProvider,
-        IOptions<CookieDefaultOptions> defaults,
-        ILogger<EncryptedCookieService> logger,
-        IConfiguration config)
-    {
-        _httpContextAccessor = httpContextAccessor;
-        _dataProtectionProvider = dataProtectionProvider;
-        _logger = logger;
-        _defaults = defaults.Value;
-
-        var path = config[DataProtectionConfigKey];
-        if (string.IsNullOrEmpty(path))
-            throw new InvalidOperationException(
-                $"EncryptedCookieService requires a Data Protection key storage path. " +
-                $"Set the '{DataProtectionConfigKey}' configuration key to a valid directory path " +
-                $"(e.g. in appsettings.json: {{ \"Cookies\": {{ \"DataProtection_Path\": \"/path/to/keys\" }} }}).");
-
-        if (!Directory.Exists(path))
-            throw new InvalidOperationException(
-                $"The Data Protection key storage directory '{path}' configured at '{DataProtectionConfigKey}' does not exist. " +
-                $"Create the directory or update the configuration to point to an existing path.");
-    }
+    internal const string DataProtectionConfigKey = "Cookies:DataProtection-Path";
+    private readonly CookieDefaultOptions _defaults = defaults.Value;
     
     /// <inheritdoc />
     public void CreateCookie(string content, CookieSettings settings, CookieDefaultOverride? overrides = null)
     {
         EnsureEncrypted(settings);
 
-        var protector = _dataProtectionProvider.CreateProtector(settings.ProtectorPurpose!);
+        var protector = dataProtectionProvider.CreateProtector(settings.ProtectorPurpose!);
         var encryptedContent = protector.Protect(content);
 
         var options = _defaults.ToCookieOptions(overrides);
@@ -73,12 +49,12 @@ public class EncryptedCookieService : ICookieService
 
         try
         {
-            var protector = _dataProtectionProvider.CreateProtector(settings.ProtectorPurpose!);
+            var protector = dataProtectionProvider.CreateProtector(settings.ProtectorPurpose!);
             return protector.Unprotect(encryptedValue);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex,
+            logger.LogWarning(ex,
                 "Failed to decrypt cookie '{CookieName}'. The cookie may have been tampered with or the data protection key has changed.",
                 settings.CookieName);
             return null;
@@ -111,7 +87,7 @@ public class EncryptedCookieService : ICookieService
     }
 
     private HttpContext GetHttpContext() =>
-        _httpContextAccessor.HttpContext
+        httpContextAccessor.HttpContext
         ?? throw new InvalidOperationException("HttpContext is not available.");
 
     private static void EnsureEncrypted(CookieSettings settings)
