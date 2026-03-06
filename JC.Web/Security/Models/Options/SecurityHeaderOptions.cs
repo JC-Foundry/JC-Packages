@@ -10,15 +10,15 @@ public class SecurityHeaderOptions
     public ReferrerPolicyMode? ReferrerPolicy { get; set; } = ReferrerPolicyMode.StrictOriginWhenCrossOrigin;
     public string? PermissionsPolicy { get; set; } = "geolocation=(), microphone=(), camera=()";
 
-    public CrossOriginOpenerPolicyMode? CrossOriginOpenerPolicy { get; set; } = CrossOriginOpenerPolicyMode.SameOrigin;
-    public CrossOriginResourcePolicyMode? CrossOriginResourcePolicy { get; set; } = CrossOriginResourcePolicyMode.SameOrigin;
+    public CrossOriginOpenerPolicyMode? CrossOriginOpenerPolicy { get; set; }
+    public CrossOriginResourcePolicyMode? CrossOriginResourcePolicy { get; set; }
     public CrossOriginEmbedderPolicyMode? CrossOriginEmbedderPolicy { get; set; }
     
     
     // HSTS — wraps ASP.NET's UseHsts() into our pipeline
     public bool EnableHsts { get; set; } = true;
     public TimeSpan HstsMaxAge { get; set; } = TimeSpan.FromDays(180);
-    public bool HstsIncludeSubDomains { get; set; } = false;
+    public bool HstsIncludeSubDomains { get; set; }
     public bool HstsProductionOnly { get; set; } = true;
 
     // Strip headers that leak server info
