@@ -1,4 +1,4 @@
-namespace JC.Web.Helpers.HTML;
+namespace JC.Web.UI.HTML;
 
 /// <summary>
 /// Specifies the type of Bootstrap alert to render.

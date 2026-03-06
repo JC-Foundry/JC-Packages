@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text;
 
-namespace JC.Web.Helpers.HTML;
+namespace JC.Web.UI.HTML;
 
 /// <summary>
 /// Fluent builder for constructing HTML tags with attributes, classes, and content

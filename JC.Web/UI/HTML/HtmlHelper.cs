@@ -1,4 +1,4 @@
-namespace JC.Web.Helpers.HTML;
+namespace JC.Web.UI.HTML;
 
 /// <summary>
 /// Fluent API for building HTML tags with attributes, classes, and content.

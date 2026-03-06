@@ -1,6 +1,6 @@
 using QRCoder;
 
-namespace JC.Web.Helpers;
+namespace JC.Web.UI.Helpers;
 
 /// <summary>
 /// Specifies the output format for generated QR codes.

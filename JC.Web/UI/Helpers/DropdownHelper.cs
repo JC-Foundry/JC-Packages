@@ -2,7 +2,7 @@ using JC.Core.Extensions;
 using JC.Core.Helpers;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
-namespace JC.Web.Helpers;
+namespace JC.Web.UI.Helpers;
 
 /// <summary>
 /// Static helper methods for building <see cref="SelectListItem"/> collections from various data sources.

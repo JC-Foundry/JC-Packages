@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 
-namespace JC.Web.Helpers;
+namespace JC.Web.UI.Helpers;
 
 /// <summary>
 /// Wraps <see cref="ModelStateDictionary"/> with automatic key prefixing for cleaner error access

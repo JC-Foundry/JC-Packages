@@ -1,7 +1,7 @@
-using JC.Web.Helpers.HTML;
+using JC.Web.UI.HTML;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 
-namespace JC.Web.TagHelpers;
+namespace JC.Web.UI.TagHelpers;
 
 /// <summary>
 /// Tag helper that renders a Bootstrap 5 alert component.

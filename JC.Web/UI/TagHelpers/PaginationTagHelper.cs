@@ -1,9 +1,9 @@
 using System.Text;
 using JC.Core.Models.Pagination;
-using JC.Web.Helpers.HTML;
+using JC.Web.UI.HTML;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 
-namespace JC.Web.TagHelpers;
+namespace JC.Web.UI.TagHelpers;
 
 /// <summary>
 /// Tag helper that renders Bootstrap-compatible pagination from an <see cref="IPagination{T}"/> model.

@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.Web</PackageId>
-        <Version>1.1.2</Version>
+        <Version>2.0.0</Version>
         <Description>Web helpers for ASP.NET Core including dropdown builders, HTML tag builder, pagination tag helper, model state wrapper, and QR code generation.</Description>
     </PropertyGroup>
 
@@ -17,6 +17,14 @@
 
     <ItemGroup Condition="'$(UseLocalProjectReferences)' != 'true'">
         <PackageReference Include="JC.Core" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Extensions\" />
+      <Folder Include="Security\Cookies\" />
+      <Folder Include="Security\Middleware\" />
+      <Folder Include="Security\Services\" />
+      <Folder Include="UI\" />
     </ItemGroup>
 
 </Project>
