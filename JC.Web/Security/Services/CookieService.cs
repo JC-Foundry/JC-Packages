@@ -20,14 +20,14 @@ public class CookieService(
     private readonly CookieDefaultOptions _defaults = defaults.Value;
 
     /// <inheritdoc />
-    public void CreateCookie(string content, CookieSettings settings, CookieOptions? overrideOptions = null)
+    public void CreateCookie(string content, CookieSettings settings, CookieDefaultOverride? overrides = null)
     {
         if (settings.IsEncrypted)
             logger.LogWarning(
                 "CookieSettings for '{CookieName}' has a ProtectorPurpose set but is being used with the unencrypted CookieService. The ProtectorPurpose will be ignored.",
                 settings.CookieName);
 
-        var options = overrideOptions ?? _defaults.ToCookieOptions();
+        var options = _defaults.ToCookieOptions(overrides);
         var context = GetHttpContext();
 
         context.Response.Cookies.Append(settings.CookieName, content, options);
@@ -52,10 +52,11 @@ public class CookieService(
     }
 
     /// <inheritdoc />
-    public void DeleteCookie(CookieSettings settings)
+    public void DeleteCookie(CookieSettings settings, CookieDefaultOverride? overrides = null)
     {
+        var options = _defaults.ToCookieOptions(overrides);
         var context = GetHttpContext();
-        context.Response.Cookies.Delete(settings.CookieName);
+        context.Response.Cookies.Delete(settings.CookieName, options);
     }
 
     /// <inheritdoc />

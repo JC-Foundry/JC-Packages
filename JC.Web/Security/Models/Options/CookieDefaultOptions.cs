@@ -4,7 +4,7 @@ namespace JC.Web.Security.Models.Options;
 
 /// <summary>
 /// Global default options applied to all cookies created by <see cref="Abstractions.ICookieService"/> implementations.
-/// These defaults are used unless explicitly overridden via the <c>overrideOptions</c> parameter on individual cookie operations.
+/// These defaults are used as the baseline, with any <see cref="CookieDefaultOverride"/> properties merged on top.
 /// </summary>
 public class CookieDefaultOptions
 {
@@ -50,27 +50,32 @@ public class CookieDefaultOptions
     public bool IsEssential { get; set; }
 
     /// <summary>
-    /// Converts these defaults into an ASP.NET Core <see cref="CookieOptions"/> instance.
+    /// Builds a <see cref="CookieOptions"/> from these defaults, merging any non-null properties from the override on top.
     /// </summary>
-    internal CookieOptions ToCookieOptions()
+    /// <param name="overrides">Optional overrides. Only non-null properties replace the defaults.</param>
+    /// <returns>A fully populated <see cref="CookieOptions"/> instance.</returns>
+    internal CookieOptions ToCookieOptions(CookieDefaultOverride? overrides = null)
     {
         var options = new CookieOptions
         {
-            HttpOnly = HttpOnly,
-            Secure = Secure,
-            SameSite = SameSite,
-            Path = Path,
-            IsEssential = IsEssential
+            HttpOnly = overrides?.HttpOnly ?? HttpOnly,
+            Secure = overrides?.Secure ?? Secure,
+            SameSite = overrides?.SameSite ?? SameSite,
+            Path = overrides?.Path ?? Path,
+            IsEssential = overrides?.IsEssential ?? IsEssential
         };
 
-        if (MaxAge.HasValue)
-            options.MaxAge = MaxAge.Value;
+        var maxAge = overrides?.MaxAge ?? MaxAge;
+        if (maxAge.HasValue)
+            options.MaxAge = maxAge.Value;
 
-        if (Expires.HasValue)
-            options.Expires = Expires.Value;
+        var expires = overrides?.Expires ?? Expires;
+        if (expires.HasValue)
+            options.Expires = expires.Value;
 
-        if (!string.IsNullOrEmpty(Domain))
-            options.Domain = Domain;
+        var domain = overrides?.Domain ?? Domain;
+        if (!string.IsNullOrEmpty(domain))
+            options.Domain = domain;
 
         return options;
     }
