@@ -41,7 +41,7 @@ JC.Core (foundation — no JC dependencies)
 
 All packages depend on **JC.Core**. The database providers (JC.MySql / JC.SqlServer) are interchangeable. JC.Identity, JC.Web, and JC.Github are independent of each other.
 
-## Quick Start
+## Quick Start & Usage
 
 ### JC.Core
 
@@ -52,12 +52,12 @@ builder.Services.AddCore<AppDbContext>();
 builder.Services.RegisterRepositoryContexts(typeof(Product), typeof(Order));
 ```
 
-Your `DbContext` must implement `IDataDbContext`:
+Your `DbContext` must extend `DataDbContext`:
 
 ```csharp
-public class AppDbContext : DbContext, IDataDbContext
+public class AppDbContext : DataDbContext
 {
-    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 }
 ```
 
@@ -105,14 +105,26 @@ builder.Services.AddSqlServerDatabase<AppDbContext>(
 
 ### JC.Identity
 
+Your `DbContext` must extend `IdentityDataDbContext<TUser, TRole>` instead of `DataDbContext`:
+
+```csharp
+public class AppDbContext : IdentityDataDbContext<AppUser, AppRole>
+{
+    public AppDbContext(DbContextOptions<AppDbContext> options, IUserInfo userInfo) : base(options, userInfo) { }
+}
+```
+
+Extend `BaseUser` and `BaseRole` for your application:
+
+```csharp
+public class AppUser : BaseUser { }
+public class AppRole : BaseRole { }
+```
+
 Register identity services and apply the middleware pipeline:
 
 ```csharp
-builder.Services
-    .AddIdentity<AppUser, AppRole>()
-    .AddEntityFrameworkStores<AppDbContext>();
-
-builder.Services.AddIdentity<AppUser, AppRole>();
+builder.Services.AddIdentity<AppUser, AppRole, AppDbContext>();
 
 var app = builder.Build();
 
@@ -121,11 +133,14 @@ app.UseIdentity();
 await app.ConfigureAdminAndRolesAsync<AppUser, AppRoles, AppRole>(setupTenancy: true);
 ```
 
-Extend `BaseUser` and `BaseRole` for your application:
+If you need to register ASP.NET Core Identity separately (e.g. custom configuration), use `AddIdentityBase` instead:
 
 ```csharp
-public class AppUser : BaseUser { }
-public class AppRole : BaseRole { }
+builder.Services
+    .AddIdentity<AppUser, AppRole>()
+    .AddEntityFrameworkStores<AppDbContext>();
+
+builder.Services.AddIdentityBase<AppUser, AppRole>();
 ```
 
 Define application roles by extending `SystemRoles`:
@@ -204,16 +219,19 @@ var app = builder.Build();
 app.UseGithubWebhooks();
 ```
 
-Your `DbContext` must implement `IGithubDbContext` and apply the entity mappings:
+Your `DbContext` must extend `DataDbContext` (or `IdentityDataDbContext` if using JC.Identity) and implement `IGithubDbContext`:
 
 ```csharp
-public class AppDbContext : DbContext, IDataDbContext, IGithubDbContext
+public class AppDbContext : DataDbContext, IGithubDbContext
 {
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
     public DbSet<ReportedIssue> ReportedIssues => Set<ReportedIssue>();
     public DbSet<IssueComment> IssueComments => Set<IssueComment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyGithubMappings();
     }
 }
@@ -292,7 +310,7 @@ No additional configuration or dependencies are required beyond the .NET 9 SDK.
 |--------|---------|
 | Major  | Suite-wide breaking changes |
 | Minor  | Suite-wide non-breaking feature changes |
-| Patch  | Package-specific fixes and small improvements |
+| Patch  | Package-specific fixes and non-breaking improvements |
 
 ### Rules
 
@@ -325,6 +343,6 @@ In short:
 - **Patch = package-specific**
 - **`JC.Core` patch = suite-wide patch**
 
-## Licence
+## License
 
 [MIT](LICENSE)

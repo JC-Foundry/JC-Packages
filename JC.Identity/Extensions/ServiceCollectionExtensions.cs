@@ -5,6 +5,7 @@ using JC.Identity.Extensions.Options;
 using JC.Identity.Models;
 using JC.Identity.Models.MultiTenancy;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -16,8 +17,63 @@ namespace JC.Identity.Extensions;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers JC.Identity services including authentication, authorisation, a custom <see cref="IUserInfo"/> implementation,
-    /// the custom claims principal factory, middleware options, and the tenant repository context.
+    /// Registers ASP.NET Core Identity with Entity Framework stores and all JC.Identity services.
+    /// This is the recommended entry point — it handles both ASP.NET Identity and JC.Identity registration in one call.
+    /// </summary>
+    /// <typeparam name="TUser">The user entity type, extending <see cref="BaseUser"/>.</typeparam>
+    /// <typeparam name="TRole">The role entity type, extending <see cref="BaseRole"/>.</typeparam>
+    /// <typeparam name="TContext">The <see cref="DbContext"/> type used for Identity stores.</typeparam>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configureMiddleware">Optional callback to configure <see cref="IdentityMiddlewareOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddIdentity<TUser, TRole, TContext>(
+        this IServiceCollection services,
+        Action<IdentityMiddlewareOptions>? configureMiddleware = null)
+        where TUser : BaseUser
+        where TRole : BaseRole
+        where TContext : DbContext
+    {
+        services.AddIdentity<TUser, TRole>()
+            .AddEntityFrameworkStores<TContext>()
+            .AddDefaultTokenProviders();
+
+        services.AddIdentityBase<TUser, TRole, UserInfo>(configureMiddleware);
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers ASP.NET Core Identity with Entity Framework stores and all JC.Identity services,
+    /// using a custom <see cref="IUserInfo"/> implementation.
+    /// </summary>
+    /// <typeparam name="TUser">The user entity type, extending <see cref="BaseUser"/>.</typeparam>
+    /// <typeparam name="TRole">The role entity type, extending <see cref="BaseRole"/>.</typeparam>
+    /// <typeparam name="TContext">The <see cref="DbContext"/> type used for Identity stores.</typeparam>
+    /// <typeparam name="TUserInfo">The <see cref="IUserInfo"/> implementation type to register.</typeparam>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configureMiddleware">Optional callback to configure <see cref="IdentityMiddlewareOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddIdentity<TUser, TRole, TContext, TUserInfo>(
+        this IServiceCollection services,
+        Action<IdentityMiddlewareOptions>? configureMiddleware = null)
+        where TUser : BaseUser
+        where TRole : BaseRole
+        where TContext : DbContext
+        where TUserInfo : class, IUserInfo
+    {
+        services.AddIdentity<TUser, TRole>()
+            .AddEntityFrameworkStores<TContext>()
+            .AddDefaultTokenProviders();
+
+        services.AddIdentityBase<TUser, TRole, TUserInfo>(configureMiddleware);
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers only the JC.Identity services (authentication, authorisation, <see cref="IUserInfo"/>,
+    /// claims principal factory, middleware options, and tenant repository) without registering ASP.NET Core Identity.
+    /// Use this when ASP.NET Core Identity has already been registered separately.
     /// </summary>
     /// <typeparam name="TUser">The user entity type, extending <see cref="BaseUser"/>.</typeparam>
     /// <typeparam name="TRole">The role entity type, extending <see cref="BaseRole"/>.</typeparam>
@@ -25,7 +81,7 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The service collection to register into.</param>
     /// <param name="configureMiddleware">Optional callback to configure <see cref="IdentityMiddlewareOptions"/>.</param>
     /// <returns>The service collection for chaining.</returns>
-    public static IServiceCollection AddIdentity<TUser, TRole, TUserInfo>(
+    public static IServiceCollection AddIdentityBase<TUser, TRole, TUserInfo>(
         this IServiceCollection services,
         Action<IdentityMiddlewareOptions>? configureMiddleware = null)
         where TUser : BaseUser
@@ -58,38 +114,22 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers JC.Identity services using the default <see cref="UserInfo"/> implementation.
+    /// Registers only the JC.Identity services using the default <see cref="UserInfo"/> implementation,
+    /// without registering ASP.NET Core Identity.
+    /// Use this when ASP.NET Core Identity has already been registered separately.
     /// </summary>
     /// <typeparam name="TUser">The user entity type, extending <see cref="BaseUser"/>.</typeparam>
     /// <typeparam name="TRole">The role entity type, extending <see cref="BaseRole"/>.</typeparam>
     /// <param name="services">The service collection to register into.</param>
     /// <param name="configureMiddleware">Optional callback to configure <see cref="IdentityMiddlewareOptions"/>.</param>
     /// <returns>The service collection for chaining.</returns>
-    public static IServiceCollection AddIdentity<TUser, TRole>(
+    public static IServiceCollection AddIdentityBase<TUser, TRole>(
         this IServiceCollection services,
         Action<IdentityMiddlewareOptions>? configureMiddleware = null)
         where TUser : BaseUser
         where TRole : BaseRole
     {
-        services.AddIdentity<TUser, TRole, UserInfo>();
+        services.AddIdentityBase<TUser, TRole, UserInfo>(configureMiddleware);
         return services;
-    }
-
-    /// <summary>
-    /// Registers JC.Identity services as an extension on an existing <see cref="IdentityBuilder"/>.
-    /// </summary>
-    /// <typeparam name="TUser">The user entity type, extending <see cref="BaseUser"/>.</typeparam>
-    /// <typeparam name="TRole">The role entity type, extending <see cref="BaseRole"/>.</typeparam>
-    /// <param name="builder">The identity builder to extend.</param>
-    /// <param name="configureMiddleware">Optional callback to configure <see cref="IdentityMiddlewareOptions"/>.</param>
-    /// <returns>The identity builder for chaining.</returns>
-    public static IdentityBuilder AddIdentity<TUser, TRole>(
-        this IdentityBuilder builder,
-        Action<IdentityMiddlewareOptions>? configureMiddleware = null)
-        where TUser : BaseUser
-        where TRole : BaseRole
-    {
-        builder.Services.AddIdentity<TUser, TRole>(configureMiddleware);
-        return builder;
     }
 }
