@@ -5,7 +5,7 @@ namespace JC.Web.Security.Models;
 /// <summary>
 /// Defines a cookie's identity, optional encryption configuration, and optional default overrides.
 /// Registered in a <see cref="Services.CookieProfileDictionary"/> and resolved by cookie name
-/// when <see cref="Abstractions.ICookieService"/> operations are performed.
+/// when <see cref="Services.ICookieService"/> operations are performed.
 /// </summary>
 public class CookieProfile
 {
@@ -121,10 +121,11 @@ public class CookieDefaultOverride
     /// <summary>
     /// Override for <see cref="CookieOptions.IsEssential"/>. When <c>null</c>, the global default is used.
     /// </summary>
-    public bool? IsEssential { get; set; }
+    public bool? IsEssential { get; }
 
     /// <summary>
     /// Creates an empty override. All properties default to <c>null</c> (use global defaults).
+    /// Used for granular control over setting properties.
     /// </summary>
     public CookieDefaultOverride()
     {

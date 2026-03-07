@@ -27,7 +27,7 @@ public class BreadcrumbTagHelper : TagHelper
         var crumbs = new List<(string Label, string? Href)>();
         context.Items[CrumbListKey] = crumbs;
 
-        await output.GetChildContentAsync();
+        _ = await output.GetChildContentAsync();
 
         if (crumbs.Count == 0)
         {

@@ -4,7 +4,8 @@
       "Bash(dotnet build:*)",
       "Bash(dotnet:*)",
       "WebFetch(domain:docs.github.com)",
-      "Bash(do dotnet:*)"
+      "Bash(do dotnet:*)",
+      "WebSearch"
     ]
   }
 }

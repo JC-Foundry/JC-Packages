@@ -16,4 +16,6 @@ public class CookieValidationResponse(bool isValid, string? actualValue)
     /// The actual value read from the cookie, or <c>null</c> if the cookie was not found or decryption failed.
     /// </summary>
     public string? ActualValue { get; init; } = actualValue;
+
+    public bool ValidationError => !IsValid && ActualValue == null;
 }

@@ -1,4 +1,3 @@
-using JC.Core.Helpers;
 using Microsoft.AspNetCore.Http;
 
 namespace JC.Web.Observability.Helpers;
@@ -22,6 +21,7 @@ namespace JC.Web.Observability.Helpers;
 public static class ClientIpResolver
 {
     private const string CloudflareHeader = "CF-Connecting-IP";
+    private const string CloudflareIpv6Header = "CF-Connecting-IPv6";
     private const string RealIpHeader = "X-Real-IP";
     private const string ForwardedForHeader = "X-Forwarded-For";
     private const string UnknownIp = "unknown";
@@ -35,9 +35,9 @@ public static class ClientIpResolver
     /// <para>
     /// When <paramref name="useHeaderFallback"/> is <c>true</c> and <c>RemoteIpAddress</c> is not
     /// available, falls back to inspecting forwarded headers in order:
-    /// <c>CF-Connecting-IP</c> (Cloudflare), <c>X-Real-IP</c> (nginx), then the first entry in
-    /// <c>X-Forwarded-For</c> (general proxies). All header values are validated and mapped to IPv4
-    /// via <see cref="IpAddressHelper.EnsureIpv4"/>. This fallback is <b>not safe</b> if the
+    /// <c>CF-Connecting-IPv6</c> (Cloudflare Pseudo IPv4), <c>CF-Connecting-IP</c> (Cloudflare),
+    /// <c>X-Real-IP</c> (nginx), then the first entry in
+    /// <c>X-Forwarded-For</c> (general proxies). This fallback is <b>not safe</b> if the
     /// application is directly exposed — forwarded headers can be spoofed by clients.
     /// </para>
     /// </summary>
@@ -52,10 +52,7 @@ public static class ClientIpResolver
         // Primary: RemoteIpAddress — correct after UseForwardedHeaders() with trusted proxies
         var remoteIp = context.Connection.RemoteIpAddress;
         if (remoteIp != null)
-        {
-            var ipv4 = IpAddressHelper.ParseIpAddress(remoteIp);
-            return string.IsNullOrEmpty(ipv4) ? UnknownIp : ipv4;
-        }
+            return remoteIp.ToString();
 
         if (!useHeaderFallback)
             return UnknownIp;
@@ -68,12 +65,16 @@ public static class ClientIpResolver
     {
         var headers = context.Request.Headers;
 
-        // Cloudflare IPv4 — single IP from Cloudflare edge
-        if (TryGetValidIpv4FromHeader(headers, CloudflareHeader, out var cfIp))
+        // Cloudflare — CF-Connecting-IPv6 holds the real IPv6 when Pseudo IPv4 overwrites CF-Connecting-IP
+        if (TryGetHeaderValue(headers, CloudflareIpv6Header, out var cfIpv6))
+            return cfIpv6;
+
+        // Cloudflare — single IP from Cloudflare edge
+        if (TryGetHeaderValue(headers, CloudflareHeader, out var cfIp))
             return cfIp;
 
         // nginx / reverse proxy — single IP
-        if (TryGetValidIpv4FromHeader(headers, RealIpHeader, out var realIp))
+        if (TryGetHeaderValue(headers, RealIpHeader, out var realIp))
             return realIp;
 
         // General proxies — comma-separated, first entry is the original client
@@ -84,16 +85,15 @@ public static class ClientIpResolver
             {
                 var commaIndex = value.IndexOf(',');
                 var firstIp = (commaIndex >= 0 ? value[..commaIndex] : value).Trim();
-                var validated = IpAddressHelper.EnsureIpv4(firstIp);
-                if (validated != null)
-                    return validated;
+                if (!string.IsNullOrEmpty(firstIp))
+                    return firstIp;
             }
         }
 
         return null;
     }
 
-    private static bool TryGetValidIpv4FromHeader(IHeaderDictionary headers, string headerName, out string value)
+    private static bool TryGetHeaderValue(IHeaderDictionary headers, string headerName, out string value)
     {
         value = string.Empty;
         if (!headers.TryGetValue(headerName, out var headerValue))
@@ -103,11 +103,7 @@ public static class ClientIpResolver
         if (string.IsNullOrEmpty(trimmed))
             return false;
 
-        var validated = IpAddressHelper.EnsureIpv4(trimmed);
-        if (validated == null)
-            return false;
-
-        value = validated;
+        value = trimmed;
         return true;
     }
 }

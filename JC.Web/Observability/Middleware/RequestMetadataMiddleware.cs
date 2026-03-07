@@ -45,7 +45,8 @@ public class RequestMetadataMiddleware(RequestDelegate next)
             isHttps: request.IsHttps,
             requestTimestamp: DateTimeOffset.UtcNow,
             geoLocation: geoLocation,
-            requestPath: $"{request.Method} {request.Path}{request.QueryString}",
+            requestPath: $"{request.Method} {request.Path}",
+            requestQuery: request.QueryString.ToString(),
             requestOrigin: request.Headers.Origin.ToString(),
             requestReferer: request.Headers.Referer.ToString(),
             requestId: context.TraceIdentifier);
