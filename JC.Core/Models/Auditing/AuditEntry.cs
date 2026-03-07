@@ -1,3 +1,5 @@
+using JC.Core.Enums;
+
 namespace JC.Core.Models.Auditing;
 
 /// <summary>
@@ -5,8 +7,8 @@ namespace JC.Core.Models.Auditing;
 /// </summary>
 public class AuditEntry
 {
-    /// <summary>Gets or sets the unique identifier for this audit entry.</summary>
-    public string Id { get; set; } = Guid.NewGuid().ToString();
+    /// <summary>Gets the unique identifier for this audit entry.</summary>
+    public string Id { get; private set; } = Guid.NewGuid().ToString();
 
     /// <summary>Gets or sets the type of action that was performed.</summary>
     public AuditAction Action { get; set; }

@@ -6,7 +6,7 @@ namespace JC.Core.Data;
 
 /// <summary>
 /// Default EF Core DbContext implementation for the core data model.
-/// Configures <see cref="ReportedIssue"/> and <see cref="AuditEntry"/> entities.
+/// Configures <see cref="AuditEntry"/> entities.
 /// </summary>
 public class DataDbContext : DbContext, IDataDbContext
 {
@@ -19,11 +19,13 @@ public class DataDbContext : DbContext, IDataDbContext
     }
 
     /// <inheritdoc />
-    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+    public DbSet<AuditEntry> AuditEntries { get; set; }
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+        
         modelBuilder.Entity<AuditEntry>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -33,7 +35,5 @@ public class DataDbContext : DbContext, IDataDbContext
             entity.HasIndex(e => e.TableName);
             entity.HasIndex(e => e.AuditDate);
         });
-
-        base.OnModelCreating(modelBuilder);
     }
 }

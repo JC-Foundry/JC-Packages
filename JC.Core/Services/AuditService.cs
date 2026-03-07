@@ -1,5 +1,6 @@
 using System.Text.Json;
 using JC.Core.Data;
+using JC.Core.Enums;
 using JC.Core.Models;
 using JC.Core.Models.Auditing;
 

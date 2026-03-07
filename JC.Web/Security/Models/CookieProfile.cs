@@ -3,10 +3,11 @@ using Microsoft.AspNetCore.Http;
 namespace JC.Web.Security.Models;
 
 /// <summary>
-/// Identifies a cookie by name and optionally associates it with a Data Protection protector purpose.
-/// Used by <see cref="Abstractions.ICookieService"/> implementations to read, write, and validate cookies.
+/// Defines a cookie's identity, optional encryption configuration, and optional default overrides.
+/// Registered in a <see cref="Services.CookieProfileDictionary"/> and resolved by cookie name
+/// when <see cref="Abstractions.ICookieService"/> operations are performed.
 /// </summary>
-public class CookieSettings
+public class CookieProfile
 {
     /// <summary>
     /// The name of the cookie.
@@ -25,32 +26,54 @@ public class CookieSettings
     public bool IsEncrypted => !string.IsNullOrEmpty(ProtectorPurpose);
 
     /// <summary>
-    /// Creates cookie settings for an unencrypted cookie.
+    /// Represents optional overrides for the default cookie settings.
+    /// These overrides are applied selectively to modify or replace global defaults.
     /// </summary>
-    /// <param name="name">The cookie name. Must not be null, empty, or whitespace.</param>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="name"/> is null, empty, or whitespace.</exception>
-    public CookieSettings(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-            throw new ArgumentException("Cookie name must not be null, empty, or whitespace.", nameof(name));
+    public CookieDefaultOverride? DefaultOverride { get; }
 
-        CookieName = name;
+    /// <summary>
+    /// Creates a profile for an unencrypted cookie with optional default overrides.
+    /// </summary>
+    /// <param name="cookieName">The cookie name. Must not be null, empty, or whitespace.</param>
+    /// <param name="override">Optional overrides merged on top of the global <see cref="Options.CookieDefaultOptions"/>.</param>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="cookieName"/> is null, empty, or whitespace.</exception>
+    public CookieProfile(string cookieName, CookieDefaultOverride? @override = null)
+    {
+        if (string.IsNullOrWhiteSpace(cookieName))
+            throw new ArgumentException("Cookie name must not be null, empty, or whitespace.", nameof(cookieName));
+
+        CookieName = cookieName;
+        DefaultOverride = @override;
     }
 
     /// <summary>
-    /// Creates cookie settings for an encrypted cookie with the specified Data Protection protector purpose.
+    /// Creates a profile for an encrypted cookie with the specified Data Protection protector purpose and optional default overrides.
     /// </summary>
-    /// <param name="name">The cookie name. Must not be null, empty, or whitespace.</param>
+    /// <param name="cookieName">The cookie name. Must not be null, empty, or whitespace.</param>
     /// <param name="protectorPurpose">The Data Protection protector purpose string. Must not be null or empty.</param>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="name"/> is null, empty, or whitespace.</exception>
+    /// <param name="override">Optional overrides merged on top of the global <see cref="Options.CookieDefaultOptions"/>.</param>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="cookieName"/> is null, empty, or whitespace.</exception>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="protectorPurpose"/> is null or empty.</exception>
-    public CookieSettings(string name, string protectorPurpose)
-        : this(name)
+    public CookieProfile(string cookieName, string protectorPurpose, CookieDefaultOverride? @override = null)
+        : this(cookieName, @override)
     {
         if (string.IsNullOrEmpty(protectorPurpose))
             throw new ArgumentNullException(nameof(protectorPurpose), $"You must provide a value for argument '{nameof(protectorPurpose)}'");
 
         ProtectorPurpose = protectorPurpose;
+    }
+
+    /// <summary>
+    /// Creates a copy of an existing profile with a replacement <see cref="CookieDefaultOverride"/>.
+    /// Used by <see cref="Services.CookieProfileDictionary.TryUpdateProfileOverride"/> to atomically swap overrides.
+    /// </summary>
+    /// <param name="profile">The existing profile to copy identity and encryption settings from.</param>
+    /// <param name="override">The new override to apply.</param>
+    public CookieProfile(CookieProfile profile, CookieDefaultOverride @override)
+    {
+        CookieName = profile.CookieName;
+        ProtectorPurpose = profile.ProtectorPurpose;
+        DefaultOverride = @override;
     }
 }
 

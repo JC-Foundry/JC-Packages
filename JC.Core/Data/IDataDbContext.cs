@@ -1,4 +1,3 @@
-using JC.Core.Models;
 using JC.Core.Models.Auditing;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,7 +11,7 @@ public interface IDataDbContext
     /// <summary>
     /// Gets the set of audit trail entries.
     /// </summary>
-    DbSet<AuditEntry> AuditEntries { get; }
+    DbSet<AuditEntry> AuditEntries { get; set; }
 
     /// <summary>
     /// Persists all pending changes to the database.

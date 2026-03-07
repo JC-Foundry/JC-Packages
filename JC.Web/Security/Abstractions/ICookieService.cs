@@ -1,12 +1,14 @@
 using JC.Web.Security.Models;
 using JC.Web.Security.Services;
-using Microsoft.AspNetCore.Http;
 // ReSharper disable InconsistentNaming
 
 namespace JC.Web.Security.Abstractions;
 
 /// <summary>
 /// Provides methods for creating, reading, deleting, and validating HTTP cookies.
+/// All operations reference cookies by name, which must first be registered as a <see cref="CookieProfile"/>
+/// in the <see cref="CookieProfileDictionary"/>. Operations against unregistered cookie names return
+/// <c>false</c>, <c>null</c>, or an invalid <see cref="CookieValidationResponse"/>.
 /// <para>
 /// <b>Registration:</b> Use <c>AddCookieServices</c> to register cookie services.
 /// The registration behaviour depends on whether encrypted cookies are enabled:
@@ -25,7 +27,7 @@ namespace JC.Web.Security.Abstractions;
 /// public class MyService(ICookieService cookies)
 /// {
 ///     public void SetPreference(string value)
-///         => cookies.CreateCookie(value, new CookieSettings("user-pref"));
+///         => cookies.TryCreateCookie("user-pref", value);
 /// }
 /// </code>
 /// </example>
@@ -52,7 +54,7 @@ namespace JC.Web.Security.Abstractions;
 ///     [FromKeyedServices(ICookieService.EncryptedCookieDIKey)] ICookieService encryptedCookies)
 /// {
 ///     public void SetToken(string token)
-///         => encryptedCookies.CreateCookie(token, new CookieSettings("auth-token", "AuthPurpose"));
+///         => encryptedCookies.TryCreateCookie("auth-token", token);
 /// }
 /// </code>
 /// </example>
@@ -73,52 +75,61 @@ public interface ICookieService
     /// </summary>
     const string EncryptedCookieDIKey = nameof(EncryptedCookieService);
 
-    /// <summary>
-    /// Creates a cookie with the specified content and settings.
-    /// Uses <see cref="Models.Options.CookieDefaultOptions"/> as the baseline.
-    /// Any non-null properties in <paramref name="overrides"/> are merged on top of the defaults.
-    /// </summary>
-    /// <param name="content">The cookie value to store.</param>
-    /// <param name="settings">The cookie name and optional encryption settings.</param>
-    /// <param name="overrides">Optional overrides merged on top of the configured defaults. Only non-null properties are applied.</param>
-    void CreateCookie(
-        string content,
-        CookieSettings settings,
-        CookieDefaultOverride? overrides = null);
 
     /// <summary>
-    /// Reads a cookie value by name from the current HTTP request.
-    /// For the encrypted implementation, the value is decrypted before being returned.
+    /// Attempts to create a cookie with the specified name and content.
+    /// The cookie must have a registered <see cref="CookieProfile"/> in the <see cref="CookieProfileDictionary"/>.
+    /// Cookie options are resolved from the global <see cref="Models.Options.CookieDefaultOptions"/>,
+    /// merged with any <see cref="CookieDefaultOverride"/> defined on the profile.
     /// </summary>
-    /// <param name="settings">The cookie name and optional encryption settings.</param>
-    /// <returns>The cookie value, or <c>null</c> if the cookie does not exist or decryption fails.</returns>
-    string? GetCookie(CookieSettings settings);
+    /// <param name="cookieName">The name of the cookie, matching a registered <see cref="CookieProfile"/>.</param>
+    /// <param name="content">The content to be stored in the cookie.</param>
+    /// <returns><c>true</c> if the profile was found and the cookie was written; <c>false</c> if no profile is registered for the name.</returns>
+    bool TryCreateCookie(
+        string cookieName,
+        string content);
+
 
     /// <summary>
-    /// Reads a cookie and validates its value against an expected string.
+    /// Retrieves the value of the cookie with the specified name.
+    /// The cookie must have a registered <see cref="CookieProfile"/> in the <see cref="CookieProfileDictionary"/>.
+    /// For encrypted cookies, the value is decrypted before being returned.
     /// </summary>
-    /// <param name="expectedValue">The value to compare the cookie against.</param>
-    /// <param name="settings">The cookie name and optional encryption settings.</param>
-    /// <param name="comparison">The string comparison type. Defaults to <see cref="StringComparison.Ordinal"/>.</param>
-    /// <returns>A <see cref="CookieValidationResponse"/> indicating whether the values match and the actual cookie value.</returns>
+    /// <param name="cookieName">The name of the cookie, matching a registered <see cref="CookieProfile"/>.</param>
+    /// <returns>The cookie value if the profile exists and the cookie is found; <c>null</c> if no profile is registered, the cookie does not exist, or decryption failed.</returns>
+    string? GetCookie(string cookieName);
+
+
+    /// <summary>
+    /// Validates a cookie by comparing its value against the expected value.
+    /// The cookie must have a registered <see cref="CookieProfile"/> in the <see cref="CookieProfileDictionary"/>.
+    /// For encrypted cookies, the stored value is decrypted before comparison.
+    /// </summary>
+    /// <param name="cookieName">The name of the cookie, matching a registered <see cref="CookieProfile"/>.</param>
+    /// <param name="expectedValue">The value expected to be found in the cookie.</param>
+    /// <param name="comparison">The type of string comparison to use. Defaults to <see cref="StringComparison.Ordinal"/>.</param>
+    /// <returns>A <see cref="CookieValidationResponse"/> with <c>IsValid = false</c> and <c>ActualValue = null</c> if no profile is registered; otherwise the comparison result and actual value.</returns>
     CookieValidationResponse ValidateCookie(
+        string cookieName,
         string expectedValue,
-        CookieSettings settings,
         StringComparison comparison = StringComparison.Ordinal);
 
-    /// <summary>
-    /// Deletes a cookie from the response. Uses the configured default path and domain to ensure
-    /// the deletion targets the correct cookie. Optional overrides can be provided to match
-    /// non-default path/domain values.
-    /// </summary>
-    /// <param name="settings">The cookie name identifying which cookie to delete.</param>
-    /// <param name="overrides">Optional overrides to match the path/domain the cookie was created with.</param>
-    void DeleteCookie(CookieSettings settings, CookieDefaultOverride? overrides = null);
 
     /// <summary>
-    /// Checks whether a cookie exists in the current HTTP request.
+    /// Attempts to delete a cookie with the specified name.
+    /// The cookie must have a registered <see cref="CookieProfile"/> in the <see cref="CookieProfileDictionary"/>.
+    /// Uses the profile's <see cref="CookieDefaultOverride"/> (merged with global defaults) for path/domain matching.
     /// </summary>
-    /// <param name="settings">The cookie name to check for.</param>
-    /// <returns><c>true</c> if the cookie exists; otherwise <c>false</c>.</returns>
-    bool CookieExists(CookieSettings settings);
+    /// <param name="cookieName">The name of the cookie, matching a registered <see cref="CookieProfile"/>.</param>
+    /// <returns><c>true</c> if the profile was found and the delete was issued; <c>false</c> if no profile is registered for the name.</returns>
+    bool TryDeleteCookie(string cookieName);
+
+
+    /// <summary>
+    /// Checks whether a cookie with the specified name exists in the current request.
+    /// The cookie must have a registered <see cref="CookieProfile"/> in the <see cref="CookieProfileDictionary"/>.
+    /// </summary>
+    /// <param name="cookieName">The name of the cookie, matching a registered <see cref="CookieProfile"/>.</param>
+    /// <returns><c>true</c> if the profile exists and the cookie is present in the request; <c>false</c> if no profile is registered or the cookie is not found.</returns>
+    bool CookieExists(string cookieName);
 }

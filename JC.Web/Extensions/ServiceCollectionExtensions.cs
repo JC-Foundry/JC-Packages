@@ -5,6 +5,7 @@ using JC.Web.Security.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace JC.Web.Extensions;
 
@@ -86,10 +87,14 @@ public static class ServiceCollectionExtensions
 
         services.AddHttpContextAccessor();
 
-        // Unencrypted only — register as a plain service for simple ICookieService injection
+        //Add the cookie profile dictionary as a singleton
+        services.TryAddSingleton<CookieProfileDictionary>();
+        
+        //ICookieService always resolves standard (unencrypted) cookie service when unkeyed
+        services.AddScoped<ICookieService, CookieService>();
         if (!useEncryptedCookies)
         {
-            services.AddScoped<ICookieService, CookieService>();
+            // Unencrypted only — register as a plain service for simple ICookieService injection
             services.AddKeyedScoped<ICookieService>(ICookieService.StandardCookieDIKey,
                 (sp, _) => sp.GetRequiredService<ICookieService>());
             return services;

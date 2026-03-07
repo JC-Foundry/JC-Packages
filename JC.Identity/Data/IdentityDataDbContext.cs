@@ -32,8 +32,8 @@ public class IdentityDataDbContext<TUser, TRole> : IdentityDbContext<TUser, TRol
     }
 
     /// <inheritdoc />
-    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
-
+    public DbSet<AuditEntry> AuditEntries { get; set; }
+    
     /// <summary>Gets the set of tenants.</summary>
     public DbSet<Tenant> Tenants => Set<Tenant>();
 

@@ -8,7 +8,7 @@ public class GitHelper(string url, string apiKey)
     private readonly FlurlClient _baseUrl = new FlurlClient(url)
         .WithHeader("Authorization","Bearer "+apiKey)
         .WithHeader("X-GitHub-Api-Version", "2022-11-28")
-        .WithHeader("User-Agent", "JC.Core");
+        .WithHeader("User-Agent", "JC-Application");
 
     /// <summary>
     /// Creates a new issue in the specified GitHub repository.

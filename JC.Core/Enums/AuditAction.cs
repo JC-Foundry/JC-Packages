@@ -1,4 +1,4 @@
-namespace JC.Core.Models.Auditing;
+namespace JC.Core.Enums;
 
 /// <summary>
 /// Represents the type of auditable action performed on an entity.
