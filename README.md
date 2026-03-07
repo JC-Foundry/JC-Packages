@@ -7,7 +7,7 @@ A suite of .NET 9 NuGet packages providing shared infrastructure for .NET applic
 | Package | Description |
 |---------|-------------|
 | **JC.Core** | Repository pattern, auditing, soft-delete, pagination, and utility helpers |
-| **JC.Web** | ASP.NET Core helpers — dropdown builders, HTML tag builder, pagination tag helper, model state wrapper, QR code generation |
+| **JC.Web** | ASP.NET Core web hardening and helpers — security headers, cookie management (with optional Data Protection encryption), UI tag helpers, dropdown builders, QR code generation |
 | **JC.Identity** | ASP.NET Core Identity integration, multi-tenancy, middleware, and user management helpers |
 | **JC.MySql** | MySQL database provider extensions using Pomelo.EntityFrameworkCore.MySql |
 | **JC.SqlServer** | SQL Server database provider extensions using Microsoft.EntityFrameworkCore.SqlServer |
@@ -165,44 +165,17 @@ public class SomeService(IUserInfo userInfo)
 
 ### JC.Web
 
-Tag helpers, HTML builders, and dropdown utilities for Razor views.
+Web hardening, cookie management, and UI helpers for ASP.NET Core applications. Organised internally into focused sections:
 
-**Pagination tag helper:**
+#### Security
 
-```html
-<pagination model="Model.Items" href-format="/products?page={0}" max-pages="5" />
-```
+**Security Headers** — middleware that applies a configurable set of HTTP security headers to all responses, including X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy, HSTS, and cross-origin headers (COOP/CORP/COEP). Includes a fluent `ContentSecurityPolicyBuilder` with directive validation, nonce/hash helpers, and keyword restrictions. Headers are pre-computed at startup for performance.
 
-**Alert tag helper:**
+**Cookie Management** — a profile-based cookie system with a thread-safe `CookieProfileDictionary` singleton for registering cookie profiles at startup. Supports both standard and encrypted cookies (via ASP.NET Core Data Protection). Global defaults are configured through `CookieDefaultOptions`, with per-cookie overrides via `CookieDefaultOverride` on each `CookieProfile`. Two `ICookieService` implementations (`CookieService` and `EncryptedCookieService`) are available, registered as keyed services for dual-mode injection.
 
-```html
-<alert type="Success" message="Record saved successfully." />
-```
+#### UI
 
-**Dropdown helpers:**
-
-```csharp
-var countries = DropdownHelper.GetCountryDropdown();
-var statuses = DropdownHelper.FromEnum<OrderStatus>();
-var items = DropdownHelper.FromCollection(products, p => p.Id.ToString(), p => p.Name)
-    .WithPlaceholder("Select a product");
-```
-
-**Table builder:**
-
-```csharp
-var table = new TableBuilder<Product>()
-    .AddColumn("Name", p => p.Name)
-    .AddColumn("Price", p => p.Price.ToString("C"))
-    .Build(products);
-```
-
-**QR code generation:**
-
-```csharp
-var qr = new QrCodeHelper(QrCodeFormat.Svg);
-var svg = qr.GenerateQrCode("https://example.com");
-```
+Tag helpers, HTML builders, dropdown utilities, and QR code generation for Razor views.
 
 ### JC.Github
 
