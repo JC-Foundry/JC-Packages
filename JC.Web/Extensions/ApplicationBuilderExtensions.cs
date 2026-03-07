@@ -158,7 +158,7 @@ public static class ApplicationBuilderExtensions
 
         foreach (var profile in standardCookies)
         {
-            var result = profileDictionary.SaveProfile(profile);
+            var result = profileDictionary.TryCreateProfile(profile);
             if (!result)
                 throw new InvalidOperationException(
                     $"Unable to create a standard cookie profile for '{profile.CookieName}'.");
@@ -166,7 +166,7 @@ public static class ApplicationBuilderExtensions
 
         foreach (var profile in encryptedCookies)
         {
-            var result = profileDictionary.SaveProfile(profile);
+            var result = profileDictionary.TryCreateProfile(profile);
             if (!result)
                 throw new InvalidOperationException(
                     $"Unable to create an encrypted cookie profile for '{profile.CookieName}' with purpose protector: '{profile.ProtectorPurpose}'.");

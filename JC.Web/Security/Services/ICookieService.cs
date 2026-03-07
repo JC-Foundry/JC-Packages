@@ -2,7 +2,7 @@ using JC.Web.Security.Models;
 using JC.Web.Security.Services;
 // ReSharper disable InconsistentNaming
 
-namespace JC.Web.Security.Abstractions;
+namespace JC.Web.Security.Services;
 
 /// <summary>
 /// Provides methods for creating, reading, deleting, and validating HTTP cookies.

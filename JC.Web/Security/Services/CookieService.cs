@@ -1,4 +1,3 @@
-using JC.Web.Security.Abstractions;
 using JC.Web.Security.Models;
 using JC.Web.Security.Models.Options;
 using Microsoft.AspNetCore.Http;

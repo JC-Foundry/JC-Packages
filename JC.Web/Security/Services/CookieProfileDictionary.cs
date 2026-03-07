@@ -13,8 +13,8 @@ public class CookieProfileDictionary
 {
     private readonly ConcurrentDictionary<string, CookieProfile> _profiles = new();
 
-    internal bool SaveProfile(CookieProfile profile)
-        => !HasProfile(profile.CookieName) && _profiles.TryAdd(profile.CookieName, profile);
+    public bool TryCreateProfile(CookieProfile profile)
+        => _profiles.TryAdd(profile.CookieName, profile);
 
     /// <summary>
     /// Registers an unencrypted cookie profile with optional default overrides.
@@ -25,7 +25,7 @@ public class CookieProfileDictionary
     public bool TryCreateProfile(string cookieName, CookieDefaultOverride? @override = null)
     {
         var profile = new CookieProfile(cookieName, @override);
-        return SaveProfile(profile);
+        return TryCreateProfile(profile);
     }
 
     /// <summary>
@@ -38,7 +38,7 @@ public class CookieProfileDictionary
     public bool TryCreateProfile(string cookieName, string protectorPurpose, CookieDefaultOverride? @override = null)
     {
         var profile = new CookieProfile(cookieName, protectorPurpose, @override);
-        return SaveProfile(profile);
+        return TryCreateProfile(profile);
     }
 
     /// <summary>

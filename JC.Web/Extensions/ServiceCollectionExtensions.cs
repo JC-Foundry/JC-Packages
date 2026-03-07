@@ -1,4 +1,3 @@
-using JC.Web.Security.Abstractions;
 using JC.Web.Security.Helpers;
 using JC.Web.Security.Models.Options;
 using JC.Web.Security.Services;
@@ -14,6 +13,21 @@ namespace JC.Web.Extensions;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+    #region Security
+
+    public static IServiceCollection AddSecurityDefaults(
+        this IServiceCollection services,
+        IConfiguration? configuration = null,
+        bool useEncryptedCookies = true,
+        Action<SecurityHeaderOptions>? headerOptions = null,
+        Action<CookieDefaultOptions>? cookieOptions = null)
+    {
+        services.AddSecurityHeaders(headerOptions);
+        services.AddCookieServices(configuration, useEncryptedCookies, cookieOptions);
+        return services;
+    }
+    
+    
     /// <summary>
     /// Registers security header options. Validates configuration eagerly to fail fast on invalid settings.
     /// </summary>
@@ -125,4 +139,8 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    #endregion
+    
+    
 }

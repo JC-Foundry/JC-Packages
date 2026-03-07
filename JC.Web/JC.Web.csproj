@@ -9,6 +9,7 @@
     <ItemGroup>
       <FrameworkReference Include="Microsoft.AspNetCore.App" />
       <PackageReference Include="QRCoder" VersionOverride="1.7.0" />
+      <PackageReference Include="UAParser" VersionOverride="3.1.47" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(UseLocalProjectReferences)' == 'true'">
@@ -21,6 +22,7 @@
 
     <ItemGroup>
       <Folder Include="Extensions\" />
+      <Folder Include="Observability\Middleware\" />
       <Folder Include="Security\Middleware\" />
       <Folder Include="UI\" />
     </ItemGroup>

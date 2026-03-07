@@ -1,9 +1,7 @@
-using JC.Web.Security.Abstractions;
 using JC.Web.Security.Models;
 using JC.Web.Security.Models.Options;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
