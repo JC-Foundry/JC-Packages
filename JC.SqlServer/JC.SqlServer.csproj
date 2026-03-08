@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.SqlServer</PackageId>
-        <Version>3.0.2</Version>
+        <Version>3.0.3</Version>
         <Description>SQL Server database provider extensions for JC.Core using Microsoft.EntityFrameworkCore.SqlServer.</Description>
     </PropertyGroup>
 

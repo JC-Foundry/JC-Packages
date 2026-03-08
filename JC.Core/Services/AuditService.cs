@@ -34,9 +34,12 @@ internal class AuditService
     /// <param name="changeTracker">The change tracker to inspect.</param>
     internal async Task ProcessChangesAsync(ChangeTracker changeTracker)
     {
-        foreach (var entry in changeTracker.Entries()
-                     .Where(e => e.Entity is not AuditEntry
-                                 && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+        var entries = changeTracker.Entries()
+            .Where(e => e.Entity is not AuditEntry
+                        && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .ToList();
+
+        foreach (var entry in entries)
         {
             var action = ResolveAction(entry);
             if (action is null)

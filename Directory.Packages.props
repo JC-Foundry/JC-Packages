@@ -5,7 +5,7 @@
 
   <ItemGroup>
     <!-- Internal/shared JC packages -->
-    <PackageVersion Include="JC.Core" Version="3.0.2" />
+    <PackageVersion Include="JC.Core" Version="3.0.3" />
 
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.11" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.11" />
