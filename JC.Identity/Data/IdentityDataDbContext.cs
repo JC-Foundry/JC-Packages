@@ -59,6 +59,10 @@ public class IdentityDataDbContext<TUser, TRole> : IdentityDbContext<TUser, TRol
         modelBuilder.Entity<AuditEntry>(entity =>
         {
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.UserId).HasMaxLength(256);
+            entity.Property(e => e.UserName).HasMaxLength(256);
+            entity.Property(e => e.TableName).HasMaxLength(256);
             entity.Property(e => e.Action).IsRequired();
             entity.Property(e => e.AuditDate).IsRequired();
             entity.HasIndex(e => e.UserId);
@@ -66,10 +70,17 @@ public class IdentityDataDbContext<TUser, TRole> : IdentityDbContext<TUser, TRol
             entity.HasIndex(e => e.AuditDate);
         });
 
+        modelBuilder.Entity<TUser>(entity =>
+        {
+            entity.Property(e => e.TenantId).HasMaxLength(36);
+        });
+
         modelBuilder.Entity<Tenant>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.Name).IsRequired();
+            entity.Property(e => e.Id).HasMaxLength(36);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(256);
+            entity.Property(e => e.Domain).HasMaxLength(256);
             entity.HasIndex(e => e.Domain);
         });
 
