@@ -4,6 +4,7 @@ using JC.Identity.Authentication;
 using JC.Identity.Extensions.Options;
 using JC.Identity.Models;
 using JC.Identity.Models.MultiTenancy;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,10 +26,15 @@ public static class ServiceCollectionExtensions
     /// <typeparam name="TContext">The <see cref="DbContext"/> type used for Identity stores.</typeparam>
     /// <param name="services">The service collection to register into.</param>
     /// <param name="configureMiddleware">Optional callback to configure <see cref="IdentityMiddlewareOptions"/>.</param>
+    /// <param name="configureCookie">
+    /// Optional callback to configure the application authentication cookie.
+    /// By default, sets login/logout/access-denied paths to <c>/Identity/Account/…</c>.
+    /// </param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddIdentity<TUser, TRole, TContext>(
         this IServiceCollection services,
-        Action<IdentityMiddlewareOptions>? configureMiddleware = null)
+        Action<IdentityMiddlewareOptions>? configureMiddleware = null,
+        Action<CookieAuthenticationOptions>? configureCookie = null)
         where TUser : BaseUser
         where TRole : BaseRole
         where TContext : DbContext
@@ -37,6 +43,7 @@ public static class ServiceCollectionExtensions
             .AddEntityFrameworkStores<TContext>()
             .AddDefaultTokenProviders();
 
+        ConfigureIdentityCookie(services, configureCookie);
         services.AddIdentityBase<TUser, TRole, UserInfo>(configureMiddleware);
 
         return services;
@@ -52,10 +59,15 @@ public static class ServiceCollectionExtensions
     /// <typeparam name="TUserInfo">The <see cref="IUserInfo"/> implementation type to register.</typeparam>
     /// <param name="services">The service collection to register into.</param>
     /// <param name="configureMiddleware">Optional callback to configure <see cref="IdentityMiddlewareOptions"/>.</param>
+    /// <param name="configureCookie">
+    /// Optional callback to configure the application authentication cookie.
+    /// By default, sets login/logout/access-denied paths to <c>/Identity/Account/…</c>.
+    /// </param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddIdentity<TUser, TRole, TContext, TUserInfo>(
         this IServiceCollection services,
-        Action<IdentityMiddlewareOptions>? configureMiddleware = null)
+        Action<IdentityMiddlewareOptions>? configureMiddleware = null,
+        Action<CookieAuthenticationOptions>? configureCookie = null)
         where TUser : BaseUser
         where TRole : BaseRole
         where TContext : DbContext
@@ -65,9 +77,24 @@ public static class ServiceCollectionExtensions
             .AddEntityFrameworkStores<TContext>()
             .AddDefaultTokenProviders();
 
+        ConfigureIdentityCookie(services, configureCookie);
         services.AddIdentityBase<TUser, TRole, TUserInfo>(configureMiddleware);
 
         return services;
+    }
+
+    /// <summary>
+    /// Configures the application authentication cookie with sensible defaults for Identity UI paths.
+    /// If <paramref name="configure"/> is provided, it is used instead of the defaults.
+    /// </summary>
+    private static void ConfigureIdentityCookie(IServiceCollection services, Action<CookieAuthenticationOptions>? configure)
+    {
+        services.ConfigureApplicationCookie(configure ?? (options =>
+        {
+            options.LoginPath = "/Identity/Account/Login";
+            options.LogoutPath = "/Identity/Account/Logout";
+            options.AccessDeniedPath = "/Identity/Account/AccessDenied";
+        }));
     }
 
     /// <summary>

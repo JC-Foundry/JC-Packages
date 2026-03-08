@@ -51,7 +51,9 @@ public class UserInfoMiddleware(RequestDelegate next, ILogger<UserInfoMiddleware
                 userInfo.AccessFailedCount = int.TryParse(context.User.FindFirst(DefaultClaims.AccessFailedCount)?.Value, out var accessFailedCount) ? accessFailedCount : 0;
                 userInfo.IsEnabled = string.Equals(context.User.FindFirst(DefaultClaims.IsEnabled)?.Value, "true", StringComparison.OrdinalIgnoreCase);
 
-                userInfo.TenantId = context.User.FindFirst(DefaultClaims.TenantId)?.Value;
+                var tenantId = context.User.FindFirst(DefaultClaims.TenantId)?.Value;
+                if (!string.IsNullOrEmpty(tenantId)) userInfo.TenantId = tenantId;
+                
                 userInfo.MultiTenancyEnabled = !string.IsNullOrEmpty(userInfo.TenantId);
                 userInfo.DisplayName = context.User.FindFirst(DefaultClaims.DisplayName)?.Value;
                 userInfo.LastLoginUtc = DateTime.TryParse(context.User.FindFirst(DefaultClaims.LastLoginUtc)?.Value, out var lastLoginUtc) ? lastLoginUtc : null;

@@ -26,8 +26,14 @@ public class DataDbContext : DbContext, IDataDbContext
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         var auditService = new AuditService(this, null);
-        await auditService.ProcessChangesAsync(ChangeTracker);
-        return await base.SaveChangesAsync(cancellationToken);
+        var pendingCreates = await auditService.ProcessChangesAsync(ChangeTracker);
+        var result = await base.SaveChangesAsync(cancellationToken);
+        if (pendingCreates.Count > 0)
+        {
+            await auditService.ProcessCreatesAsync(pendingCreates);
+            await base.SaveChangesAsync(cancellationToken);
+        }
+        return result;
     }
 
     /// <inheritdoc />
