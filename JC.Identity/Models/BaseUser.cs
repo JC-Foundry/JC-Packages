@@ -7,13 +7,10 @@ namespace JC.Identity.Models;
 /// Base user entity extending ASP.NET Core <see cref="IdentityUser"/> with multi-tenancy,
 /// display name, login tracking, and account management properties.
 /// </summary>
-public class BaseUser : IdentityUser, IMultiTenancy
+public class BaseUser : IdentityUser
 {
-    /// <inheritdoc />
+    /// <inheritdoc cref="IMultiTenancy.TenantId" />
     public string? TenantId { get; set; }
-
-    /// <inheritdoc />
-    public Tenant? Tenant { get; set; }
 
     /// <summary>Gets or sets the user's display name.</summary>
     public string? DisplayName { get; set; }

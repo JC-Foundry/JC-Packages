@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.MySql</PackageId>
-        <Version>3.0.3</Version>
+        <Version>3.0.4</Version>
         <Description>MySQL database provider extensions for JC.Core using Pomelo.EntityFrameworkCore.MySql.</Description>
     </PropertyGroup>
 

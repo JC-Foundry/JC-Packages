@@ -25,16 +25,18 @@ public static class ServiceCollectionExtensions
     /// <param name="configureHeaderFilter">Optional callback to configure <see cref="SecurityHeaderOptions"/>.</param>
     /// <param name="configureCookieFilter">Optional callback to configure <see cref="CookieDefaultOptions"/>.</param>
     /// <param name="configureBotFilter">Optional callback to configure <see cref="BotFilterOptions"/>.</param>
+    /// <param name="configureClientIp">Optional callback to configure <see cref="ClientIpOptions"/>.</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddWebDefaults(this IServiceCollection services,
         IConfiguration? configuration = null,
         bool useEncryptedCookies = true,
         Action<SecurityHeaderOptions>? configureHeaderFilter = null,
         Action<CookieDefaultOptions>? configureCookieFilter = null,
-        Action<BotFilterOptions>? configureBotFilter = null)
+        Action<BotFilterOptions>? configureBotFilter = null,
+        Action<ClientIpOptions>? configureClientIp = null)
     {
         services.AddSecurityDefaults(configuration, useEncryptedCookies, configureHeaderFilter, configureCookieFilter);
-        services.AddClientProfiling(configureBotFilter);
+        services.AddClientProfiling(configureBotFilter, configureClientIp);
 
         return services;
     }
@@ -51,6 +53,7 @@ public static class ServiceCollectionExtensions
     /// <param name="configureCookieFilter">Optional callback to configure <see cref="CookieDefaultOptions"/>.</param>
     /// <param name="configureBotFilter">Optional callback to configure <see cref="BotFilterOptions"/>.</param>
     /// <param name="configureGeoLocation">Optional callback to configure <see cref="GeoLocationOptions"/>.</param>
+    /// <param name="configureClientIp">Optional callback to configure <see cref="ClientIpOptions"/>.</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddWebDefaults<TGeoService>(this IServiceCollection services,
         IConfiguration? configuration = null,
@@ -58,11 +61,12 @@ public static class ServiceCollectionExtensions
         Action<SecurityHeaderOptions>? configureHeaderFilter = null,
         Action<CookieDefaultOptions>? configureCookieFilter = null,
         Action<BotFilterOptions>? configureBotFilter = null,
-        Action<GeoLocationOptions>? configureGeoLocation = null)
+        Action<GeoLocationOptions>? configureGeoLocation = null,
+        Action<ClientIpOptions>? configureClientIp = null)
         where TGeoService : class, IGeoLocationProvider
     {
         services.AddSecurityDefaults(configuration, useEncryptedCookies, configureHeaderFilter, configureCookieFilter);
-        services.AddClientProfiling<TGeoService>(configureBotFilter, configureGeoLocation);
+        services.AddClientProfiling<TGeoService>(configureBotFilter, configureGeoLocation, configureClientIp);
 
         return services;
     }
@@ -222,18 +226,25 @@ public static class ServiceCollectionExtensions
     /// </summary>
     /// <param name="services">The service collection to register into.</param>
     /// <param name="configureBotFilter">Optional callback to configure <see cref="BotFilterOptions"/>.</param>
+    /// <param name="configureClientIp">Optional callback to configure <see cref="ClientIpOptions"/>.</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddClientProfiling(this IServiceCollection services,
-        Action<BotFilterOptions>? configureBotFilter = null)
+        Action<BotFilterOptions>? configureBotFilter = null,
+        Action<ClientIpOptions>? configureClientIp = null)
     {
         services.AddHttpContextAccessor();
         services.TryAddSingleton<UserAgentService>();
         services.TryAddSingleton<IGeoLocationProvider, EmptyGeoLocationProvider>();
-        
+
         if (configureBotFilter is not null)
             services.Configure(configureBotFilter);
         else
             services.Configure<BotFilterOptions>(_ => { });
+
+        if (configureClientIp is not null)
+            services.Configure(configureClientIp);
+        else
+            services.Configure<ClientIpOptions>(_ => { });
 
         return services;
     }
@@ -248,7 +259,9 @@ public static class ServiceCollectionExtensions
     /// <param name="configureGeoLocation">Optional callback to configure <see cref="GeoLocationOptions"/>.</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddClientProfiling<TGeoService>(this IServiceCollection services,
-        Action<BotFilterOptions>? configureBotFilter = null, Action<GeoLocationOptions>? configureGeoLocation = null)
+        Action<BotFilterOptions>? configureBotFilter = null,
+        Action<GeoLocationOptions>? configureGeoLocation = null,
+        Action<ClientIpOptions>? configureClientIp = null)
         where TGeoService : class, IGeoLocationProvider
     {
         services.TryAddScoped<IGeoLocationProvider, TGeoService>();
@@ -258,7 +271,7 @@ public static class ServiceCollectionExtensions
         else
             services.Configure<GeoLocationOptions>(_ => { });
 
-        services.AddClientProfiling(configureBotFilter);
+        services.AddClientProfiling(configureBotFilter, configureClientIp);
 
         return services;
     }

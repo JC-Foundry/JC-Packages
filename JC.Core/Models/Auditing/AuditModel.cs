@@ -17,7 +17,7 @@ public class AuditModel
     public string? LastModifiedById { get; private set; }
 
     /// <summary>Gets the UTC date and time this entity was last modified.</summary>
-    public DateTime LastModifiedUtc { get; private set; }
+    public DateTime? LastModifiedUtc { get; private set; }
 
     /// <summary>Gets the identifier of the user who soft-deleted this entity.</summary>
     public string? DeletedById { get; private set; }

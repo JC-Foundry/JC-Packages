@@ -27,17 +27,20 @@ internal class AuditService
     }
 
     /// <summary>
-    /// Inspects the <see cref="ChangeTracker"/> for entity changes and creates
-    /// corresponding <see cref="AuditEntry"/> records. Skips <see cref="AuditEntry"/>
-    /// entities to prevent recursive auditing.
+    /// Inspects the <see cref="ChangeTracker"/> for non-create changes (updates, deletes)
+    /// and logs them immediately. Returns pending create entries so they can be logged
+    /// <b>after</b> <c>SaveChangesAsync</c> when database-generated IDs are available.
     /// </summary>
     /// <param name="changeTracker">The change tracker to inspect.</param>
-    internal async Task ProcessChangesAsync(ChangeTracker changeTracker)
+    /// <returns>Entity entries that were <see cref="EntityState.Added"/> — call <see cref="ProcessCreatesAsync"/> after save.</returns>
+    internal async Task<List<EntityEntry>> ProcessChangesAsync(ChangeTracker changeTracker)
     {
         var entries = changeTracker.Entries()
             .Where(e => e.Entity is not AuditEntry
                         && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
             .ToList();
+
+        var pendingCreates = new List<EntityEntry>();
 
         foreach (var entry in entries)
         {
@@ -45,10 +48,32 @@ internal class AuditService
             if (action is null)
                 continue;
 
+            if (action == AuditAction.Create)
+            {
+                pendingCreates.Add(entry);
+                continue;
+            }
+
             var tableName = entry.Metadata.GetTableName() ?? entry.Entity.GetType().Name;
             var data = SerializeChanges(entry, action.Value);
-
             await LogAsync(action.Value, tableName, data);
+        }
+
+        return pendingCreates;
+    }
+
+    /// <summary>
+    /// Logs audit entries for created entities after <c>SaveChangesAsync</c> has completed
+    /// and database-generated IDs are available.
+    /// </summary>
+    /// <param name="pendingCreates">The entity entries returned by <see cref="ProcessChangesAsync"/>.</param>
+    internal async Task ProcessCreatesAsync(List<EntityEntry> pendingCreates)
+    {
+        foreach (var entry in pendingCreates)
+        {
+            var tableName = entry.Metadata.GetTableName() ?? entry.Entity.GetType().Name;
+            var data = SerializeChanges(entry, AuditAction.Create);
+            await LogAsync(AuditAction.Create, tableName, data);
         }
     }
 

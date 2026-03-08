@@ -43,22 +43,27 @@ public static class ClientIpResolver
     /// </summary>
     /// <param name="context">The current HTTP context.</param>
     /// <param name="useHeaderFallback">
-    /// When <c>true</c>, falls back to inspecting forwarded headers if <c>RemoteIpAddress</c> is unavailable.
+    /// When <c>true</c>, inspects forwarded headers <b>first</b> (e.g. <c>CF-Connecting-IP</c>,
+    /// <c>X-Forwarded-For</c>) before falling back to <c>RemoteIpAddress</c>. This is the correct
+    /// order behind a trusted proxy, where <c>RemoteIpAddress</c> is typically the proxy's local
+    /// address (e.g. <c>::1</c>), not the real client.
     /// Only enable when the application is behind a trusted proxy and not directly exposed. Defaults to <c>false</c>.
     /// </param>
     /// <returns>The resolved client IP address string, or <c>"unknown"</c> if no IP could be determined.</returns>
     public static string Resolve(HttpContext context, bool useHeaderFallback = false)
     {
-        // Primary: RemoteIpAddress — correct after UseForwardedHeaders() with trusted proxies
+        if (useHeaderFallback)
+        {
+            // Behind a trusted proxy: headers contain the real client IP,
+            // while RemoteIpAddress is the proxy's local address (e.g. ::1)
+            var headerIp = ResolveFromHeaders(context);
+            if (headerIp != null)
+                return headerIp;
+        }
+
+        // Direct connection or no header match: use RemoteIpAddress
         var remoteIp = context.Connection.RemoteIpAddress;
-        if (remoteIp != null)
-            return remoteIp.ToString();
-
-        if (!useHeaderFallback)
-            return UnknownIp;
-
-        // Fallback: manual header inspection (unsafe without trusted proxy chain)
-        return ResolveFromHeaders(context) ?? UnknownIp;
+        return remoteIp != null ? remoteIp.ToString() : UnknownIp;
     }
 
     private static string? ResolveFromHeaders(HttpContext context)

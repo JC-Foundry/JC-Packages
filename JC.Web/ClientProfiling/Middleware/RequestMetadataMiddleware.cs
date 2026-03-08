@@ -25,11 +25,13 @@ public class RequestMetadataMiddleware(RequestDelegate next)
         HttpContext context,
         UserAgentService userAgentService,
         IGeoLocationProvider geoLocationProvider,
-        IOptions<GeoLocationOptions>? geoLocationOptions = null)
+        IOptions<GeoLocationOptions>? geoLocationOptions = null,
+        IOptions<ClientIpOptions>? clientIpOptions = null)
     {
         var request = context.Request;
 
-        var clientIp = ClientIpResolver.Resolve(context);
+        var ipOptions = clientIpOptions?.Value ?? new ClientIpOptions();
+        var clientIp = ClientIpResolver.Resolve(context, ipOptions.TrustProxyHeaders);
         var userAgent = userAgentService.Parse(request.Headers.UserAgent.ToString());
 
         var options = geoLocationOptions?.Value ?? new GeoLocationOptions();
