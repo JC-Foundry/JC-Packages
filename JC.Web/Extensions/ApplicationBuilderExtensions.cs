@@ -1,9 +1,11 @@
 using JC.Web.ClientProfiling.Middleware;
+using JC.Web.RateLimiting;
 using JC.Web.Security.Middleware;
 using JC.Web.Security.Models;
 using JC.Web.Security.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace JC.Web.Extensions;
 
@@ -236,6 +238,28 @@ public static class ApplicationBuilderExtensions
     {
         app.UseRequestMetadata();
         app.UseBotFilter();
+        return app;
+    }
+
+    #endregion
+
+
+    #region Rate Limiting
+
+    /// <summary>
+    /// Adds the ASP.NET Core rate limiting middleware to the pipeline using the JC.Web policy.
+    /// Only applies if rate limiting was enabled via <see cref="ServiceCollectionExtensions.AddRateLimiting"/>.
+    /// </summary>
+    /// <param name="app">The application builder.</param>
+    /// <returns>The application builder for chaining.</returns>
+    public static IApplicationBuilder UseRateLimiting(this IApplicationBuilder app)
+    {
+        var options = app.ApplicationServices.GetService<IOptions<RateLimitingOptions>>()?.Value;
+        if (options is not { IsEnabled: true })
+            return app;
+
+        app.UseRateLimiter();
+
         return app;
     }
 

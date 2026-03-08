@@ -1,9 +1,15 @@
+using System.Threading.RateLimiting;
+using JC.Web.ClientProfiling.Helpers;
 using JC.Web.ClientProfiling.Models.Options;
 using JC.Web.ClientProfiling.Services;
+using JC.Web.RateLimiting;
 using JC.Web.Security.Helpers;
 using JC.Web.Security.Models.Options;
 using JC.Web.Security.Services;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -257,6 +263,7 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The service collection to register into.</param>
     /// <param name="configureBotFilter">Optional callback to configure <see cref="BotFilterOptions"/>.</param>
     /// <param name="configureGeoLocation">Optional callback to configure <see cref="GeoLocationOptions"/>.</param>
+    /// <param name="configureClientIp">Optional callback to configure <see cref="ClientIpOptions"/>.</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddClientProfiling<TGeoService>(this IServiceCollection services,
         Action<BotFilterOptions>? configureBotFilter = null,
@@ -274,6 +281,112 @@ public static class ServiceCollectionExtensions
         services.AddClientProfiling(configureBotFilter, configureClientIp);
 
         return services;
+    }
+
+    #endregion
+
+
+    #region Rate Limiting
+
+    /// <summary>
+    /// The policy name used internally for the JC.Web rate limiter.
+    /// </summary>
+    internal const string RateLimitPolicyName = "JcWebRateLimit";
+
+    /// <summary>
+    /// Registers ASP.NET Core rate limiting with configurable strategy, partitioning, and limits.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configure">Optional callback to configure <see cref="RateLimitingOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddRateLimiting(this IServiceCollection services,
+        Action<RateLimitingOptions>? configure = null)
+    {
+        var options = new RateLimitingOptions();
+        configure?.Invoke(options);
+
+        if (!options.IsEnabled)
+        {
+            services.Configure<RateLimitingOptions>(opt => opt.IsEnabled = false);
+            return services;
+        }
+
+        if (configure is not null)
+            services.Configure(configure);
+        else
+            services.Configure<RateLimitingOptions>(_ => { });
+
+        services.AddRateLimiter(limiterOptions =>
+        {
+            limiterOptions.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            limiterOptions.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            {
+                // Skip static files — they shouldn't count against the rate limit
+                if (options.ExcludeStaticFiles
+                    && RateLimitingOptions.IsStaticFile(context.Request.Path.Value ?? string.Empty))
+                {
+                    return RateLimitPartition.GetNoLimiter(string.Empty);
+                }
+
+                var partitionKey = ResolvePartitionKey(context, options);
+
+                return options.Strategy switch
+                {
+                    RateLimitingStrategy.SlidingWindow => RateLimitPartition.GetSlidingWindowLimiter(partitionKey,
+                        _ => new SlidingWindowRateLimiterOptions
+                        {
+                            PermitLimit = options.PermitLimit,
+                            Window = options.Window,
+                            SegmentsPerWindow = options.SegmentsPerWindow,
+                            QueueLimit = options.QueueLimit,
+                            QueueProcessingOrder = options.QueueProcessingOrder
+                        }),
+                    RateLimitingStrategy.TokenBucket => RateLimitPartition.GetTokenBucketLimiter(partitionKey,
+                        _ => new TokenBucketRateLimiterOptions
+                        {
+                            TokenLimit = options.TokenLimit > 0 ? options.TokenLimit : options.PermitLimit,
+                            TokensPerPeriod = options.TokensPerPeriod,
+                            ReplenishmentPeriod = options.Window,
+                            QueueLimit = options.QueueLimit,
+                            QueueProcessingOrder = options.QueueProcessingOrder
+                        }),
+                    RateLimitingStrategy.Concurrency => RateLimitPartition.GetConcurrencyLimiter(partitionKey,
+                        _ => new ConcurrencyLimiterOptions
+                        {
+                            PermitLimit = options.ConcurrencyLimit > 0 ? options.ConcurrencyLimit : options.PermitLimit,
+                            QueueLimit = options.QueueLimit,
+                            QueueProcessingOrder = options.QueueProcessingOrder
+                        }),
+                    _ => RateLimitPartition.GetFixedWindowLimiter(partitionKey,
+                        _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = options.PermitLimit,
+                            Window = options.Window,
+                            QueueLimit = options.QueueLimit,
+                            QueueProcessingOrder = options.QueueProcessingOrder
+                        })
+                };
+            });
+        });
+
+        return services;
+    }
+
+    private static string ResolvePartitionKey(HttpContext context, RateLimitingOptions options)
+    {
+        return options.PartitionBy switch
+        {
+            RateLimitPartitionBy.User =>
+                context.User.Identity?.IsAuthenticated == true
+                    ? context.User.Identity.Name ?? ClientIpResolver.Resolve(context)
+                    : ClientIpResolver.Resolve(context),
+            RateLimitPartitionBy.Endpoint =>
+                context.Request.Path.ToString(),
+            RateLimitPartitionBy.ClientIpAndEndpoint =>
+                $"{ClientIpResolver.Resolve(context)}:{context.Request.Path}",
+            _ => ClientIpResolver.Resolve(context)
+        };
     }
 
     #endregion

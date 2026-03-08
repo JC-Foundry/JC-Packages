@@ -23,7 +23,7 @@ internal class AuditService
     {
         _context = context;
         _userId = userInfo?.UserId ?? IUserInfo.MissingUserInfoId;
-        _userName = userInfo?.DisplayName ?? userInfo?.Username ?? IUserInfo.MissingUserInfoId;
+        _userName = userInfo?.Username ?? IUserInfo.MissingUserInfoId;
     }
 
     /// <summary>

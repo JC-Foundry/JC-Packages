@@ -4,14 +4,14 @@ A suite of .NET 9 NuGet packages providing shared infrastructure for .NET applic
 
 ## Packages
 
-| Package | Description |
-|---------|-------------|
-| **JC.Core** | Repository pattern, automatic audit trail on SaveChanges, soft-delete, pagination, and utility helpers |
-| **JC.Web** | ASP.NET Core web hardening and helpers — security headers, cookie management (with optional Data Protection encryption), client profiling (user agent, bot filtering, geolocation), UI tag helpers, dropdown builders, QR code generation |
-| **JC.Identity** | ASP.NET Core Identity integration, context-bound multi-tenancy query filters, middleware, and user management helpers |
-| **JC.MySql** | MySQL database provider extensions using Pomelo.EntityFrameworkCore.MySql |
-| **JC.SqlServer** | SQL Server database provider extensions using Microsoft.EntityFrameworkCore.SqlServer |
-| **JC.Github** | GitHub integration for bug report and issue tracking services |
+| Package | Description | Docs |
+|---------|-------------|------|
+| **JC.Core** | Repository pattern, automatic audit trail on SaveChanges, soft-delete, pagination, and utility helpers | [Documentation](Documentation/JC.Core/) |
+| **JC.Web** | Security headers, cookie management, client profiling, rate limiting, bug reporter tag helper, UI helpers | [Documentation](Documentation/JC.Web/) |
+| **JC.Identity** | ASP.NET Core Identity integration, multi-tenancy query filters, middleware, user management | [Documentation](Documentation/JC.Identity/) |
+| **JC.MySql** | MySQL database provider extensions using Pomelo.EntityFrameworkCore.MySql | [Documentation](Documentation/JC.MySql/) |
+| **JC.SqlServer** | SQL Server database provider extensions using Microsoft.EntityFrameworkCore.SqlServer | [Documentation](Documentation/JC.SqlServer/) |
+| **JC.Github** | GitHub integration for bug report and issue tracking services | [Documentation](Documentation/JC.Github/) |
 
 ## Prerequisites
 
@@ -41,223 +41,64 @@ JC.Core (foundation — no JC dependencies)
 
 All packages depend on **JC.Core**. The database providers (JC.MySql / JC.SqlServer) are interchangeable. JC.Identity, JC.Web, and JC.Github are independent of each other.
 
-## Quick Start & Usage
+## Quick Start
 
 ### JC.Core
-
-Register core services and your entity repository contexts:
 
 ```csharp
 builder.Services.AddCore<AppDbContext>();
 builder.Services.RegisterRepositoryContexts(typeof(Product), typeof(Order));
 ```
 
-Your `DbContext` must extend `DataDbContext`:
+See [JC.Core documentation](Documentation/JC.Core/) for full setup, audit trail configuration, and API reference.
 
-```csharp
-public class AppDbContext : DataDbContext
-{
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
-}
-```
-
-Use the repository manager to query and persist data:
-
-```csharp
-public class ProductService(IRepositoryManager repositoryManager)
-{
-    public async Task<IPagination<Product>> GetPagedAsync(int page, int size)
-    {
-        var repo = repositoryManager.GetRepository<Product>();
-        return await repo.AsQueryable().ToPagedListAsync(page, size);
-    }
-}
-```
-
-Extend `AuditModel` for automatic audit fields and soft-delete:
-
-```csharp
-public class Product : AuditModel
-{
-    public string Name { get; set; } = string.Empty;
-}
-```
-
-Both `DataDbContext` and `IdentityDataDbContext` automatically create `AuditEntry` records on `SaveChangesAsync` for all tracked entity changes (create, update, soft-delete, restore, hard-delete). Audit entries are persisted in the same transaction — no additional wiring required.
-
-### Database Providers (JC.MySql / JC.SqlServer)
-
-Register one database provider — they are interchangeable:
+### Database Providers
 
 ```csharp
 // MySQL
-builder.Services.AddMySqlDatabase<AppDbContext>(
-    builder.Configuration,
-    migrationsAssembly: "MyApp",
-    addHealthCheck: true
-);
+builder.Services.AddMySqlDatabase<AppDbContext>(builder.Configuration, migrationsAssembly: "MyApp");
 
 // SQL Server
-builder.Services.AddSqlServerDatabase<AppDbContext>(
-    builder.Configuration,
-    migrationsAssembly: "MyApp",
-    addHealthCheck: true
-);
+builder.Services.AddSqlServerDatabase<AppDbContext>(builder.Configuration, migrationsAssembly: "MyApp");
 ```
+
+See [JC.MySql](Documentation/JC.MySql/) or [JC.SqlServer](Documentation/JC.SqlServer/) documentation.
 
 ### JC.Identity
-
-Your `DbContext` must extend `IdentityDataDbContext<TUser, TRole>` instead of `DataDbContext`:
-
-```csharp
-public class AppDbContext : IdentityDataDbContext<AppUser, AppRole>
-{
-    public AppDbContext(DbContextOptions<AppDbContext> options, IUserInfo userInfo) : base(options, userInfo) { }
-}
-```
-
-Extend `BaseUser` and `BaseRole` for your application:
-
-```csharp
-public class AppUser : BaseUser { }
-public class AppRole : BaseRole { }
-```
-
-Register identity services and apply the middleware pipeline:
 
 ```csharp
 builder.Services.AddIdentity<AppUser, AppRole, AppDbContext>();
 
 var app = builder.Build();
-
 app.UseIdentity();
-
 await app.ConfigureAdminAndRolesAsync<AppUser, AppRoles, AppRole>(setupTenancy: true);
 ```
 
-If you need to register ASP.NET Core Identity separately (e.g. custom configuration), use `AddIdentityBase` instead:
-
-```csharp
-builder.Services
-    .AddIdentity<AppUser, AppRole>()
-    .AddEntityFrameworkStores<AppDbContext>();
-
-builder.Services.AddIdentityBase<AppUser, AppRole>();
-```
-
-Define application roles by extending `SystemRoles`:
-
-```csharp
-public class AppRoles : SystemRoles
-{
-    public const string Manager = "Manager";
-    public const string ManagerDesc = "Can manage resources";
-}
-```
-
-Access the current user anywhere via `IUserInfo`:
-
-```csharp
-public class SomeService(IUserInfo userInfo)
-{
-    public string CurrentUser => userInfo.DisplayName;
-    public bool IsAdmin => userInfo.IsInRole(SystemRoles.Admin);
-}
-```
+See [JC.Identity documentation](Documentation/JC.Identity/) for multi-tenancy, custom IUserInfo, and role configuration.
 
 ### JC.Web
 
-Web hardening, cookie management, client profiling, and UI helpers for ASP.NET Core applications.
-
-Register all services and middleware with a single call, or use individual methods for granular control:
-
 ```csharp
-// Services — register everything
+// Register all services
 builder.Services.AddWebDefaults(builder.Configuration);
 
-// Or with a custom geolocation provider
-builder.Services.AddWebDefaults<MyGeoProvider>(builder.Configuration);
-
-// Middleware — apply everything
+// Apply middleware
 app.UseWebDefaults();
+
+// Optional: rate limiting (opt-in, not included in WebDefaults)
+builder.Services.AddRateLimiting();
+app.UseRateLimiting();
 ```
 
-Individual registration is also available:
-
-```csharp
-builder.Services.AddSecurityHeaders();
-builder.Services.AddCookieServices(builder.Configuration);
-builder.Services.AddClientProfiling(options =>
-{
-    options.AllowedBots.Add("Googlebot");
-});
-
-app.UseSecurityHeaders();
-app.UseClientProfiling();
-```
-
-#### Security
-
-**Security Headers** — middleware that applies a configurable set of HTTP security headers to all responses, including X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy, HSTS, and cross-origin headers (COOP/CORP/COEP). Includes a fluent `ContentSecurityPolicyBuilder` with directive validation, nonce/hash helpers, and keyword restrictions. Headers are pre-computed at startup for performance.
-
-**Cookie Management** — a profile-based cookie system with a thread-safe `CookieProfileDictionary` singleton for registering cookie profiles at startup. Supports both standard and encrypted cookies (via ASP.NET Core Data Protection). Global defaults are configured through `CookieDefaultOptions`, with per-cookie overrides via `CookieDefaultOverride` on each `CookieProfile`. Two `ICookieService` implementations (`CookieService` and `EncryptedCookieService`) are available, registered as keyed services for dual-mode injection.
-
-#### Client Profiling
-
-**Request Metadata** — middleware that captures client IP, user agent, geolocation (via optional `IGeoLocationProvider`), and request details early in the pipeline. Access via `HttpContext.GetRequestMetadata()`.
-
-**Bot Filtering** — middleware that blocks detected bots with configurable allowed-bot lists, path filtering, and status codes. Depends on request metadata being populated first.
-
-**User Agent Parsing** — `UserAgentService` parses user agent strings into structured data (browser, OS, device type) with bot/mobile/tablet detection using UAParser.
-
-#### UI
-
-Tag helpers, HTML builders, dropdown utilities, and QR code generation for Razor views.
+See [JC.Web documentation](Documentation/JC.Web/) for security headers, cookie management, client profiling, rate limiting, bug reporter, and UI helpers.
 
 ### JC.Github
 
-Register GitHub services and optionally enable webhook sync:
-
 ```csharp
-builder.Services.AddGithub<AppDbContext>(builder.Configuration, options =>
-{
-    options.EnableWebhooks = true;
-    options.WebhookPath = "/api/github/webhook";
-});
-
-var app = builder.Build();
-app.UseGithubWebhooks();
+builder.Services.AddGithub<AppDbContext>(builder.Configuration);
 ```
 
-Your `DbContext` must extend `DataDbContext` (or `IdentityDataDbContext` if using JC.Identity) and implement `IGithubDbContext`:
-
-```csharp
-public class AppDbContext : DataDbContext, IGithubDbContext
-{
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
-
-    public DbSet<ReportedIssue> ReportedIssues => Set<ReportedIssue>();
-    public DbSet<IssueComment> IssueComments => Set<IssueComment>();
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        base.OnModelCreating(modelBuilder);
-        modelBuilder.ApplyGithubMappings();
-    }
-}
-```
-
-Report issues programmatically:
-
-```csharp
-public class FeedbackService(BugReportService bugReportService)
-{
-    public async Task ReportBugAsync(string description)
-    {
-        await bugReportService.RecordIssue(description, IssueType.Bug, userId: null, creatorName: "System");
-    }
-}
-```
+See [JC.Github documentation](Documentation/JC.Github/) for webhook setup and issue tracking.
 
 ## Configuration
 
@@ -270,8 +111,6 @@ public class FeedbackService(BugReportService bugReportService)
   }
 }
 ```
-
-The connection string name defaults to `"DefaultConnection"` but can be overridden via the `connectionStringName` parameter on `AddMySqlDatabase` / `AddSqlServerDatabase`.
 
 ### Admin Seeding (JC.Identity)
 
@@ -286,6 +125,18 @@ The connection string name defaults to `"DefaultConnection"` but can be overridd
 }
 ```
 
+### Encrypted Cookies (JC.Web)
+
+```json
+{
+  "Cookies": {
+    "DataProtection_Path": "/path/to/keys"
+  }
+}
+```
+
+Required when using encrypted cookies (enabled by default in `AddWebDefaults` / `AddCookieServices`). Set `useEncryptedCookies: false` to skip.
+
 ### GitHub Integration (JC.Github)
 
 ```json
@@ -299,6 +150,19 @@ The connection string name defaults to `"DefaultConnection"` but can be overridd
   }
 }
 ```
+
+## Documentation
+
+Full documentation for each package is available in the [Documentation](Documentation/) directory:
+
+| Package | Setup | Full Guide | API Reference |
+|---------|-------------|------------|---------------|
+| JC.Core | [Setup](Documentation/JC.Core/) | [Guide](Documentation/JC.Core/) | [API](Documentation/JC.Core/) |
+| JC.Web | [Setup](Documentation/JC.Web/) | [Guide](Documentation/JC.Web/) | [API](Documentation/JC.Web/) |
+| JC.Identity | [Setup](Documentation/JC.Identity/) | [Guide](Documentation/JC.Identity/) | [API](Documentation/JC.Identity/) |
+| JC.MySql | [Setup](Documentation/JC.MySql/) | [Guide](Documentation/JC.MySql/) | [API](Documentation/JC.MySql/) |
+| JC.SqlServer | [Setup](Documentation/JC.SqlServer/) | [Guide](Documentation/JC.SqlServer/) | [API](Documentation/JC.SqlServer/) |
+| JC.Github | [Setup](Documentation/JC.Github/) | [Guide](Documentation/JC.Github/) | [API](Documentation/JC.Github/) |
 
 ## Build from Source
 
@@ -335,13 +199,13 @@ Packages are expected to stay aligned on the same **Major.Minor** version, while
 
 For example, within the same suite version:
 
-- `JC.Core` = `3.0.0`
-- `JC.Web` = `3.0.1`
-- `JC.Identity` = `3.0.0`
+- `JC.Core` = `3.1.0`
+- `JC.Web` = `3.1.4`
+- `JC.Identity` = `3.1.0`
 
 That is valid.
 
-If `JC.Core` is updated from `3.0.0` to `3.0.1`, all packages receive a patch bump to align with the new core baseline.
+If `JC.Core` is patched, all packages bump their own patch version by 1 (e.g. `JC.Web` `3.1.4` becomes `3.1.5`, `JC.Identity` `3.1.0` becomes `3.1.1`).
 
 ### Why
 
