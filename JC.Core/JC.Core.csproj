@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.Core</PackageId>
-        <Version>3.0.0</Version>
+        <Version>3.0.1</Version>
         <Description>Core library providing repository pattern, automatic audit trail on SaveChanges, soft-delete, pagination, and utility helpers for .NET applications.</Description>
     </PropertyGroup>
 

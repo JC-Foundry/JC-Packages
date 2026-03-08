@@ -25,7 +25,6 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddCore<TContext>(this IServiceCollection services)
         where TContext : DbContext, IDataDbContext
     {
-        services.TryAddScoped<AuditService>();
         services.TryAddScoped<IDataDbContext>(sp => sp.GetRequiredService<TContext>());
         services.TryAddScoped<DbContext>(sp => sp.GetRequiredService<TContext>());
         services.TryAddScoped<IRepositoryManager, RepositoryManager>();
