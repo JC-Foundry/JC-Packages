@@ -1,4 +1,4 @@
-namespace JC.Web.Observability.Models.Options;
+namespace JC.Web.ClientProfiling.Models.Options;
 
 /// <summary>
 /// Configuration for the bot filtering middleware.
@@ -29,6 +29,12 @@ public class BotFilterOptions
     /// </code>
     /// </example>
     public Func<string, bool>? PathFilter { get; set; }
+
+    /// <summary>
+    /// Whether bot filtering is enabled. When <c>false</c>, the <see cref="Middleware.BotFilterMiddleware"/>
+    /// passes all requests through without inspection. Defaults to <c>true</c>.
+    /// </summary>
+    public bool IsEnabled { get; set; } = true;
 }
 
 /// <summary>

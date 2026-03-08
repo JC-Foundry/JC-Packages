@@ -41,9 +41,9 @@ public static class HtmlHelper
             builder.AddClass(c);
         }
 
-        return builder.SetContent(content).Build();
+        return builder.SetRawContent(content).Build();
     }
-    
+
     /// <summary>
     /// Builds a pagination list item (&lt;li class="page-item"&gt;...&lt;/li&gt;) with optional states
     /// </summary>
@@ -57,7 +57,7 @@ public static class HtmlHelper
         if (isActive) builder.AddActiveAttribute();
         if (isDisabled) builder.AddDisabledClass();
 
-        return builder.SetContent(content).Build();
+        return builder.SetRawContent(content).Build();
     }
 
     /// <summary>

@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace JC.Github.Extensions;
 
@@ -39,16 +40,25 @@ public static class ServiceCollectionExtensions
         // Configure options
         var optionsBuilder = services.AddOptions<GithubOptions>();
 
+        var webhookSecret = configuration["Github:Secret"];
         optionsBuilder.Configure(options =>
         {
-            options.WebhookSecret = configuration["Github:Secret"] ?? throw new InvalidOperationException("Configuration value 'Github:Secret' not found.");
+            options.WebhookSecret = options.EnableWebhooks
+                ? string.IsNullOrEmpty(webhookSecret)
+                    ? throw new InvalidOperationException("Configuration value 'Github:Secret' not found.")
+                    : webhookSecret
+                : string.Empty;
         });
-
+        
         if (configure is not null)
             optionsBuilder.PostConfigure(configure);
 
         // Core services
-        services.TryAddSingleton(new GitHelper(gitUrl, gitApiKey));
+        services.TryAddSingleton(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<GithubOptions>>().Value;
+            return new GitHelper(gitUrl, gitApiKey, options.GitHelperUserAgent);
+        });
         services.TryAddScoped<BugReportService>();
         services.TryAddScoped<IGithubDbContext>(sp => sp.GetRequiredService<TContext>());
 

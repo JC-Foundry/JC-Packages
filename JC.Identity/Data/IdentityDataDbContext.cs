@@ -1,6 +1,7 @@
 using JC.Core.Data;
 using JC.Core.Models;
 using JC.Core.Models.Auditing;
+using JC.Core.Services;
 using JC.Identity.Extensions;
 using JC.Identity.Models;
 using JC.Identity.Models.MultiTenancy;
@@ -31,11 +32,25 @@ public class IdentityDataDbContext<TUser, TRole> : IdentityDbContext<TUser, TRol
         _userInfo = userInfo;
     }
 
+    /// <summary>
+    /// The current user's tenant identifier. Referenced by global query filters — EF Core
+    /// re-evaluates this property per query rather than caching the value at model creation time.
+    /// </summary>
+    public string? CurrentTenantId => _userInfo.TenantId;
+
     /// <inheritdoc />
     public DbSet<AuditEntry> AuditEntries { get; set; }
     
     /// <summary>Gets the set of tenants.</summary>
     public DbSet<Tenant> Tenants => Set<Tenant>();
+
+    /// <inheritdoc cref="SaveChangesAsync" />
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var auditService = new AuditService(this, _userInfo);
+        await auditService.ProcessChangesAsync(ChangeTracker);
+        return await base.SaveChangesAsync(cancellationToken);
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -58,6 +73,6 @@ public class IdentityDataDbContext<TUser, TRole> : IdentityDbContext<TUser, TRol
             entity.HasIndex(e => e.Domain);
         });
 
-        modelBuilder.ApplyTenantQueryFilters(_userInfo);
+        modelBuilder.ApplyTenantQueryFilters(this);
     }
 }

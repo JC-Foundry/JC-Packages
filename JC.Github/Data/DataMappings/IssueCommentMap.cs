@@ -14,7 +14,7 @@ public class IssueCommentMap : IEntityTypeConfiguration<IssueComment>
         builder.Property(e => e.Author).IsRequired();
         builder.Property(e => e.CreatedAt).IsRequired();
 
-        builder.HasIndex(e => e.IssueNumber).IsUnique();
-        builder.HasIndex(e => e.CommentId);
+        builder.HasIndex(e => e.IssueNumber);
+        builder.HasIndex(e => e.CommentId).IsUnique();
     }
 }

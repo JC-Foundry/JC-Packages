@@ -1,7 +1,7 @@
-using JC.Web.Observability.Models;
+using JC.Web.ClientProfiling.Models;
 using Microsoft.AspNetCore.Http;
 
-namespace JC.Web.Observability;
+namespace JC.Web.ClientProfiling;
 
 public static class HttpContextExtensions
 {

@@ -1,9 +1,9 @@
-using JC.Web.Observability.Models;
-using JC.Web.Observability.Models.Options;
+using JC.Web.ClientProfiling.Models;
+using JC.Web.ClientProfiling.Models.Options;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 
-namespace JC.Web.Observability.Middleware;
+namespace JC.Web.ClientProfiling.Middleware;
 
 /// <summary>
 /// Middleware that blocks requests from detected bots based on the <see cref="RequestMetadata"/>
@@ -21,6 +21,12 @@ public class BotFilterMiddleware(RequestDelegate next, IOptions<BotFilterOptions
     /// </summary>
     public async Task InvokeAsync(HttpContext context)
     {
+        if (!_options.IsEnabled)
+        {
+            await next(context);
+            return;
+        }
+        
         var metadata = context.GetRequestMetadata();
 
         if (metadata is { UserAgent.IsBot: true })

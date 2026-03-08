@@ -1,8 +1,8 @@
-namespace JC.Web.Observability.Models;
+namespace JC.Web.ClientProfiling.Models;
 
 /// <summary>
 /// Represents the geographic location resolved from a client IP address.
-/// Populated by an <see cref="Abstractions.IGeoLocationProvider"/> implementation
+/// Populated by an <see cref="Services.IGeoLocationProvider"/> implementation
 /// and optionally included in <see cref="RequestMetadata"/> when a provider is registered.
 /// </summary>
 public class GeoLocation

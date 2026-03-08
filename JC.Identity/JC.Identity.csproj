@@ -2,8 +2,8 @@
 
     <PropertyGroup>
         <PackageId>JC.Identity</PackageId>
-        <Version>2.0.0</Version>
-        <Description>Identity library providing ASP.NET Core Identity integration, multi-tenancy, middleware, and user management helpers.</Description>
+        <Version>3.0.0</Version>
+        <Description>Identity library providing ASP.NET Core Identity integration, context-bound multi-tenancy query filters, middleware, and user management helpers.</Description>
     </PropertyGroup>
 
     <ItemGroup>

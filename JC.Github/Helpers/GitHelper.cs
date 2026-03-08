@@ -3,12 +3,12 @@ using JC.Github.Models.Responses;
 
 namespace JC.Github.Helpers;
 
-public class GitHelper(string url, string apiKey)
+public class GitHelper(string url, string apiKey, string userAgent)
 {
     private readonly FlurlClient _baseUrl = new FlurlClient(url)
         .WithHeader("Authorization","Bearer "+apiKey)
         .WithHeader("X-GitHub-Api-Version", "2022-11-28")
-        .WithHeader("User-Agent", "JC-Application");
+        .WithHeader("User-Agent", userAgent);
 
     /// <summary>
     /// Creates a new issue in the specified GitHub repository.

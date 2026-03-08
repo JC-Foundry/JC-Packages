@@ -11,7 +11,10 @@ public enum AuditAction
     /// <summary>An existing entity was updated.</summary>
     Update,
 
-    /// <summary>An entity was deleted (soft or hard).</summary>
+    /// <summary>An entity was soft deleted.</summary>
+    SoftDelete,
+    
+    /// <summary>An entity was hard deleted.</summary>
     Delete,
 
     /// <summary>A soft-deleted entity was restored.</summary>

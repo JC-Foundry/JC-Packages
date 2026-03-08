@@ -47,7 +47,7 @@ public static class ApplicationBuilderExtensions
     /// <exception cref="InvalidOperationException">
     /// Thrown if required services such as RoleManager or UserManager are not available or if roles or the admin user cannot be created.
     /// </exception>
-    public static async Task<IApplicationBuilder> ConfigureAdminAndRolesAsync<TUser, TRoles, TRole>(
+    public static async Task<IApplicationBuilder> ConfigureAdminAndRolesAsync<TUser, TRole, TContext, TRoles>(
         this IApplicationBuilder app,
         bool setupTenancy = false,
         string usernameConfigKey = "Admin:Username",
@@ -56,11 +56,12 @@ public static class ApplicationBuilderExtensions
         string displayNameConfigKey = "Admin:DisplayName",
         IEnumerable<string>? additionalRoles = null)
         where TUser : BaseUser, new()
-        where TRoles : SystemRoles
         where TRole : BaseRole, new()
+        where TContext : IdentityDataDbContext<TUser, TRole>
+        where TRoles : SystemRoles
     {
         await app.SeedRolesAsync<TRoles, TRole>();
-        await app.SeedDefaultAdminAsync<TUser, TRole>
+        await app.SeedDefaultAdminAsync<TUser, TRole, TContext>
             (setupTenancy, usernameConfigKey, emailConfigKey, passwordConfigKey, displayNameConfigKey, additionalRoles);
 
         return app;
@@ -117,7 +118,7 @@ public static class ApplicationBuilderExtensions
     /// <exception cref="InvalidOperationException">
     /// Thrown if required configuration values are not found or invalid.
     /// </exception>
-    public static async Task<IApplicationBuilder> SeedDefaultAdminAsync<TUser, TRole>(
+    public static async Task<IApplicationBuilder> SeedDefaultAdminAsync<TUser, TRole, TContext>(
         this IApplicationBuilder app,
         bool setupTenancy = false,
         string usernameConfigKey = "Admin:Username",
@@ -127,6 +128,7 @@ public static class ApplicationBuilderExtensions
         IEnumerable<string>? additionalRoles = null)
         where TUser : BaseUser, new()
         where TRole : BaseRole
+        where TContext : IdentityDataDbContext<TUser, TRole>
     {
         using var scope = app.ApplicationServices.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<TUser>>();
@@ -148,7 +150,7 @@ public static class ApplicationBuilderExtensions
         Tenant? tenant = null;
         if (setupTenancy)
         {
-            var context = scope.ServiceProvider.GetRequiredService<IdentityDataDbContext<TUser, TRole>>();
+            var context = scope.ServiceProvider.GetRequiredService<TContext>();
             tenant = await context.Tenants.FirstOrDefaultAsync(t => t.Name == "Default Tenant");
 
             if (tenant == null)

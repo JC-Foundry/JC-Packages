@@ -78,13 +78,29 @@ public class HtmlTagBuilder
     }
 
     /// <summary>
-    /// Sets the inner HTML content of the tag. Overwrites any previously set content.
+    /// Sets the inner text content of the tag. The content is HTML-encoded to prevent injection.
+    /// Overwrites any previously set content.
     /// </summary>
-    /// <param name="content">The inner HTML content.</param>
+    /// <param name="content">The text content (will be HTML-encoded).</param>
     /// <returns>The builder instance for chaining.</returns>
     public HtmlTagBuilder SetContent(string content)
     {
-        _content = content;
+        _content = WebUtility.HtmlEncode(content);
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the inner HTML content of the tag without encoding. Use this for nested HTML
+    /// such as child elements built by other <see cref="HtmlTagBuilder"/> instances.
+    /// <para>
+    /// <b>Warning:</b> Content is inserted as raw HTML. Do not pass unsanitised user input.
+    /// </para>
+    /// </summary>
+    /// <param name="rawHtml">The raw HTML content (not encoded).</param>
+    /// <returns>The builder instance for chaining.</returns>
+    public HtmlTagBuilder SetRawContent(string rawHtml)
+    {
+        _content = rawHtml;
         return this;
     }
 

@@ -84,11 +84,11 @@ public static class AlertHelper
             builder.AddClass("alert-dismissible")
                 .AddClass("fade")
                 .AddClass("show")
-                .SetContent(message + DismissButton);
+                .SetRawContent(message + DismissButton);
         }
         else
         {
-            builder.SetContent(message);
+            builder.SetRawContent(message);
         }
 
         return builder.Build();

@@ -1,8 +1,8 @@
-using JC.Web.Observability.Models;
+using JC.Web.ClientProfiling.Models;
 using UAParser;
-using UserAgent = JC.Web.Observability.Models.UserAgent;
+using UserAgent = JC.Web.ClientProfiling.Models.UserAgent;
 
-namespace JC.Web.Observability.Services;
+namespace JC.Web.ClientProfiling.Services;
 
 /// <summary>
 /// Parses user agent strings into structured <see cref="UserAgent"/> objects

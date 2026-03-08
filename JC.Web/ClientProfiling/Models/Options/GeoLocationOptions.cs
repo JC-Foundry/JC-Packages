@@ -1,8 +1,8 @@
-namespace JC.Web.Observability.Models.Options;
+namespace JC.Web.ClientProfiling.Models.Options;
 
 /// <summary>
 /// Controls the granularity of geographic location resolution.
-/// Passed to <see cref="Abstractions.IGeoLocationProvider"/> implementations
+/// Passed to <see cref="Services.IGeoLocationProvider"/> implementations
 /// so they can skip unnecessary lookups when finer-grained data is not needed.
 /// </summary>
 public class GeoLocationOptions

@@ -1,3 +1,4 @@
+using JC.Web.ClientProfiling.Middleware;
 using JC.Web.Security.Middleware;
 using JC.Web.Security.Models;
 using JC.Web.Security.Services;
@@ -11,6 +12,21 @@ namespace JC.Web.Extensions;
 /// </summary>
 public static class ApplicationBuilderExtensions
 {
+    /// <summary>
+    /// Adds all JC.Web middleware to the pipeline: security headers and client profiling
+    /// (request metadata and bot filtering). This is the recommended single entry point
+    /// for consuming applications. Must be called after <see cref="ServiceCollectionExtensions.AddWebDefaults"/>.
+    /// Place early in the pipeline to ensure headers and profiling are applied to all requests.
+    /// </summary>
+    /// <param name="app">The application builder.</param>
+    /// <returns>The application builder for chaining.</returns>
+    public static IApplicationBuilder UseWebDefaults(this IApplicationBuilder app)
+    {
+        app.UseSecurityHeaders();
+        app.UseClientProfiling();
+
+        return app;
+    }
     
 
     #region Security
@@ -172,6 +188,54 @@ public static class ApplicationBuilderExtensions
                     $"Unable to create an encrypted cookie profile for '{profile.CookieName}' with purpose protector: '{profile.ProtectorPurpose}'.");
         }
 
+        return app;
+    }
+
+    #endregion
+
+
+    #region Client Profiling
+
+    /// <summary>
+    /// Adds the request metadata middleware to the pipeline. Builds <see cref="ClientProfiling.Models.RequestMetadata"/>
+    /// from each request (client IP, user agent, geolocation) and stores it in <see cref="Microsoft.AspNetCore.Http.HttpContext.Items"/>
+    /// for downstream access via <see cref="ClientProfiling.HttpContextExtensions.GetRequestMetadata"/>.
+    /// Must be called after <see cref="ServiceCollectionExtensions.AddClientProfiling"/>.
+    /// Place early in the pipeline so downstream middleware and handlers can access the metadata.
+    /// </summary>
+    /// <param name="app">The application builder.</param>
+    /// <returns>The application builder for chaining.</returns>
+    public static IApplicationBuilder UseRequestMetadata(this IApplicationBuilder app)
+    {
+        app.UseMiddleware<RequestMetadataMiddleware>();
+        return app;
+    }
+
+    /// <summary>
+    /// Adds the bot filter middleware to the pipeline. Blocks requests from detected bots
+    /// unless they are in the <see cref="ClientProfiling.Models.Options.BotFilterOptions.AllowedBots"/> list.
+    /// Must be registered after <see cref="UseRequestMetadata"/> as it depends on the
+    /// <see cref="ClientProfiling.Models.RequestMetadata"/> stored in <see cref="Microsoft.AspNetCore.Http.HttpContext.Items"/>.
+    /// </summary>
+    /// <param name="app">The application builder.</param>
+    /// <returns>The application builder for chaining.</returns>
+    public static IApplicationBuilder UseBotFilter(this IApplicationBuilder app)
+    {
+        app.UseMiddleware<BotFilterMiddleware>();
+        return app;
+    }
+
+    /// <summary>
+    /// Adds both request metadata and bot filter middleware to the pipeline in the correct order.
+    /// Equivalent to calling <see cref="UseRequestMetadata"/> followed by <see cref="UseBotFilter"/>.
+    /// Must be called after <see cref="ServiceCollectionExtensions.AddClientProfiling"/>.
+    /// </summary>
+    /// <param name="app">The application builder.</param>
+    /// <returns>The application builder for chaining.</returns>
+    public static IApplicationBuilder UseClientProfiling(this IApplicationBuilder app)
+    {
+        app.UseRequestMetadata();
+        app.UseBotFilter();
         return app;
     }
 

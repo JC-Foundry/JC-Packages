@@ -3,84 +3,122 @@ using JC.Core.Data;
 using JC.Core.Enums;
 using JC.Core.Models;
 using JC.Core.Models.Auditing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace JC.Core.Services;
 
 /// <summary>
-/// Service for recording audit trail entries against the current user.
+/// Internal service for creating audit trail entries from tracked entity changes.
+/// Constructed directly by DbContext implementations during <c>SaveChangesAsync</c> —
+/// not registered in DI.
 /// </summary>
-public class AuditService
+internal class AuditService
 {
     private readonly IDataDbContext _context;
-    private readonly IUserInfo _userInfo;
+    private readonly string _userId;
+    private readonly string _userName;
 
-    /// <summary>
-    /// Initialises a new instance of <see cref="AuditService"/>.
-    /// </summary>
-    /// <param name="context">The data context for persisting audit entries.</param>
-    /// <param name="userInfo">The current user information.</param>
-    public AuditService(IDataDbContext context, IUserInfo userInfo)
+    internal AuditService(IDataDbContext context, IUserInfo? userInfo)
     {
         _context = context;
-        _userInfo = userInfo;
+        _userId = userInfo?.UserId ?? IUserInfo.MissingUserInfoId;
+        _userName = userInfo?.DisplayName ?? userInfo?.Username ?? IUserInfo.MissingUserInfoId;
     }
 
     /// <summary>
-    /// Creates and persists an audit entry for the specified action.
+    /// Inspects the <see cref="ChangeTracker"/> for entity changes and creates
+    /// corresponding <see cref="AuditEntry"/> records. Skips <see cref="AuditEntry"/>
+    /// entities to prevent recursive auditing.
     /// </summary>
-    /// <param name="action">The type of action being audited.</param>
-    /// <param name="tableName">The name of the affected database table.</param>
-    /// <param name="data">Optional entity data to serialise as JSON in the audit record.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task LogAsync(AuditAction action, string tableName, object? data = null)
+    /// <param name="changeTracker">The change tracker to inspect.</param>
+    internal async Task ProcessChangesAsync(ChangeTracker changeTracker)
+    {
+        foreach (var entry in changeTracker.Entries()
+                     .Where(e => e.Entity is not AuditEntry
+                                 && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+        {
+            var action = ResolveAction(entry);
+            if (action is null)
+                continue;
+
+            var tableName = entry.Metadata.GetTableName() ?? entry.Entity.GetType().Name;
+            var data = SerializeChanges(entry, action.Value);
+
+            await LogAsync(action.Value, tableName, data);
+        }
+    }
+
+    private async Task LogAsync(AuditAction action, string tableName, string? data)
     {
         var entry = new AuditEntry
         {
             Action = action,
             TableName = tableName,
-            UserId = _userInfo.UserId,
-            UserName = _userInfo.DisplayName ?? _userInfo.Username,
-            ActionData = data != null ? JsonSerializer.Serialize(data) : null,
+            UserId = _userId,
+            UserName = _userName,
+            ActionData = data,
             AuditDate = DateTime.UtcNow
         };
 
         await _context.AuditEntries.AddAsync(entry);
-        await _context.SaveChangesAsync();
     }
 
-    /// <summary>
-    /// Logs a <see cref="AuditAction.Create"/> audit entry.
-    /// </summary>
-    /// <param name="tableName">The name of the affected database table.</param>
-    /// <param name="data">Optional entity data to serialise as JSON.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task LogCreateAsync(string tableName, object? data = null)
-        => await LogAsync(AuditAction.Create, tableName, data);
+    private static AuditAction? ResolveAction(EntityEntry entry)
+    {
+        return entry.State switch
+        {
+            EntityState.Added => AuditAction.Create,
+            EntityState.Deleted => AuditAction.Delete,
+            EntityState.Modified => ResolveModifiedAction(entry),
+            _ => null
+        };
+    }
 
-    /// <summary>
-    /// Logs a <see cref="AuditAction.Update"/> audit entry.
-    /// </summary>
-    /// <param name="tableName">The name of the affected database table.</param>
-    /// <param name="data">Optional entity data to serialise as JSON.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task LogUpdateAsync(string tableName, object? data = null)
-        => await LogAsync(AuditAction.Update, tableName, data);
+    private static AuditAction ResolveModifiedAction(EntityEntry entry)
+    {
+        var isDeletedProp = entry.Properties
+            .FirstOrDefault(p => p.Metadata.Name == nameof(AuditModel.IsDeleted));
 
-    /// <summary>
-    /// Logs a <see cref="AuditAction.Delete"/> audit entry.
-    /// </summary>
-    /// <param name="tableName">The name of the affected database table.</param>
-    /// <param name="data">Optional entity data to serialise as JSON.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task LogDeleteAsync(string tableName, object? data = null)
-        => await LogAsync(AuditAction.Delete, tableName, data);
+        if (isDeletedProp is { IsModified: true })
+        {
+            var wasDeleted = isDeletedProp.OriginalValue is true;
+            var isNowDeleted = isDeletedProp.CurrentValue is true;
 
-    /// <summary>
-    /// Logs a <see cref="AuditAction.Restore"/> audit entry.
-    /// </summary>
-    /// <param name="tableName">The name of the affected database table.</param>
-    /// <param name="data">Optional entity data to serialise as JSON.</param>
-    /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task LogRestoreAsync(string tableName, object? data = null)
-        => await LogAsync(AuditAction.Restore, tableName, data);
+            if (!wasDeleted && isNowDeleted)
+                return AuditAction.SoftDelete;
+
+            if (wasDeleted && !isNowDeleted)
+                return AuditAction.Restore;
+        }
+
+        return AuditAction.Update;
+    }
+
+    private static string? SerializeChanges(EntityEntry entry, AuditAction action)
+    {
+        try
+        {
+            if (action == AuditAction.Create)
+            {
+                var created = entry.Properties
+                    .Where(p => p.CurrentValue is not null)
+                    .ToDictionary(p => p.Metadata.Name, p => p.CurrentValue);
+                return created.Count > 0 ? JsonSerializer.Serialize(created) : null;
+            }
+
+            var changes = entry.Properties
+                .Where(p => p.IsModified)
+                .ToDictionary(p => p.Metadata.Name, p => new
+                {
+                    From = p.OriginalValue,
+                    To = p.CurrentValue
+                });
+            return changes.Count > 0 ? JsonSerializer.Serialize(changes) : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }

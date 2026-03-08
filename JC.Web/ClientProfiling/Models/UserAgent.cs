@@ -1,5 +1,5 @@
 // ReSharper disable InconsistentNaming
-namespace JC.Web.Observability.Models;
+namespace JC.Web.ClientProfiling.Models;
 
 public class UserAgent
 {

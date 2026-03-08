@@ -8,6 +8,9 @@ namespace JC.Core.Models;
 /// </summary>
 public interface IUserInfo
 {
+    public const string MissingUserInfoId = "<NONE>";
+    
+    
     /// <summary>Gets the unique identifier of the current user.</summary>
     string UserId { get; set; }
 

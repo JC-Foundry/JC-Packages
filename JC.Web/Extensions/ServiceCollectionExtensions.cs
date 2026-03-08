@@ -1,3 +1,5 @@
+using JC.Web.ClientProfiling.Models.Options;
+using JC.Web.ClientProfiling.Services;
 using JC.Web.Security.Helpers;
 using JC.Web.Security.Models.Options;
 using JC.Web.Security.Services;
@@ -13,8 +15,72 @@ namespace JC.Web.Extensions;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Registers all JC.Web services: security headers, cookie services, and client profiling.
+    /// This is the recommended single entry point for consuming applications.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configuration">The application configuration, required when <paramref name="useEncryptedCookies"/> is <c>true</c>.</param>
+    /// <param name="useEncryptedCookies">Whether to register the encrypted cookie service. Defaults to <c>true</c>.</param>
+    /// <param name="configureHeaderFilter">Optional callback to configure <see cref="SecurityHeaderOptions"/>.</param>
+    /// <param name="configureCookieFilter">Optional callback to configure <see cref="CookieDefaultOptions"/>.</param>
+    /// <param name="configureBotFilter">Optional callback to configure <see cref="BotFilterOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddWebDefaults(this IServiceCollection services,
+        IConfiguration? configuration = null,
+        bool useEncryptedCookies = true,
+        Action<SecurityHeaderOptions>? configureHeaderFilter = null,
+        Action<CookieDefaultOptions>? configureCookieFilter = null,
+        Action<BotFilterOptions>? configureBotFilter = null)
+    {
+        services.AddSecurityDefaults(configuration, useEncryptedCookies, configureHeaderFilter, configureCookieFilter);
+        services.AddClientProfiling(configureBotFilter);
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers all JC.Web services with a custom <see cref="IGeoLocationProvider"/> for
+    /// IP-based geographic location resolution in client profiling.
+    /// </summary>
+    /// <typeparam name="TGeoService">The geo-location provider implementation type.</typeparam>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configuration">The application configuration, required when <paramref name="useEncryptedCookies"/> is <c>true</c>.</param>
+    /// <param name="useEncryptedCookies">Whether to register the encrypted cookie service. Defaults to <c>true</c>.</param>
+    /// <param name="configureHeaderFilter">Optional callback to configure <see cref="SecurityHeaderOptions"/>.</param>
+    /// <param name="configureCookieFilter">Optional callback to configure <see cref="CookieDefaultOptions"/>.</param>
+    /// <param name="configureBotFilter">Optional callback to configure <see cref="BotFilterOptions"/>.</param>
+    /// <param name="configureGeoLocation">Optional callback to configure <see cref="GeoLocationOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddWebDefaults<TGeoService>(this IServiceCollection services,
+        IConfiguration? configuration = null,
+        bool useEncryptedCookies = true,
+        Action<SecurityHeaderOptions>? configureHeaderFilter = null,
+        Action<CookieDefaultOptions>? configureCookieFilter = null,
+        Action<BotFilterOptions>? configureBotFilter = null,
+        Action<GeoLocationOptions>? configureGeoLocation = null)
+        where TGeoService : class, IGeoLocationProvider
+    {
+        services.AddSecurityDefaults(configuration, useEncryptedCookies, configureHeaderFilter, configureCookieFilter);
+        services.AddClientProfiling<TGeoService>(configureBotFilter, configureGeoLocation);
+
+        return services;
+    }
+    
+    
+    
     #region Security
 
+    /// <summary>
+    /// Registers security headers and cookie services. Combines <see cref="AddSecurityHeaders"/>
+    /// and <see cref="AddCookieServices"/> into a single call.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configuration">The application configuration, required when <paramref name="useEncryptedCookies"/> is <c>true</c>.</param>
+    /// <param name="useEncryptedCookies">Whether to register the encrypted cookie service. Defaults to <c>true</c>.</param>
+    /// <param name="headerOptions">Optional callback to configure <see cref="SecurityHeaderOptions"/>.</param>
+    /// <param name="cookieOptions">Optional callback to configure <see cref="CookieDefaultOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddSecurityDefaults(
         this IServiceCollection services,
         IConfiguration? configuration = null,
@@ -68,14 +134,19 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Registers cookie services with configurable encryption support.
     /// <para>
-    /// When <paramref name="useEncryptedCookies"/> is <c>false</c>, registers <see cref="CookieService"/>
-    /// as a plain (non-keyed) <see cref="ICookieService"/> — inject directly via <c>ICookieService</c>.
+    /// In all modes, an unkeyed <see cref="ICookieService"/> is registered and resolves to <see cref="CookieService"/>
+    /// (plain, non-encrypted). This allows simple <c>ICookieService</c> injection to always work.
+    /// </para>
+    /// <para>
+    /// When <paramref name="useEncryptedCookies"/> is <c>false</c>, a keyed registration for
+    /// <c>ICookieService.StandardCookieDIKey</c> is also added, delegating to the same unkeyed service.
     /// </para>
     /// <para>
     /// When <paramref name="useEncryptedCookies"/> is <c>true</c> (default), both <see cref="CookieService"/>
     /// and <see cref="EncryptedCookieService"/> are registered as <b>keyed services</b>.
     /// Use <c>[FromKeyedServices(ICookieService.StandardCookieDIKey)]</c> or
-    /// <c>[FromKeyedServices(ICookieService.EncryptedCookieDIKey)]</c> to inject the desired implementation.
+    /// <c>[FromKeyedServices(ICookieService.EncryptedCookieDIKey)]</c> to select a specific implementation.
+    /// Unkeyed <c>ICookieService</c> injection still resolves to the plain <see cref="CookieService"/> in this mode.
     /// Requires the <c>Cookies:DataProtection_Path</c> configuration key.
     /// </para>
     /// </summary>
@@ -141,6 +212,55 @@ public static class ServiceCollectionExtensions
     }
 
     #endregion
-    
-    
+
+
+    #region ClientProfiling
+
+    /// <summary>
+    /// Registers client profiling services including <see cref="UserAgentService"/> and bot filter options.
+    /// Use the generic overload to also register a custom <see cref="IGeoLocationProvider"/>.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configureBotFilter">Optional callback to configure <see cref="BotFilterOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddClientProfiling(this IServiceCollection services,
+        Action<BotFilterOptions>? configureBotFilter = null)
+    {
+        services.AddHttpContextAccessor();
+        services.TryAddSingleton<UserAgentService>();
+
+        if (configureBotFilter is not null)
+            services.Configure(configureBotFilter);
+        else
+            services.Configure<BotFilterOptions>(_ => { });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers client profiling services with a custom <see cref="IGeoLocationProvider"/> implementation
+    /// for IP-based geographic location resolution.
+    /// </summary>
+    /// <typeparam name="TGeoService">The geo-location provider implementation type.</typeparam>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configureBotFilter">Optional callback to configure <see cref="BotFilterOptions"/>.</param>
+    /// <param name="configureGeoLocation">Optional callback to configure <see cref="GeoLocationOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddClientProfiling<TGeoService>(this IServiceCollection services,
+        Action<BotFilterOptions>? configureBotFilter = null, Action<GeoLocationOptions>? configureGeoLocation = null)
+        where TGeoService : class, IGeoLocationProvider
+    {
+        services.TryAddScoped<IGeoLocationProvider, TGeoService>();
+
+        if (configureGeoLocation is not null)
+            services.Configure(configureGeoLocation);
+        else
+            services.Configure<GeoLocationOptions>(_ => { });
+
+        services.AddClientProfiling(configureBotFilter);
+
+        return services;
+    }
+
+    #endregion
 }

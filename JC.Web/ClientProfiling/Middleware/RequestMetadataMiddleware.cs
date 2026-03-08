@@ -1,11 +1,11 @@
-using JC.Web.Observability.Helpers;
-using JC.Web.Observability.Models;
-using JC.Web.Observability.Models.Options;
-using JC.Web.Observability.Services;
+using JC.Web.ClientProfiling.Helpers;
+using JC.Web.ClientProfiling.Models;
+using JC.Web.ClientProfiling.Models.Options;
+using JC.Web.ClientProfiling.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 
-namespace JC.Web.Observability.Middleware;
+namespace JC.Web.ClientProfiling.Middleware;
 
 /// <summary>
 /// Middleware that builds <see cref="RequestMetadata"/> early in the pipeline

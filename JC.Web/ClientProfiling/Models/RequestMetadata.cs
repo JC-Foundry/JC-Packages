@@ -1,7 +1,7 @@
 using System.Text.Json;
 using JC.Core.Extensions;
 
-namespace JC.Web.Observability.Models;
+namespace JC.Web.ClientProfiling.Models;
 
 /// <summary>
 /// Captures structured metadata about an HTTP request including client IP, user agent,

@@ -2,8 +2,8 @@
 
     <PropertyGroup>
         <PackageId>JC.Web</PackageId>
-        <Version>2.0.0</Version>
-        <Description>ASP.NET Core web hardening and helpers — security headers middleware, cookie management with optional Data Protection encryption, UI tag helpers, dropdown builders, and QR code generation.</Description>
+        <Version>3.0.0</Version>
+        <Description>ASP.NET Core web hardening and helpers — security headers middleware, cookie management with optional Data Protection encryption, client profiling (user agent parsing, bot filtering, geolocation), UI tag helpers, dropdown builders, and QR code generation.</Description>
     </PropertyGroup>
 
     <ItemGroup>
@@ -22,7 +22,7 @@
 
     <ItemGroup>
       <Folder Include="Extensions\" />
-      <Folder Include="Observability\Middleware\" />
+      <Folder Include="ClientProfiling\Middleware\" />
       <Folder Include="Security\Middleware\" />
       <Folder Include="UI\" />
     </ItemGroup>

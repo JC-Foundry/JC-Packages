@@ -1,10 +1,8 @@
 using System.Linq.Expressions;
-using JC.Core.Enums;
 using JC.Core.Models;
 using JC.Identity.Authentication;
-using JC.Identity.Models;
-using JC.Identity.Models.MultiTenancy;
 using Microsoft.EntityFrameworkCore;
+using JC.Identity.Models.MultiTenancy;
 
 namespace JC.Identity.Extensions;
 
@@ -27,35 +25,41 @@ public static class QueryExtensions
     
     
     /// <summary>
-    /// Applies global tenant query filters to all entities implementing IMultiTenancy.
-    /// If tenantId is null/empty, filters to entities where TenantId is null.
-    /// Otherwise, filters to entities where TenantId matches the provided value.
+    /// Applies global tenant query filters to all entities implementing <see cref="IMultiTenancy"/>.
+    /// The filter references <c>CurrentTenantId</c> on the <paramref name="context"/> instance.
+    /// EF Core re-evaluates DbContext member access per query, ensuring the filter always uses the
+    /// current request's tenant rather than a value cached at model creation time.
     /// </summary>
-    public static ModelBuilder ApplyTenantQueryFilters(this ModelBuilder modelBuilder, IUserInfo userInfo)
+    /// <param name="modelBuilder">The model builder to apply filters to.</param>
+    /// <param name="context">The DbContext instance whose <c>CurrentTenantId</c> property will be referenced in the filter expression.</param>
+    /// <returns>The model builder for chaining.</returns>
+    public static ModelBuilder ApplyTenantQueryFilters(this ModelBuilder modelBuilder, DbContext context)
     {
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
             if (!typeof(IMultiTenancy).IsAssignableFrom(entityType.ClrType))
                 continue;
 
-            var filter = BuildTenantFilter(entityType.ClrType, userInfo);
+            var filter = BuildTenantFilter(entityType.ClrType, context);
             modelBuilder.Entity(entityType.ClrType).HasQueryFilter(filter);
         }
 
         return modelBuilder;
     }
 
-    private static LambdaExpression BuildTenantFilter(Type entityType, IUserInfo userInfo)
+    private static LambdaExpression BuildTenantFilter(Type entityType, DbContext context)
     {
-        // Build: e => string.IsNullOrEmpty(userInfo.TenantId) ? e.TenantId == null : e.TenantId == userInfo.TenantId
+        // Build: e => string.IsNullOrEmpty(context.CurrentTenantId)
+        //            ? e.TenantId == null
+        //            : e.TenantId == context.CurrentTenantId
         var parameter = Expression.Parameter(entityType, "e");
         var tenantIdProperty = Expression.Property(parameter, nameof(IMultiTenancy.TenantId));
 
-        // Access userInfo.TenantId
-        var userInfoConstant = Expression.Constant(userInfo);
-        var currentTenantId = Expression.Property(userInfoConstant, nameof(IUserInfo.TenantId));
+        // Access context.CurrentTenantId — EF Core re-evaluates this per query
+        var contextConstant = Expression.Constant(context);
+        var currentTenantId = Expression.Property(contextConstant, "CurrentTenantId");
 
-        // string.IsNullOrEmpty(userInfo.TenantId)
+        // string.IsNullOrEmpty(context.CurrentTenantId)
         var isNullOrEmpty = Expression.Call(
             typeof(string).GetMethod(nameof(string.IsNullOrEmpty), [typeof(string)])!,
             currentTenantId);
@@ -63,7 +67,7 @@ public static class QueryExtensions
         // e.TenantId == null
         var tenantIsNull = Expression.Equal(tenantIdProperty, Expression.Constant(null, typeof(string)));
 
-        // e.TenantId == userInfo.TenantId
+        // e.TenantId == context.CurrentTenantId
         var tenantEquals = Expression.Equal(tenantIdProperty, currentTenantId);
 
         // Conditional: IsNullOrEmpty ? TenantIsNull : TenantEquals

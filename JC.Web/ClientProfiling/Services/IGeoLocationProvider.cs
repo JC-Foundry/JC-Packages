@@ -1,7 +1,7 @@
-using JC.Web.Observability.Models;
-using JC.Web.Observability.Models.Options;
+using JC.Web.ClientProfiling.Models;
+using JC.Web.ClientProfiling.Models.Options;
 
-namespace JC.Web.Observability.Services;
+namespace JC.Web.ClientProfiling.Services;
 
 /// <summary>
 /// Resolves geographic location from an IP address.

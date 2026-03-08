@@ -13,4 +13,6 @@ public class GithubOptions
 
     /// <summary>Gets the HMAC-SHA256 secret used to validate incoming webhook payloads from GitHub. Set from configuration.</summary>
     public string WebhookSecret { get; internal set; } = string.Empty;
+
+    public string GitHelperUserAgent { get; set; } = "JC-Application";
 }

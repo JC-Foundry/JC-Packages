@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Http;
 
-namespace JC.Web.Observability.Helpers;
+namespace JC.Web.ClientProfiling.Helpers;
 
 /// <summary>
 /// Resolves the client IP address from an HTTP request.

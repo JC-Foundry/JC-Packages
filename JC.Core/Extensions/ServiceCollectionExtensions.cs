@@ -1,4 +1,5 @@
 using JC.Core.Data;
+using JC.Core.Models;
 using JC.Core.Models.Auditing;
 using JC.Core.Services;
 using JC.Core.Services.DataRepositories;
@@ -28,7 +29,7 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IDataDbContext>(sp => sp.GetRequiredService<TContext>());
         services.TryAddScoped<DbContext>(sp => sp.GetRequiredService<TContext>());
         services.TryAddScoped<IRepositoryManager, RepositoryManager>();
-
+        
         services.RegisterRepositoryContexts(
             typeof(AuditModel));
 

@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using JC.Core.Models;
 using JC.Core.Models.Auditing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace JC.Core.Services.DataRepositories;
@@ -16,25 +17,29 @@ public class RepositoryContext<T> : IRepositoryContext<T>
     where T : class
 {
     private readonly DbContext _context;
-    private readonly IUserInfo _userInfo;
+    private readonly IUserInfo? _userInfo;
     private readonly ILogger<RepositoryContext<T>> _logger;
     private readonly bool _isAuditModel;
     private readonly bool _hasIsDeletedProperty;
 
     public RepositoryContext(DbContext context,
-        IUserInfo userInfo,
+        IServiceProvider serviceProvider,
         ILogger<RepositoryContext<T>> logger)
     {
         _context = context;
-        _userInfo = userInfo;
         _logger = logger;
 
         var type = typeof(T);
         _isAuditModel = typeof(AuditModel).IsAssignableFrom(type);
         _hasIsDeletedProperty = _isAuditModel || type.GetProperty("IsDeleted") != null;
+
+        _userInfo = serviceProvider.GetService<IUserInfo>();
+        if(_userInfo == null)
+            _logger.LogDebug("Unable to resolve service 'IUserInfo'. Using '{MissingId}' from IUserInfo for UserId.", 
+                IUserInfo.MissingUserInfoId);
     }
 
-    private string GetUserId(string? userId) => userId ?? _userInfo.UserId;
+    private string GetUserId(string? userId) => userId ?? _userInfo?.UserId ?? IUserInfo.MissingUserInfoId; 
 
 
     public IQueryable<T> AsQueryable()
