@@ -24,7 +24,7 @@ public class RequestMetadataMiddleware(RequestDelegate next)
     public async Task InvokeAsync(
         HttpContext context,
         UserAgentService userAgentService,
-        IGeoLocationProvider? geoLocationProvider = null,
+        IGeoLocationProvider geoLocationProvider,
         IOptions<GeoLocationOptions>? geoLocationOptions = null)
     {
         var request = context.Request;
@@ -32,12 +32,8 @@ public class RequestMetadataMiddleware(RequestDelegate next)
         var clientIp = ClientIpResolver.Resolve(context);
         var userAgent = userAgentService.Parse(request.Headers.UserAgent.ToString());
 
-        GeoLocation? geoLocation = null;
-        if (geoLocationProvider != null)
-        {
-            var options = geoLocationOptions?.Value ?? new GeoLocationOptions();
-            geoLocation = await geoLocationProvider.ResolveAsync(clientIp, options);
-        }
+        var options = geoLocationOptions?.Value ?? new GeoLocationOptions();
+        var geoLocation = await geoLocationProvider.ResolveAsync(clientIp, options);
 
         var metadata = new RequestMetadata(
             clientIp: clientIp,

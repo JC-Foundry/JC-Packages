@@ -228,7 +228,8 @@ public static class ServiceCollectionExtensions
     {
         services.AddHttpContextAccessor();
         services.TryAddSingleton<UserAgentService>();
-
+        services.TryAddSingleton<IGeoLocationProvider, EmptyGeoLocationProvider>();
+        
         if (configureBotFilter is not null)
             services.Configure(configureBotFilter);
         else
