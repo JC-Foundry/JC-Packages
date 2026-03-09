@@ -40,8 +40,11 @@ public class AuditModel
     /// <param name="userId">The identifier of the user creating the entity.</param>
     public void FillCreated(string userId)
     {
-        CreatedById = userId;
-        CreatedUtc = DateTime.UtcNow;
+        if(string.IsNullOrWhiteSpace(CreatedById)) 
+            CreatedById = userId;
+        
+        if(CreatedUtc == default)
+            CreatedUtc = DateTime.UtcNow;
     }
 
     /// <summary>

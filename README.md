@@ -246,7 +246,7 @@ No additional configuration or dependencies are required beyond the .NET 9 SDK.
 - **Major** and **Minor** are shared across the full package suite
 - A **Major** or **Minor** bump in any package updates **all packages**
 - **Patch** versions are normally **package-specific**
-- **`JC.Core` is the exception**: any patch update to `JC.Core` is treated as a **suite-wide patch update**
+- **`JC.Core` is the exception**: any patch update to `JC.Core` bumps the patch version of all packages **that depend on JC.Core** (JC.Web, JC.Identity, JC.Github, JC.MySql, JC.SqlServer). Standalone packages (JC.BackgroundJobs, JC.SqlServer.Hangfire) are unaffected
 
 ### What this means
 
@@ -260,7 +260,7 @@ For example, within the same suite version:
 
 That is valid.
 
-If `JC.Core` is patched, all packages bump their own patch version by 1 (e.g. `JC.Web` `3.1.4` becomes `3.1.5`, `JC.Identity` `3.1.0` becomes `3.1.1`).
+If `JC.Core` is patched, all packages that depend on it bump their own patch version by 1 (e.g. `JC.Web` `3.1.4` becomes `3.1.5`, `JC.Identity` `3.1.0` becomes `3.1.1`). Standalone packages like `JC.BackgroundJobs` and `JC.SqlServer.Hangfire` are not affected by `JC.Core` patches.
 
 ### Why
 
@@ -270,7 +270,7 @@ In short:
 
 - **Major/Minor = suite compatibility**
 - **Patch = package-specific**
-- **`JC.Core` patch = suite-wide patch**
+- **`JC.Core` patch = patch bump for all JC.Core dependents**
 
 ## License
 
