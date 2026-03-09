@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <PackageId>JC.Communication</PackageId>
+        <Version>3.4.0</Version>
+        <Description>Outbound application communication layer — email-first abstraction with provider-based delivery (Microsoft 365 / Exchange Online SMTP relay), strongly typed message and recipient models, send result tracking, and optional logging. Designed for future expansion into SMS, in-app notifications, and templated messaging.</Description>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' == 'true'">
+        <ProjectReference Include="..\JC.Core\JC.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' != 'true'">
+        <PackageReference Include="JC.Core" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Logging\Models\Notifications\" />
+      <Folder Include="Logging\Models\SMS\" />
+      <Folder Include="Logging\Services\" />
+      <Folder Include="Notifications\" />
+      <Folder Include="SMS\" />
+    </ItemGroup>
+
+</Project>
