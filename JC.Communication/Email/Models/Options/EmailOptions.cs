@@ -14,9 +14,7 @@ public class EmailOptions
 
     public int TimeoutMs { get; set; } = 30_000;
 
-    private const string ConfigPrefix = "Communication:Email:";
-    public const string ConfigUsernameKey = $"{ConfigPrefix}Username";
-    public const string ConfigPasswordKey = $"{ConfigPrefix}Password";
+    internal const string ConfigPrefix = "Communication:Email:";
     public const string ConfigFromAddress = $"{ConfigPrefix}DefaultFromAddress";
     public const string ConfigFromDisplayName = $"{ConfigPrefix}DefaultFromDisplayName";
 }

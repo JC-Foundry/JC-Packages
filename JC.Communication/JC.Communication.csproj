@@ -15,9 +15,14 @@
     </ItemGroup>
 
     <ItemGroup>
+      <PackageReference Include="MailKit" VersionOverride="4.12.1" />
+      <PackageReference Include="Microsoft.Identity.Client" VersionOverride="4.68.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Extensions\" />
       <Folder Include="Logging\Models\Notifications\" />
       <Folder Include="Logging\Models\SMS\" />
-      <Folder Include="Logging\Services\" />
       <Folder Include="Notifications\" />
       <Folder Include="SMS\" />
     </ItemGroup>

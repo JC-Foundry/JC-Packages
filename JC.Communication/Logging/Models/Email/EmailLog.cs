@@ -11,15 +11,12 @@ public class EmailLog : AuditModel
     [Required]
     [MaxLength(256)]
     public string FromAddress { get; set; }
-    
-    public string? Cc { get; set; }
-    public string? Bcc { get; set; }
 
     [Required]
     [MaxLength(1024)]
     public string Subject { get; set; }
-    
+
     public ICollection<EmailRecipientLog> EmailRecipientLogs { get; set; }
-    public ICollection<EmailContentLog> EmailContentLogs { get; set; }
+    public EmailContentLog? EmailContentLog { get; set; }
     public ICollection<EmailSentLog> EmailSentLogs { get; set; }
 }

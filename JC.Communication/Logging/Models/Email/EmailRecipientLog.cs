@@ -20,6 +20,8 @@ public class EmailRecipientLog : AuditModel
     
     public string? DisplayName { get; set; }
 
+    [Required] public RecipientLogType RecipientLogType { get; set; } = RecipientLogType.To;
+
     public EmailRecipientLog()
     {
     }
@@ -35,4 +37,23 @@ public class EmailRecipientLog : AuditModel
     {
         EmailLogId = emailLogId;
     }
+
+    public EmailRecipientLog(EmailRecipient recipient, RecipientLogType logType)
+        : this(recipient)
+    {
+        RecipientLogType = logType;
+    }
+
+    public EmailRecipientLog(string emailLogId, EmailRecipient recipient, RecipientLogType logType)
+        : this(emailLogId, recipient)
+    {
+        RecipientLogType = logType;
+    }
+}
+
+public enum RecipientLogType
+{
+    To,
+    Cc,
+    Bcc
 }

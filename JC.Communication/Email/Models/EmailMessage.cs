@@ -8,9 +8,9 @@ public sealed class EmailMessage
     
     public string FromAddress { get; }
     public List<EmailRecipient> ToAddresses { get; }
-    
-    public string? Cc { get; }
-    public string? Bcc { get; }
+
+    public List<EmailRecipient> CcAddresses { get; } = [];
+    public List<EmailRecipient> BccAddresses { get; } = [];
 
     public string Subject { get; }
     public string PlainBody { get; }
@@ -37,12 +37,12 @@ public sealed class EmailMessage
         HtmlBody = htmlBody;
     }
 
-    public EmailMessage(string from, string htmlBody, string plainBody, string subject, 
-        string? cc = null, string? bcc = null, params IEnumerable<EmailRecipient> toAddresses)
+    public EmailMessage(string from, string htmlBody, string plainBody, string subject,
+        IEnumerable<EmailRecipient> toAddresses, IEnumerable<EmailRecipient> ccAddresses, IEnumerable<EmailRecipient> bccAddresses)
         : this(from, htmlBody, plainBody, subject, toAddresses)
     {
-        Cc = cc;
-        Bcc = bcc;
+        CcAddresses = ccAddresses.ToList();
+        BccAddresses = bccAddresses.ToList();
     }
 
 
@@ -51,15 +51,24 @@ public sealed class EmailMessage
         var log = new EmailLog
         {
             FromAddress = FromAddress,
-            Subject = Subject,
-            Bcc = Bcc,
-            Cc = Cc
+            Subject = Subject
         };
 
         var recipients = ToAddresses
             .Select(r => new EmailRecipientLog(log.Id, r))
             .ToList();
 
+        var ccRecipients = CcAddresses
+            .Select(cc => new EmailRecipientLog(log.Id, cc, RecipientLogType.Cc))
+            .ToList();
+
+        var bccRecipients = BccAddresses
+            .Select(bcc => new EmailRecipientLog(log.Id, bcc, RecipientLogType.Bcc))
+            .ToList();
+
+        recipients.AddRange(ccRecipients);
+        recipients.AddRange(bccRecipients);
+        
         return (log, recipients);
     }
 
