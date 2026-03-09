@@ -16,6 +16,7 @@ public interface IHangfireScheduler
     /// <typeparam name="TJob">The job type implementing <see cref="IBackgroundJob"/>.</typeparam>
     /// <param name="delay">The time to wait before executing the job.</param>
     /// <returns>The Hangfire job ID.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="delay"/> is negative.</exception>
     string Schedule<TJob>(TimeSpan delay) where TJob : class, IBackgroundJob;
 
     /// <summary>Schedules a job for execution at a specific time.</summary>
@@ -28,5 +29,6 @@ public interface IHangfireScheduler
     /// <typeparam name="TJob">The job type implementing <see cref="IBackgroundJob"/>.</typeparam>
     /// <param name="parentJobId">The Hangfire job ID of the parent job.</param>
     /// <returns>The Hangfire job ID of the continuation.</returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="parentJobId"/> is null, empty, or whitespace.</exception>
     string ContinueWith<TJob>(string parentJobId) where TJob : class, IBackgroundJob;
 }

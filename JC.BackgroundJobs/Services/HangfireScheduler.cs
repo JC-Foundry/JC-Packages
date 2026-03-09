@@ -12,7 +12,11 @@ internal sealed class HangfireScheduler(IBackgroundJobClient jobClient) : IHangf
 
     /// <inheritdoc />
     public string Schedule<TJob>(TimeSpan delay) where TJob : class, IBackgroundJob
-        => jobClient.Schedule<TJob>(job => job.ExecuteAsync(CancellationToken.None), delay);
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(delay, TimeSpan.Zero);
+
+        return jobClient.Schedule<TJob>(job => job.ExecuteAsync(CancellationToken.None), delay);
+    }
 
     /// <inheritdoc />
     public string Schedule<TJob>(DateTimeOffset enqueueAt) where TJob : class, IBackgroundJob
@@ -20,5 +24,9 @@ internal sealed class HangfireScheduler(IBackgroundJobClient jobClient) : IHangf
 
     /// <inheritdoc />
     public string ContinueWith<TJob>(string parentJobId) where TJob : class, IBackgroundJob
-        => jobClient.ContinueJobWith<TJob>(parentJobId, job => job.ExecuteAsync(CancellationToken.None));
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(parentJobId);
+
+        return jobClient.ContinueJobWith<TJob>(parentJobId, job => job.ExecuteAsync(CancellationToken.None));
+    }
 }

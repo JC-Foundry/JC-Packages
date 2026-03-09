@@ -138,9 +138,9 @@ Enqueues a fire-and-forget job for immediate execution. Calls `IBackgroundJobCli
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `delay` | `TimeSpan` | — | The time to wait before executing the job. |
+| `delay` | `TimeSpan` | — | The time to wait before executing the job. Must not be negative. |
 
-Schedules a job for execution after the specified delay. Calls `IBackgroundJobClient.Schedule<TJob>(job => job.ExecuteAsync(CancellationToken.None), delay)` and returns the Hangfire job ID.
+Schedules a job for execution after the specified delay. Calls `IBackgroundJobClient.Schedule<TJob>(job => job.ExecuteAsync(CancellationToken.None), delay)` and returns the Hangfire job ID. Throws `ArgumentOutOfRangeException` if `delay` is negative.
 
 #### Schedule\<TJob\>(DateTimeOffset enqueueAt)
 
@@ -162,9 +162,9 @@ Schedules a job for execution at a specific time. Calls `IBackgroundJobClient.Sc
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `parentJobId` | `string` | — | The Hangfire job ID of the parent job. |
+| `parentJobId` | `string` | — | The Hangfire job ID of the parent job. Must not be null, empty, or whitespace. |
 
-Schedules a continuation job that executes after the specified parent job completes successfully. Calls `IBackgroundJobClient.ContinueJobWith<TJob>(parentJobId, job => job.ExecuteAsync(CancellationToken.None))` and returns the Hangfire job ID of the continuation. If the parent job fails after all retry attempts, the continuation remains in the `Awaiting` state.
+Schedules a continuation job that executes after the specified parent job completes successfully. Calls `IBackgroundJobClient.ContinueJobWith<TJob>(parentJobId, job => job.ExecuteAsync(CancellationToken.None))` and returns the Hangfire job ID of the continuation. Throws `ArgumentException` if `parentJobId` is null, empty, or whitespace. If the parent job fails after all retry attempts, the continuation remains in the `Awaiting` state.
 
 ---
 
