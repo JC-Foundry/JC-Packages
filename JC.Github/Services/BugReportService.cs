@@ -5,8 +5,9 @@ using JC.Core.Services.DataRepositories;
 using JC.Github.Data;
 using JC.Github.Helpers;
 using JC.Github.Models;
-using Microsoft.Extensions.Configuration;
+using JC.Github.Models.Options;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace JC.Github.Services;
 
@@ -21,7 +22,7 @@ public class BugReportService
     private readonly string _owner;
     private readonly string _repo;
 
-    public BugReportService(IConfiguration config,
+    public BugReportService(IOptions<GithubOptions> options,
         IRepositoryContext<ReportedIssue> reportedIssues,
         GitHelper gitHelper,
         ILogger<BugReportService> logger)
@@ -29,8 +30,14 @@ public class BugReportService
         _reportedIssues = reportedIssues;
         _gitHelper = gitHelper;
         _logger = logger;
-        _owner = config["Github:Owner"] ?? throw new InvalidOperationException("Configuration value 'Github:Owner' not found.");
-        _repo = config["Github:Repo"] ?? throw new InvalidOperationException("Configuration value 'Github:Repo' not found.");
+
+        var opts = options.Value;
+        _owner = string.IsNullOrEmpty(opts.GithubRepoOwner)
+            ? throw new InvalidOperationException("GithubOptions.GithubRepoOwner is not configured.")
+            : opts.GithubRepoOwner;
+        _repo = string.IsNullOrEmpty(opts.GithubRepoName)
+            ? throw new InvalidOperationException("GithubOptions.GithubRepoName is not configured.")
+            : opts.GithubRepoName;
     }
     
     /// <summary>

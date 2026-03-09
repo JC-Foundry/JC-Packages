@@ -6,7 +6,7 @@ Complete reference of all public types, properties, and methods in JC.Github. Se
 
 **Namespace:** `JC.Github.Services`
 
-Manages local persistence and GitHub synchronisation of issue reports. Reads `Github:Owner` and `Github:Repo` from configuration at construction time — throws `InvalidOperationException` if either is missing. Inject via `BugReportService`.
+Manages local persistence and GitHub synchronisation of issue reports. Reads `GithubRepoOwner` and `GithubRepoName` from `GithubOptions` at construction time — throws `InvalidOperationException` if either is empty. Inject via `BugReportService`.
 
 ### Methods
 
@@ -64,15 +64,14 @@ Low-level HTTP client for the GitHub API. Configured as a singleton with authent
 
 ### Constructor
 
-#### GitHelper(string url, string apiKey, string userAgent)
+#### GitHelper(GithubOptions options, string apiKey)
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `url` | `string` | — | The base URL for the GitHub API (e.g. `"https://api.github.com"`). |
+| `options` | `GithubOptions` | — | Options providing the API URL (`GithubApiUrl`), API version (`GithubApiVersion`), and user agent (`GitHelperUserAgent`). |
 | `apiKey` | `string` | — | The personal access token used for `Authorization: Bearer` authentication. |
-| `userAgent` | `string` | — | The `User-Agent` header value. GitHub requires this on all API requests. |
 
-Creates a `FlurlClient` with `Authorization`, `X-GitHub-Api-Version: 2022-11-28`, and `User-Agent` headers applied to all requests.
+Creates a `FlurlClient` configured with `Authorization`, `X-GitHub-Api-Version` (from `options.GithubApiVersion`), and `User-Agent` (from `options.GitHelperUserAgent`) headers applied to all requests.
 
 ### Methods
 
@@ -145,10 +144,14 @@ Configuration options for JC.Github services. Populated during registration.
 
 | Property | Type | Default | Access | Description |
 |----------|------|---------|--------|-------------|
+| `GithubApiUrl` | `string` | `"https://api.github.com"` | get; set; | Base URL for the GitHub REST API. |
+| `GithubApiVersion` | `string` | `"2022-11-28"` | get; set; | The `X-GitHub-Api-Version` header value sent with all API requests. |
+| `GitHelperUserAgent` | `string` | `"JC-Application"` | get; set; | The `User-Agent` header value sent with GitHub API requests. |
+| `GithubRepoOwner` | `string` | `""` | get; set; | The GitHub repository owner (user or organisation) used by `BugReportService`. |
+| `GithubRepoName` | `string` | `""` | get; set; | The GitHub repository name used by `BugReportService`. |
 | `EnableWebhooks` | `bool` | `true` | get; set; | Whether webhook endpoint registration is enabled. |
 | `WebhookPath` | `string` | `"/api/github/webhook"` | get; set; | The URL path for the GitHub webhook endpoint. |
-| `WebhookSecret` | `string` | `""` | get; internal set; | The HMAC-SHA256 secret used to validate incoming webhook payloads. Set from the `Github:WebhookSecret` configuration key during registration. |
-| `GitHelperUserAgent` | `string` | `"JC-Application"` | get; set; | The `User-Agent` header value sent with GitHub API requests. |
+| `WebhookSecret` | `string` | `""` | get; internal set; | The HMAC-SHA256 secret used to validate incoming webhook payloads. Set from the `Github:Secret` configuration key during post-configuration. |
 
 ---
 

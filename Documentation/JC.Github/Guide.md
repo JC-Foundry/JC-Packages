@@ -236,4 +236,4 @@ public class CustomGithubService(GitHelper gitHelper)
 
 **Nuance:** Unlike `BugReportService`, `GitHelper.RecordIssue` does not catch exceptions. If the GitHub API call fails, the exception propagates to the caller. Use `BugReportService` when you want graceful failure handling with local persistence, and `GitHelper` when you want direct API access with full control over error handling.
 
-**Nuance:** `GitHelper` sends requests with `Authorization: Bearer {apiKey}`, `X-GitHub-Api-Version: 2022-11-28`, and the configured `User-Agent` header. The API version is pinned — GitHub requires a User-Agent header on all requests.
+**Nuance:** `GitHelper` sends requests with `Authorization: Bearer {apiKey}`, the `X-GitHub-Api-Version` from `GithubOptions.GithubApiVersion`, and the `User-Agent` from `GithubOptions.GitHelperUserAgent`. GitHub requires a User-Agent header on all requests.

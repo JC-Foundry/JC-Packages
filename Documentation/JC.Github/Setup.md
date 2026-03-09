@@ -56,19 +56,18 @@ app.UseGithubWebhooks();
 
 ### Configuration — `appsettings.json`
 
+Only secrets are stored in configuration:
+
 ```json
 {
   "Github": {
-    "Url": "https://api.github.com",
     "ApiKey": "ghp_your_personal_access_token",
-    "Owner": "your-username",
-    "Repo": "your-repo",
     "Secret": "your-webhook-secret"
   }
 }
 ```
 
-All five keys are read from configuration. `Secret` is required when webhooks are enabled (the default).
+`ApiKey` is always required. `Secret` is required when webhooks are enabled (the default). All other settings are configured via `GithubOptions`.
 
 ### Defaults
 
@@ -88,10 +87,14 @@ Default option values:
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| `GithubApiUrl` | `"https://api.github.com"` | Base URL for the GitHub REST API |
+| `GithubApiVersion` | `"2022-11-28"` | API version header sent with requests |
+| `GitHelperUserAgent` | `"JC-Application"` | User-Agent header sent with GitHub API requests |
+| `GithubRepoOwner` | `""` | Repository owner (user or organisation) for `BugReportService` |
+| `GithubRepoName` | `""` | Repository name for `BugReportService` |
 | `EnableWebhooks` | `true` | Registers the webhook POST endpoint |
 | `WebhookPath` | `"/api/github/webhook"` | URL path for the webhook endpoint |
 | `WebhookSecret` | Set from `Github:Secret` | HMAC-SHA256 secret for webhook signature validation |
-| `GitHelperUserAgent` | `"JC-Application"` | User-Agent header sent with GitHub API requests |
 
 `UseGithubWebhooks` maps a POST endpoint at the configured `WebhookPath`. Incoming requests are validated using HMAC-SHA256 signature verification (fixed-time comparison) against the `WebhookSecret`. The endpoint handles `issues` and `issue_comment` events from GitHub, and responds to `ping` events for connection testing.
 
@@ -104,9 +107,13 @@ When a bug report is submitted via `BugReportService.RecordIssue()`, it is alway
 ```csharp
 builder.Services.AddGithub<AppDbContext>(builder.Configuration, options =>
 {
+    options.GithubApiUrl = "https://api.github.com";
+    options.GithubApiVersion = "2022-11-28";
+    options.GitHelperUserAgent = "JC-Application";
+    options.GithubRepoOwner = "your-username";
+    options.GithubRepoName = "your-repo";
     options.EnableWebhooks = true;
     options.WebhookPath = "/api/github/webhook";
-    options.GitHelperUserAgent = "JC-Application";
 });
 ```
 
@@ -116,26 +123,27 @@ builder.Services.AddGithub<AppDbContext>(builder.Configuration, options =>
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `configuration` | `IConfiguration` | *required* | Application configuration — reads the `Github` section |
-| `configure` | `Action<GithubOptions>?` | `null` | Optional callback to override options after they're read from configuration |
+| `configuration` | `IConfiguration` | *required* | Application configuration — reads `Github:ApiKey` and `Github:Secret` |
+| `configure` | `Action<GithubOptions>?` | `null` | Optional callback to configure `GithubOptions`. Runs before internal post-configuration, so values such as `EnableWebhooks` are finalised before the webhook secret is validated |
 
 #### GithubOptions
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
+| `GithubApiUrl` | `string` | `"https://api.github.com"` | Base URL for the GitHub REST API |
+| `GithubApiVersion` | `string` | `"2022-11-28"` | The `X-GitHub-Api-Version` header value sent with all API requests |
+| `GitHelperUserAgent` | `string` | `"JC-Application"` | The `User-Agent` header value sent with all GitHub API requests. GitHub requires a User-Agent header on all API requests |
+| `GithubRepoOwner` | `string` | `""` | The GitHub repository owner (user or organisation) used by `BugReportService`. Throws `InvalidOperationException` at resolution time if empty |
+| `GithubRepoName` | `string` | `""` | The GitHub repository name used by `BugReportService`. Throws `InvalidOperationException` at resolution time if empty |
 | `EnableWebhooks` | `bool` | `true` | When `true`, the webhook endpoint is registered and `Github:Secret` is required in configuration. Set to `false` if you only need outbound issue creation |
 | `WebhookPath` | `string` | `"/api/github/webhook"` | The URL path where the webhook POST endpoint is mapped. Must match the webhook URL configured in your GitHub repository settings |
 | `WebhookSecret` | `string` | From `Github:Secret` | The HMAC-SHA256 secret used to validate incoming webhook signatures. Set automatically from configuration — cannot be overridden via the configure callback (internal setter). Throws `InvalidOperationException` if `EnableWebhooks` is `true` and `Github:Secret` is missing |
-| `GitHelperUserAgent` | `string` | `"JC-Application"` | The User-Agent header value sent with all GitHub API requests. GitHub requires a User-Agent header on all API requests |
 
 #### Configuration keys
 
 | Key | Required | Description |
 |-----|----------|-------------|
-| `Github:Url` | Yes | GitHub API base URL (typically `https://api.github.com`) |
 | `Github:ApiKey` | Yes | Personal access token for GitHub API authentication |
-| `Github:Owner` | Yes | Repository owner (username or organisation) |
-| `Github:Repo` | Yes | Repository name |
 | `Github:Secret` | When `EnableWebhooks = true` | HMAC-SHA256 secret — must match the secret configured in your GitHub repository's webhook settings |
 
 ### Disabling webhooks

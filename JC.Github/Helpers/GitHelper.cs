@@ -1,14 +1,20 @@
 using Flurl.Http;
+using JC.Github.Models.Options;
 using JC.Github.Models.Responses;
 
 namespace JC.Github.Helpers;
 
-public class GitHelper(string url, string apiKey, string userAgent)
+/// <summary>
+/// HTTP client wrapper for the GitHub REST API, configured from <see cref="GithubOptions"/>.
+/// </summary>
+/// <param name="options">Options providing API URL, version, and user agent.</param>
+/// <param name="apiKey">The GitHub API key (personal access token) used for authentication.</param>
+public class GitHelper(GithubOptions options, string apiKey)
 {
-    private readonly FlurlClient _baseUrl = new FlurlClient(url)
-        .WithHeader("Authorization","Bearer "+apiKey)
-        .WithHeader("X-GitHub-Api-Version", "2022-11-28")
-        .WithHeader("User-Agent", userAgent);
+    private readonly FlurlClient _baseUrl = new FlurlClient(options.GithubApiUrl)
+        .WithHeader("Authorization", "Bearer " + apiKey)
+        .WithHeader("X-GitHub-Api-Version", options.GithubApiVersion)
+        .WithHeader("User-Agent", options.GitHelperUserAgent);
 
     /// <summary>
     /// Creates a new issue in the specified GitHub repository.

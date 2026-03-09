@@ -95,7 +95,11 @@ See [JC.Web documentation](Documentation/JC.Web/) for security headers, cookie m
 ### JC.Github
 
 ```csharp
-builder.Services.AddGithub<AppDbContext>(builder.Configuration);
+builder.Services.AddGithub<AppDbContext>(builder.Configuration, options =>
+{
+    options.GithubRepoOwner = "your-username";
+    options.GithubRepoName = "your-repo";
+});
 ```
 
 See [JC.Github documentation](Documentation/JC.Github/) for webhook setup and issue tracking.
@@ -142,14 +146,13 @@ Required when using encrypted cookies (enabled by default in `AddWebDefaults` / 
 ```json
 {
   "Github": {
-    "Url": "https://api.github.com",
     "ApiKey": "ghp_your_personal_access_token",
-    "Owner": "your-username",
-    "Repo": "your-repo",
     "Secret": "your-webhook-secret"
   }
 }
 ```
+
+`ApiKey` is always required. `Secret` is required when webhooks are enabled (the default). All other settings (API URL, repo owner, repo name, etc.) are configured via `GithubOptions` in the `AddGithub` callback.
 
 ## Documentation
 

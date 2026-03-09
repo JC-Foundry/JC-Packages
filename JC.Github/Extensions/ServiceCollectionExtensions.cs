@@ -24,24 +24,33 @@ public static class ServiceCollectionExtensions
     /// </summary>
     /// <typeparam name="TContext">The DbContext type implementing <see cref="IGithubDbContext"/>.</typeparam>
     /// <param name="services">The service collection to register services into.</param>
-    /// <param name="configuration">The application configuration, used to resolve GitHub API settings.</param>
-    /// <param name="configure">Optional callback to configure <see cref="GithubOptions"/>.</param>
+    /// <param name="configuration">The application configuration, used to resolve <c>Github:ApiKey</c> and <c>Github:Secret</c>.</param>
+    /// <param name="configure">Optional callback to configure <see cref="GithubOptions"/>. Runs before internal
+    /// post-configuration, so values such as <see cref="GithubOptions.EnableWebhooks"/> are finalised before
+    /// the webhook secret is validated.</param>
     /// <returns>The service collection for chaining.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if required GitHub configuration values are missing.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown if <c>Github:ApiKey</c> is missing, or if <c>Github:Secret</c> is missing when
+    /// <see cref="GithubOptions.EnableWebhooks"/> is <c>true</c>.
+    /// </exception>
     public static IServiceCollection AddGithub<TContext>(
         this IServiceCollection services,
         IConfiguration configuration,
         Action<GithubOptions>? configure = null)
         where TContext : DbContext, IGithubDbContext
     {
-        var gitUrl = configuration["Github:Url"] ?? throw new InvalidOperationException("Configuration value 'Github:Url' not found.");
         var gitApiKey = configuration["Github:ApiKey"] ?? throw new InvalidOperationException("Configuration value 'Github:ApiKey' not found.");
 
-        // Configure options
+        // Configure options — consumer callback runs first so that
+        // EnableWebhooks (and other values) are finalised before we
+        // make decisions based on them in PostConfigure.
         var optionsBuilder = services.AddOptions<GithubOptions>();
 
+        if (configure is not null)
+            optionsBuilder.Configure(configure);
+
         var webhookSecret = configuration["Github:Secret"];
-        optionsBuilder.Configure(options =>
+        optionsBuilder.PostConfigure(options =>
         {
             options.WebhookSecret = options.EnableWebhooks
                 ? string.IsNullOrEmpty(webhookSecret)
@@ -49,15 +58,12 @@ public static class ServiceCollectionExtensions
                     : webhookSecret
                 : string.Empty;
         });
-        
-        if (configure is not null)
-            optionsBuilder.PostConfigure(configure);
 
         // Core services
         services.TryAddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<GithubOptions>>().Value;
-            return new GitHelper(gitUrl, gitApiKey, options.GitHelperUserAgent);
+            return new GitHelper(options, gitApiKey);
         });
         services.TryAddScoped<BugReportService>();
         services.TryAddScoped<IGithubDbContext>(sp => sp.GetRequiredService<TContext>());
