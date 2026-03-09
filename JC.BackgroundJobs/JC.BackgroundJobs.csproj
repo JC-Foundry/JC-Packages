@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <PackageId>JC.BackgroundJobs</PackageId>
+        <Version>3.3.0</Version>
+        <Description>Lightweight background job hosting for .NET applications — recurring job execution with configurable intervals, error handling, and logging.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Hangfire.Core" VersionOverride="1.8.23" />
+      <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <PackageId>JC.SqlServer.Hangfire</PackageId>
+        <Version>3.3.0</Version>
+        <Description>Hangfire SQL Server storage registration for JC-Packages applications.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <FrameworkReference Include="Microsoft.AspNetCore.App" />
+      <PackageReference Include="Hangfire.SqlServer" VersionOverride="1.8.23" />
+      <PackageReference Include="Hangfire.AspNetCore" VersionOverride="1.8.23" />
+      <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+    </ItemGroup>
+
+</Project>
