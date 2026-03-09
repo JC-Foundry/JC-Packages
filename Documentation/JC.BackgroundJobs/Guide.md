@@ -66,7 +66,7 @@ For hosted service jobs, the DI lifetime of the job class is controlled by `Back
 
 ### Cancellation token
 
-The `CancellationToken` is signalled when the host is shutting down (hosted service path) or when Hangfire cancels the job. Respect it for long-running operations:
+For **hosted service jobs**, the `CancellationToken` passed to `ExecuteAsync` is the host's stopping token — it is signalled during graceful shutdown. Respect it for long-running operations:
 
 ```csharp
 public class DataExportJob(AppDbContext db) : IBackgroundJob
@@ -93,6 +93,8 @@ public class DataExportJob(AppDbContext db) : IBackgroundJob
 ```
 
 **Nuance:** When the hosted service wrapper catches an `OperationCanceledException` and the stopping token is cancelled, it exits the loop cleanly without triggering the error behaviour. This is normal shutdown — not a job failure.
+
+**Nuance:** For **Hangfire jobs**, `ExecuteAsync` receives `CancellationToken.None`. Hangfire manages job cancellation through its own infrastructure (server shutdown, job deletion from dashboard), not via the token parameter. If your job is used exclusively with Hangfire and needs to respond to cancellation, use Hangfire's `IJobCancellationToken` directly. If your job is shared across both paths, the token is useful for hosted service shutdown but will not be signalled by Hangfire.
 
 ## Hosted service jobs
 

@@ -6,10 +6,31 @@ namespace JC.BackgroundJobs.Models;
 /// Describes an ad-hoc Hangfire job type and its DI lifetime for registration
 /// via <c>AddHangfireScheduler</c>.
 /// </summary>
-/// <param name="JobType">The job class type implementing <see cref="IBackgroundJob"/>.</param>
-/// <param name="Lifetime">The DI lifetime for the job class. Defaults to <see cref="ServiceLifetime.Scoped"/>.</param>
-public record AdHocJobRegistration(Type JobType, ServiceLifetime Lifetime = ServiceLifetime.Scoped)
+public class AdHocJobRegistration
 {
+    /// <summary>Gets the job class type implementing <see cref="IBackgroundJob"/>.</summary>
+    public Type JobType { get; }
+
+    /// <summary>Gets the DI lifetime for the job class. Defaults to <see cref="ServiceLifetime.Scoped"/>.</summary>
+    public ServiceLifetime Lifetime { get; }
+
+    /// <summary>
+    /// Creates a registration for the specified job type with an optional DI lifetime.
+    /// </summary>
+    /// <param name="jobType">The job class type. Must implement <see cref="IBackgroundJob"/>.</param>
+    /// <param name="lifetime">The DI lifetime for the job class. Defaults to <see cref="ServiceLifetime.Scoped"/>.</param>
+    /// <exception cref="ArgumentException">Thrown if <paramref name="jobType"/> does not implement <see cref="IBackgroundJob"/>.</exception>
+    public AdHocJobRegistration(Type jobType, ServiceLifetime lifetime = ServiceLifetime.Scoped)
+    {
+        if (!typeof(IBackgroundJob).IsAssignableFrom(jobType))
+            throw new ArgumentException(
+                $"Type '{jobType.FullName}' does not implement {nameof(IBackgroundJob)}.",
+                nameof(jobType));
+
+        JobType = jobType;
+        Lifetime = lifetime;
+    }
+
     /// <summary>
     /// Creates a registration for the specified job type with an optional DI lifetime.
     /// </summary>

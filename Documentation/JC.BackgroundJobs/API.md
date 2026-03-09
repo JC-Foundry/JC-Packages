@@ -20,7 +20,9 @@ Contract for a background job. Implementations provide the work; the infrastruct
 
 Called on each tick by the hosted-service wrapper, or once per scheduled execution by Hangfire. Implementations should contain only the actual job logic — looping, error handling, and lifecycle management are handled by the hosting infrastructure.
 
-For hosted service jobs, the token is the host's stopping token and is signalled during graceful shutdown. For Hangfire jobs, the token is signalled when Hangfire cancels the job. When the token is cancelled during execution and an `OperationCanceledException` is thrown, the hosted-service wrapper exits its loop cleanly without triggering the configured error behaviour.
+For hosted service jobs, the token is the host's stopping token and is signalled during graceful shutdown. When the token is cancelled during execution and an `OperationCanceledException` is thrown, the hosted-service wrapper exits its loop cleanly without triggering the configured error behaviour.
+
+For Hangfire jobs, the token is always `CancellationToken.None`. Hangfire manages cancellation through its own infrastructure, not via this parameter.
 
 ---
 
@@ -39,6 +41,8 @@ Configuration options for a hosted-service background job registered via `AddBac
 | `ErrorBehavior` | `JobErrorBehavior` | `Continue` | get; set; | How the wrapper behaves when `ExecuteAsync` throws an exception. |
 | `LogBehavior` | `JobLogBehavior` | `LogAll` | get; set; | Controls which lifecycle messages the wrapper logs. |
 | `ServiceLifetime` | `ServiceLifetime` | `Scoped` | get; set; | The DI lifetime used to resolve the job class. `Scoped` and `Transient` create a new `IServiceScope` per tick; `Singleton` resolves from the root `IServiceProvider`. |
+
+Validated at registration time: `Interval` must be greater than `TimeSpan.Zero` (`ArgumentOutOfRangeException`). `InitialDelay` must not be negative (`ArgumentOutOfRangeException`).
 
 ---
 
@@ -81,6 +85,8 @@ Configuration options for a recurring Hangfire job registered via `AddHangfireJo
 | `JobId` | `string?` | `null` | get; set; | Unique identifier for the recurring job in Hangfire. When `null`, defaults to the job type name (e.g. `"CleanupJob"`). |
 | `TimeZone` | `TimeZoneInfo` | `TimeZoneInfo.Utc` | get; set; | Time zone used for cron evaluation. Passed to `RecurringJobOptions.TimeZone`. |
 | `MisfireHandling` | `MisfireHandlingMode` | `Relaxed` | get; set; | How missed job executions are handled when the server was offline. Passed to `RecurringJobOptions.MisfireHandling`. `Relaxed` executes once on recovery; `Strict` catches up on every missed execution. |
+
+Validated at registration time: `Cron` must not be null, empty, or whitespace (`ArgumentException`). `Queue` must not be null, empty, or whitespace (`ArgumentException`). `JobId`, when set, must not be empty or whitespace (`ArgumentException`).
 
 ---
 
@@ -166,23 +172,25 @@ Schedules a continuation job that executes after the specified parent job comple
 
 **Namespace:** `JC.BackgroundJobs.Models`
 
-Record describing an ad-hoc Hangfire job type and its DI lifetime for registration via `AddHangfireScheduler`.
+Describes an ad-hoc Hangfire job type and its DI lifetime for registration via `AddHangfireScheduler`.
 
 ### Constructor
 
-#### AdHocJobRegistration(Type JobType, ServiceLifetime Lifetime = ServiceLifetime.Scoped)
+#### AdHocJobRegistration(Type jobType, ServiceLifetime lifetime = ServiceLifetime.Scoped)
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `JobType` | `Type` | — | The job class type implementing `IBackgroundJob`. |
-| `Lifetime` | `ServiceLifetime` | `Scoped` | The DI lifetime for the job class. |
+| `jobType` | `Type` | — | The job class type. Must implement `IBackgroundJob`. |
+| `lifetime` | `ServiceLifetime` | `Scoped` | The DI lifetime for the job class. |
+
+Throws `ArgumentException` if `jobType` does not implement `IBackgroundJob`.
 
 ### Properties
 
 | Property | Type | Default | Access | Description |
 |----------|------|---------|--------|-------------|
-| `JobType` | `Type` | — | get; init; | The job class type implementing `IBackgroundJob`. |
-| `Lifetime` | `ServiceLifetime` | `Scoped` | get; init; | The DI lifetime for the job class. |
+| `JobType` | `Type` | — | get; | The job class type implementing `IBackgroundJob`. |
+| `Lifetime` | `ServiceLifetime` | `Scoped` | get; | The DI lifetime for the job class. |
 
 ### Methods
 

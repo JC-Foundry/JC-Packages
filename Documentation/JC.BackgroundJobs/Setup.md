@@ -100,6 +100,8 @@ The job class is registered in DI with the specified lifetime. A `BackgroundServ
 
 The job class is registered as scoped in DI. At startup, a hosted service registers all collected recurring jobs with Hangfire's `IRecurringJobManager`.
 
+**Note:** Hangfire jobs receive `CancellationToken.None` in `ExecuteAsync`. Hangfire manages cancellation through its own infrastructure, not via the token parameter. For hosted service jobs, the token is the host's stopping token and is signalled during graceful shutdown.
+
 #### Hangfire scheduler — `AddHangfireScheduler()`
 
 Registers `IHangfireScheduler` as a scoped service. Optionally registers ad-hoc job types in DI with their configured lifetimes. Provides methods for scheduling ad-hoc jobs at runtime:
@@ -145,6 +147,8 @@ builder.Services.AddBackgroundJob<CleanupJob>(options =>
 | `ErrorBehavior` | `JobErrorBehavior` | `Continue` | How the wrapper handles exceptions thrown by `ExecuteAsync` |
 | `LogBehavior` | `JobLogBehavior` | `LogAll` | Controls which lifecycle messages the wrapper logs |
 | `ServiceLifetime` | `ServiceLifetime` | `Scoped` | The DI lifetime for the job class. `Scoped` and `Transient` create a new scope per tick; `Singleton` resolves from the root provider |
+
+`Interval` must be greater than zero and `InitialDelay` must not be negative — invalid values throw `ArgumentOutOfRangeException` at registration time.
 
 #### JobErrorBehavior
 
@@ -231,6 +235,8 @@ builder.Services.AddHangfireJob<ReportGenerationJob>(options =>
 | `TimeZone` | `TimeZoneInfo` | `TimeZoneInfo.Utc` | Time zone used for cron evaluation |
 | `MisfireHandling` | `MisfireHandlingMode` | `Relaxed` | How missed executions are handled. `Relaxed` executes once when the server comes back; `Strict` attempts to catch up on every missed execution |
 
+`Cron`, `Queue`, and `JobId` (when set) must not be null, empty, or whitespace — invalid values throw `ArgumentException` at registration time.
+
 Hangfire jobs are registered as scoped in DI. Hangfire creates its own scope when executing a job, so scoped dependencies (DbContext, repositories) work correctly.
 
 #### Retry attempts
@@ -295,7 +301,7 @@ builder.Services.AddHangfireScheduler(
 | `JobType` | `Type` | — | The job class type implementing `IBackgroundJob` |
 | `Lifetime` | `ServiceLifetime` | `Scoped` | The DI lifetime for the job class |
 
-Use the generic factory method `AdHocJobRegistration.For<TJob>()` for a concise, type-safe call site. Pass an optional `ServiceLifetime` to override the default scoped lifetime.
+Use the generic factory method `AdHocJobRegistration.For<TJob>()` for a concise, type-safe call site. Pass an optional `ServiceLifetime` to override the default scoped lifetime. The constructor validates that `JobType` implements `IBackgroundJob` — passing an invalid type throws `ArgumentException`.
 
 Inject `IHangfireScheduler` into controllers, services, or Razor pages to schedule jobs at runtime:
 

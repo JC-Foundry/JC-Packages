@@ -9,9 +9,11 @@ A suite of .NET 9 NuGet packages providing shared infrastructure for .NET applic
 | **JC.Core** | Repository pattern, automatic audit trail on SaveChanges, soft-delete, pagination, and utility helpers | [Documentation](Documentation/JC.Core/) |
 | **JC.Web** | Security headers, cookie management, client profiling, rate limiting, bug reporter tag helper, UI helpers | [Documentation](Documentation/JC.Web/) |
 | **JC.Identity** | ASP.NET Core Identity integration, multi-tenancy query filters, middleware, user management | [Documentation](Documentation/JC.Identity/) |
-| **JC.MySql** | MySQL database provider extensions using Pomelo.EntityFrameworkCore.MySql | [Documentation](Documentation/JC.MySql/) |
-| **JC.SqlServer** | SQL Server database provider extensions using Microsoft.EntityFrameworkCore.SqlServer | [Documentation](Documentation/JC.SqlServer/) |
+| **JC.MySql** | MySQL database provider extensions using Pomelo.EntityFrameworkCore.MySql | [Database Setup](Documentation/JC.Core/Database-Setup.md) |
+| **JC.SqlServer** | SQL Server database provider extensions using Microsoft.EntityFrameworkCore.SqlServer | [Database Setup](Documentation/JC.Core/Database-Setup.md) |
 | **JC.Github** | GitHub integration for bug report and issue tracking services | [Documentation](Documentation/JC.Github/) |
+| **JC.BackgroundJobs** | Lightweight hosted-service background jobs and Hangfire recurring/ad-hoc job integration | [Documentation](Documentation/JC.BackgroundJobs/) |
+| **JC.SqlServer.Hangfire** | Hangfire SQL Server storage registration for JC-Packages applications | — |
 
 ## Prerequisites
 
@@ -37,9 +39,15 @@ JC.Core (foundation — no JC dependencies)
 ├── JC.Github
 ├── JC.MySql
 └── JC.SqlServer
+
+JC.BackgroundJobs (standalone — no JC dependencies)
+
+JC.SqlServer.Hangfire (standalone — no JC dependencies)
 ```
 
-All packages depend on **JC.Core**. The database providers (JC.MySql / JC.SqlServer) are interchangeable. JC.Identity, JC.Web, and JC.Github are independent of each other.
+JC.Identity, JC.Web, JC.Github, JC.MySql, and JC.SqlServer all depend on **JC.Core**. The database providers (JC.MySql / JC.SqlServer) are interchangeable.
+
+**JC.BackgroundJobs** and **JC.SqlServer.Hangfire** are standalone — they have no dependency on JC.Core or each other. JC.BackgroundJobs depends only on Hangfire.Core and Microsoft.Extensions.Hosting.Abstractions. JC.SqlServer.Hangfire depends on Hangfire.SqlServer and Hangfire.AspNetCore.
 
 ## Quick Start
 
@@ -62,7 +70,7 @@ builder.Services.AddMySqlDatabase<AppDbContext>(builder.Configuration, migration
 builder.Services.AddSqlServerDatabase<AppDbContext>(builder.Configuration, migrationsAssembly: "MyApp");
 ```
 
-See [JC.MySql](Documentation/JC.MySql/) or [JC.SqlServer](Documentation/JC.SqlServer/) documentation.
+See [Database Setup](Documentation/JC.Core/Database-Setup.md) for full configuration.
 
 ### JC.Identity
 
@@ -103,6 +111,38 @@ builder.Services.AddGithub<AppDbContext>(builder.Configuration, options =>
 ```
 
 See [JC.Github documentation](Documentation/JC.Github/) for webhook setup and issue tracking.
+
+### JC.BackgroundJobs
+
+```csharp
+// Lightweight hosted-service job
+builder.Services.AddBackgroundJob<CleanupJob>(options =>
+{
+    options.Interval = TimeSpan.FromMinutes(5);
+});
+
+// Hangfire recurring job (requires storage — see JC.SqlServer.Hangfire)
+builder.Services.AddHangfireJob<ReportGenerationJob>(options =>
+{
+    options.Cron = "0 2 * * *";
+});
+
+// Ad-hoc scheduler with job type registration
+builder.Services.AddHangfireScheduler(
+    AdHocJobRegistration.For<OrderConfirmationJob>(),
+    AdHocJobRegistration.For<FollowUpEmailJob>()
+);
+```
+
+See [JC.BackgroundJobs documentation](Documentation/JC.BackgroundJobs/) for hosted service options, Hangfire configuration, and ad-hoc scheduling.
+
+### JC.SqlServer.Hangfire
+
+```csharp
+builder.Services.AddHangfireSqlServer(builder.Configuration);
+```
+
+Registers Hangfire with SQL Server storage. Reads the `HangfireConnection` connection string from configuration by default.
 
 ## Configuration
 
@@ -154,18 +194,30 @@ Required when using encrypted cookies (enabled by default in `AddWebDefaults` / 
 
 `ApiKey` is always required. `Secret` is required when webhooks are enabled (the default). All other settings (API URL, repo owner, repo name, etc.) are configured via `GithubOptions` in the `AddGithub` callback.
 
+### Hangfire Storage (JC.SqlServer.Hangfire)
+
+```json
+{
+  "ConnectionStrings": {
+    "HangfireConnection": "Server=.;Database=HangfireDb;Trusted_Connection=true;"
+  }
+}
+```
+
+Required when using `AddHangfireSqlServer`. The connection string name defaults to `"HangfireConnection"` but can be overridden via the `connectionStringName` parameter.
+
 ## Documentation
 
 Full documentation for each package is available in the [Documentation](Documentation/) directory:
 
 | Package | Setup | Full Guide | API Reference |
-|---------|-------------|------------|---------------|
-| JC.Core | [Setup](Documentation/JC.Core/) | [Guide](Documentation/JC.Core/) | [API](Documentation/JC.Core/) |
-| JC.Web | [Setup](Documentation/JC.Web/) | [Guide](Documentation/JC.Web/) | [API](Documentation/JC.Web/) |
-| JC.Identity | [Setup](Documentation/JC.Identity/) | [Guide](Documentation/JC.Identity/) | [API](Documentation/JC.Identity/) |
-| JC.MySql | [Setup](Documentation/JC.MySql/) | [Guide](Documentation/JC.MySql/) | [API](Documentation/JC.MySql/) |
-| JC.SqlServer | [Setup](Documentation/JC.SqlServer/) | [Guide](Documentation/JC.SqlServer/) | [API](Documentation/JC.SqlServer/) |
-| JC.Github | [Setup](Documentation/JC.Github/) | [Guide](Documentation/JC.Github/) | [API](Documentation/JC.Github/) |
+|---------|-------|------------|---------------|
+| JC.Core | [Setup](Documentation/JC.Core/Setup.md) | [Guide](Documentation/JC.Core/Guide.md) | [API](Documentation/JC.Core/API.md) |
+| JC.Web | [Setup](Documentation/JC.Web/Setup.md) | [Guide](Documentation/JC.Web/Guide.md) | [API](Documentation/JC.Web/API.md) |
+| JC.Identity | [Setup](Documentation/JC.Identity/Setup.md) | [Guide](Documentation/JC.Identity/Guide.md) | [API](Documentation/JC.Identity/API.md) |
+| JC.Github | [Setup](Documentation/JC.Github/Setup.md) | [Guide](Documentation/JC.Github/Guide.md) | [API](Documentation/JC.Github/API.md) |
+| JC.BackgroundJobs | [Setup](Documentation/JC.BackgroundJobs/Setup.md) | [Guide](Documentation/JC.BackgroundJobs/Guide.md) | [API](Documentation/JC.BackgroundJobs/API.md) |
+| JC.MySql / JC.SqlServer | [Database Setup](Documentation/JC.Core/Database-Setup.md) | — | — |
 
 ## Build from Source
 

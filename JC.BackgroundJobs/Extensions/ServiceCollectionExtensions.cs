@@ -41,6 +41,7 @@ public static class ServiceCollectionExtensions
     {
         var options = new BackgroundJobOptions();
         configure(options);
+        ValidateBackgroundJobOptions(options);
 
         services.AddSingleton(new BackgroundJobOptionsFor<TJob>(options));
         services.Add(new ServiceDescriptor(typeof(TJob), typeof(TJob), options.ServiceLifetime));
@@ -53,35 +54,36 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Registers a recurring Hangfire job of type <typeparamref name="TJob"/> with default options.
+    /// The job ID defaults to the type name of <typeparamref name="TJob"/>.
     /// Requires Hangfire storage to be configured separately (e.g. via <c>AddHangfireSqlServer</c>).
     /// </summary>
     /// <typeparam name="TJob">The job type implementing <see cref="IBackgroundJob"/>.</typeparam>
     /// <param name="services">The service collection to register into.</param>
-    /// <param name="jobId">Unique identifier for this recurring job in Hangfire.</param>
     /// <returns>The service collection for chaining.</returns>
-    public static IServiceCollection AddHangfireJob<TJob>(
-        this IServiceCollection services,
-        string jobId)
+    public static IServiceCollection AddHangfireJob<TJob>(this IServiceCollection services)
         where TJob : class, IBackgroundJob
-        => services.AddHangfireJob<TJob>(jobId, _ => { });
+        => services.AddHangfireJob<TJob>(_ => { });
 
     /// <summary>
     /// Registers a recurring Hangfire job of type <typeparamref name="TJob"/> with the specified options.
+    /// The job ID defaults to the type name of <typeparamref name="TJob"/> unless overridden via
+    /// <see cref="HangfireJobOptions.JobId"/>.
     /// Requires Hangfire storage to be configured separately (e.g. via <c>AddHangfireSqlServer</c>).
     /// </summary>
     /// <typeparam name="TJob">The job type implementing <see cref="IBackgroundJob"/>.</typeparam>
     /// <param name="services">The service collection to register into.</param>
-    /// <param name="jobId">Unique identifier for this recurring job in Hangfire.</param>
     /// <param name="configure">Callback to configure <see cref="HangfireJobOptions"/>.</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddHangfireJob<TJob>(
         this IServiceCollection services,
-        string jobId,
         Action<HangfireJobOptions> configure)
         where TJob : class, IBackgroundJob
     {
         var options = new HangfireJobOptions();
         configure(options);
+
+        var jobId = options.JobId ?? typeof(TJob).Name;
+        ValidateHangfireJobOptions(jobId, options);
 
         services.AddSingleton(new HangfireJobOptionsFor<TJob>(options));
         services.TryAddScoped<TJob>();
@@ -138,6 +140,29 @@ public static class ServiceCollectionExtensions
             services.TryAdd(new ServiceDescriptor(job.JobType, job.JobType, job.Lifetime));
 
         return services;
+    }
+
+    // ── Validation ──────────────────────────────────────────────────────
+
+    private static void ValidateBackgroundJobOptions(BackgroundJobOptions options)
+    {
+        if (options.Interval <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(options), "Interval must be greater than zero.");
+
+        if (options.InitialDelay < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(options), "InitialDelay must not be negative.");
+    }
+
+    private static void ValidateHangfireJobOptions(string jobId, HangfireJobOptions options)
+    {
+        if (string.IsNullOrWhiteSpace(jobId))
+            throw new ArgumentException("JobId must not be null, empty, or whitespace.", nameof(options));
+
+        if (string.IsNullOrWhiteSpace(options.Cron))
+            throw new ArgumentException("Cron must not be null, empty, or whitespace.", nameof(options));
+
+        if (string.IsNullOrWhiteSpace(options.Queue))
+            throw new ArgumentException("Queue must not be null, empty, or whitespace.", nameof(options));
     }
 
     // ── Internal helpers ────────────────────────────────────────────────
