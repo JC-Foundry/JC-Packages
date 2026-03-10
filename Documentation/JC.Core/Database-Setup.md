@@ -38,6 +38,8 @@ See [Versioning Strategy](../../README.md#versioning-strategy) to understand whi
 ### Services — `Program.cs`
 
 ```csharp
+builder.Services.AddCore<AppDbContext>();
+
 // MySQL
 builder.Services.AddMySqlDatabase<AppDbContext>(builder.Configuration, migrationsAssembly: "YourApp");
 

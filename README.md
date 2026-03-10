@@ -65,6 +65,8 @@ See [JC.Core documentation](Documentation/JC.Core/) for full setup, audit trail 
 ### Database Providers
 
 ```csharp
+builder.Services.AddCore<AppDbContext>();
+
 // MySQL
 builder.Services.AddMySqlDatabase<AppDbContext>(builder.Configuration, migrationsAssembly: "MyApp");
 
@@ -77,6 +79,7 @@ See [Database Setup](Documentation/JC.Core/Database-Setup.md) for full configura
 ### JC.Identity
 
 ```csharp
+builder.Services.AddCore<AppDbContext>();
 builder.Services.AddIdentity<AppUser, AppRole, AppDbContext>();
 
 var app = builder.Build();
@@ -89,6 +92,8 @@ See [JC.Identity documentation](Documentation/JC.Identity/) for multi-tenancy, c
 ### JC.Web
 
 ```csharp
+builder.Services.AddCore<AppDbContext>();
+
 // Register all services
 builder.Services.AddWebDefaults(builder.Configuration);
 
@@ -105,6 +110,8 @@ See [JC.Web documentation](Documentation/JC.Web/) for security headers, cookie m
 ### JC.Communication
 
 ```csharp
+builder.Services.AddCore<AppDbContext>();
+
 // Email with database logging (Microsoft provider by default)
 builder.Services.AddEmail<AppDbContext>(builder.Configuration);
 ```
@@ -114,6 +121,7 @@ See [JC.Communication documentation](Documentation/JC.Communication/) for provid
 ### JC.Github
 
 ```csharp
+builder.Services.AddCore<AppDbContext>();
 builder.Services.AddGithub<AppDbContext>(builder.Configuration, options =>
 {
     options.GithubRepoOwner = "your-username";

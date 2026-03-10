@@ -41,6 +41,8 @@ public class AppRole : BaseRole { }
 ### Services — `Program.cs`
 
 ```csharp
+builder.Services.AddCore<AppDbContext>();
+
 // Register ASP.NET Core Identity + JC.Identity services
 builder.Services.AddIdentity<AppUser, AppRole, AppDbContext>();
 ```

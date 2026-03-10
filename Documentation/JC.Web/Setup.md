@@ -21,6 +21,8 @@ See [Versioning Strategy](../../README.md#versioning-strategy) to understand whi
 ### Services — `Program.cs`
 
 ```csharp
+builder.Services.AddCore<AppDbContext>();
+
 // Register all JC.Web services: security headers, cookie services, and client profiling
 builder.Services.AddWebDefaults(builder.Configuration);
 

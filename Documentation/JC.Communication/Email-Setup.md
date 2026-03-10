@@ -21,6 +21,8 @@ See [Versioning Strategy](../../README.md#versioning-strategy) to understand whi
 ### Services — `Program.cs`
 
 ```csharp
+builder.Services.AddCore<AppDbContext>();
+
 // Register email with the Microsoft provider, database logging, and default options
 builder.Services.AddEmail<AppDbContext>(builder.Configuration);
 ```

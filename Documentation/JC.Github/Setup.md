@@ -42,6 +42,7 @@ public class AppDbContext : DataDbContext, IGithubDbContext
 ### Services — `Program.cs`
 
 ```csharp
+builder.Services.AddCore<AppDbContext>();
 builder.Services.AddGithub<AppDbContext>(builder.Configuration);
 ```
 
