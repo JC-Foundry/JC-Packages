@@ -27,6 +27,18 @@ public class SmtpRelayEmailService : IEmailService
         _logService = logService;
         _logger = logger;
     }
+    
+    public Task<EmailSendResult> SendAsync(IEnumerable<EmailRecipient> recipients, string subject, 
+        string plainBody, string? htmlBody = null, IEnumerable<EmailRecipient>? ccRecipients = null, 
+        IEnumerable<EmailRecipient>? bccRecipients = null)
+    {
+        var fromAddress = _config[EmailOptions.ConfigFromAddress];
+        if(string.IsNullOrEmpty(fromAddress))
+            throw new InvalidOperationException("From address is not configured.");
+        
+        var message = new EmailMessage(fromAddress, plainBody, subject, recipients);
+        return SendAsync(message);
+    }
 
     public async Task<EmailSendResult> SendAsync(EmailMessage message,
         CancellationToken cancellationToken = default)
@@ -47,6 +59,7 @@ public class SmtpRelayEmailService : IEmailService
 
             using var client = new SmtpClient();
             client.Timeout = _options.TimeoutMs;
+            client.SslProtocols = _options.SslProtocol;
 
             var socketOptions = _options.EnableSsl
                 ? SecureSocketOptions.StartTls
@@ -55,7 +68,9 @@ public class SmtpRelayEmailService : IEmailService
             await client.ConnectAsync(_options.Host, _options.Port,
                 socketOptions, cancellationToken);
 
-            var username = _config[SmtpRelayOptions.Username];
+            var username = _options.UsernameRequired 
+                ? _config[SmtpRelayOptions.Username]
+                : null;
             var secret = _config[SmtpRelayOptions.Password]
                          ?? _config[SmtpRelayOptions.ApiKey]
                          ?? _config[SmtpRelayOptions.Secret];

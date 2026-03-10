@@ -11,6 +11,17 @@ using MimeKit;
 
 namespace JC.Communication.Email.Services;
 
+/// <summary>
+/// Sends email via Microsoft 365 / Exchange Online SMTP relay using OAuth2 (MSAL) authentication.
+/// Requires Azure AD app registration with <c>Mail.Send</c> application permission and
+/// valid tenant ID, client ID, and client secret configuration.
+/// </summary>
+/// <remarks>
+/// SMTP authentication is performed using <see cref="EmailMessage.FromAddress"/> as the OAuth2 identity.
+/// The Azure AD app must have permission to send as that address. This means the from address must
+/// correspond to a mailbox or shared mailbox that the app has "Send As" or "Send on Behalf Of"
+/// permission for. Mismatched addresses will be rejected by the Microsoft SMTP relay at runtime.
+/// </remarks>
 public class MicrosoftEmailService : IEmailService
 {
     private readonly IConfiguration _config;
@@ -39,6 +50,18 @@ public class MicrosoftEmailService : IEmailService
             .WithTenantId(_config[MicrosoftOptions.TenantId])
             .Build();
     }
+    
+    public Task<EmailSendResult> SendAsync(IEnumerable<EmailRecipient> recipients, string subject, 
+        string plainBody, string? htmlBody = null, IEnumerable<EmailRecipient>? ccRecipients = null, 
+        IEnumerable<EmailRecipient>? bccRecipients = null)
+    {
+        var fromAddress = _config[EmailOptions.ConfigFromAddress];
+        if(string.IsNullOrEmpty(fromAddress))
+            throw new InvalidOperationException("From address is not configured.");
+        
+        var message = new EmailMessage(fromAddress, plainBody, subject, recipients);
+        return SendAsync(message);
+    }
 
     public async Task<EmailSendResult> SendAsync(EmailMessage message,
         CancellationToken cancellationToken = default)
@@ -59,6 +82,7 @@ public class MicrosoftEmailService : IEmailService
 
             using var client = new SmtpClient();
             client.Timeout = _options.TimeoutMs;
+            client.SslProtocols = _options.SslProtocol;
 
             await client.ConnectAsync(_options.Host, _options.Port,
                 SecureSocketOptions.StartTls, cancellationToken);
