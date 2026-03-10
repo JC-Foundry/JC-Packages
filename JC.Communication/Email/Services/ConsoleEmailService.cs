@@ -43,7 +43,8 @@ public class ConsoleEmailService : IEmailService
         if(string.IsNullOrEmpty(fromAddress))
             throw new InvalidOperationException("From address is not configured.");
         
-        var message = new EmailMessage(fromAddress, plainBody, subject, recipients);
+        var message = new EmailMessage(fromAddress, htmlBody ?? string.Empty, plainBody, subject, 
+            recipients, ccRecipients ?? [], bccRecipients ?? []);
         return SendAsync(message);
     }
     

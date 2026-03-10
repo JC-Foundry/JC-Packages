@@ -59,7 +59,8 @@ public class MicrosoftEmailService : IEmailService
         if(string.IsNullOrEmpty(fromAddress))
             throw new InvalidOperationException("From address is not configured.");
         
-        var message = new EmailMessage(fromAddress, plainBody, subject, recipients);
+        var message = new EmailMessage(fromAddress, htmlBody ?? string.Empty, plainBody, subject, 
+            recipients, ccRecipients ?? [], bccRecipients ?? []);
         return SendAsync(message);
     }
 
@@ -95,10 +96,12 @@ public class MicrosoftEmailService : IEmailService
                 message.FromAddress, tokenResult.AccessToken);
 
             await client.AuthenticateAsync(oauth2, cancellationToken);
+
+            var timeStamp = DateTime.UtcNow;
             var serverResponse = await client.SendAsync(msg, cancellationToken);
             await client.DisconnectAsync(true, cancellationToken);
 
-            result = new EmailSendResult(EmailProvider.Microsoft, serverResponse);
+            result = new EmailSendResult(timeStamp, EmailProvider.Microsoft, serverResponse);
         }
         catch (Exception ex)
         {

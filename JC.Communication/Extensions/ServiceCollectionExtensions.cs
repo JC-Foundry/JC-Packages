@@ -79,9 +79,6 @@ public static class ServiceCollectionExtensions
         // Db context
         services.TryAddScoped<IEmailDbContext>(sp => sp.GetRequiredService<TContext>());
 
-        // Logging
-        services.TryAddScoped<EmailLogService>();
-
         // Repository contexts for log entities
         services.RegisterRepositoryContexts(
             typeof(EmailLog),
@@ -106,7 +103,10 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration,
         EmailOptions options)
     {
-       switch (options.Provider)
+        // Logging (always required as it is injected)
+        services.TryAddScoped<EmailLogService>();
+        
+        switch (options.Provider)
         {
             // Provider registration
             case EmailProvider.Microsoft:
@@ -124,6 +124,8 @@ public static class ServiceCollectionExtensions
                 break;
 
             case EmailProvider.Console:
+                ValidateConfig(configuration, EmailOptions.ConfigFromAddress);
+                
                 //Registers ConsoleEmailService
                 services.TryAddScoped<IEmailService, ConsoleEmailService>();
                 break;

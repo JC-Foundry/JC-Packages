@@ -35,7 +35,8 @@ public class DirectSmtpEmailService : IEmailService
         if(string.IsNullOrEmpty(fromAddress))
             throw new InvalidOperationException("From address is not configured.");
         
-        var message = new EmailMessage(fromAddress, plainBody, subject, recipients);
+        var message = new EmailMessage(fromAddress, htmlBody ?? string.Empty, plainBody, subject, 
+            recipients, ccRecipients ?? [], bccRecipients ?? []);
         return SendAsync(message);
     }
 
@@ -67,10 +68,11 @@ public class DirectSmtpEmailService : IEmailService
             await client.ConnectAsync(_options.Host, _options.Port,
                 socketOptions, cancellationToken);
 
+            var timeStamp = DateTime.UtcNow;
             var serverResponse = await client.SendAsync(msg, cancellationToken);
             await client.DisconnectAsync(true, cancellationToken);
 
-            result = new EmailSendResult(EmailProvider.DirectSmtp, serverResponse);
+            result = new EmailSendResult(timeStamp, EmailProvider.DirectSmtp, serverResponse);
         }
         catch (Exception ex)
         {

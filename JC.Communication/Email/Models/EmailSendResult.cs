@@ -35,7 +35,7 @@ public class EmailSendResult
     /// </summary>
     /// <param name="provider">The email provider that handled the send.</param>
     /// <param name="messageId">Optional server response string returned by the SMTP server.</param>
-    public EmailSendResult(EmailProvider provider = EmailProvider.Microsoft, string? messageId = null)
+    public EmailSendResult(EmailProvider provider, string? messageId = null)
     {
         Provider = provider;
         ServerResponse = messageId;
@@ -47,8 +47,7 @@ public class EmailSendResult
     /// <param name="sentAtUtc">The UTC timestamp of the send.</param>
     /// <param name="provider">The email provider that handled the send.</param>
     /// <param name="messageId">Optional server response string returned by the SMTP server.</param>
-    public EmailSendResult(DateTime sentAtUtc, EmailProvider provider = EmailProvider.Microsoft,
-        string? messageId = null)
+    public EmailSendResult(DateTime sentAtUtc, EmailProvider provider, string? messageId = null)
         : this(provider, messageId)
     {
         SentAtUtc = sentAtUtc;
@@ -60,8 +59,7 @@ public class EmailSendResult
     /// <param name="errorMsg">The error message describing the failure.</param>
     /// <param name="provider">The email provider that handled the send attempt.</param>
     /// <param name="messageId">Optional server response string returned by the SMTP server.</param>
-    public EmailSendResult(string errorMsg, EmailProvider provider = EmailProvider.Microsoft,
-        string? messageId = null)
+    public EmailSendResult(string errorMsg, EmailProvider provider, string? messageId = null)
         : this(provider, messageId)
     {
         Succeeded = false;
@@ -76,7 +74,7 @@ public class EmailSendResult
     /// <param name="provider">The email provider that handled the send attempt.</param>
     /// <param name="messageId">Optional server response string returned by the SMTP server.</param>
     public EmailSendResult(string errorMsg, DateTime sentAtUtc,
-        EmailProvider provider = EmailProvider.Microsoft, string? messageId = null)
+        EmailProvider provider, string? messageId = null)
         : this(sentAtUtc, provider, messageId)
     {
         Succeeded = false;

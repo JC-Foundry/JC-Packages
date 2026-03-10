@@ -82,7 +82,7 @@ public sealed class EmailMessage
         params IEnumerable<EmailRecipient> toAddresses)
         : this(from, plainBody, subject, toAddresses)
     {
-        HtmlBody = htmlBody;
+        HtmlBody = string.IsNullOrEmpty(htmlBody) ? plainBody : htmlBody;
     }
 
     /// <summary>

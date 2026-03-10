@@ -11,6 +11,7 @@ A suite of .NET 9 NuGet packages providing shared infrastructure for .NET applic
 | **JC.Identity** | ASP.NET Core Identity integration, multi-tenancy query filters, middleware, user management | [Documentation](Documentation/JC.Identity/) |
 | **JC.MySql** | MySQL database provider extensions using Pomelo.EntityFrameworkCore.MySql | [Database Setup](Documentation/JC.Core/Database-Setup.md) |
 | **JC.SqlServer** | SQL Server database provider extensions using Microsoft.EntityFrameworkCore.SqlServer | [Database Setup](Documentation/JC.Core/Database-Setup.md) |
+| **JC.Communication** | Outbound communication — email sending with multiple providers, message validation, and database logging | [Documentation](Documentation/JC.Communication/) |
 | **JC.Github** | GitHub integration for bug report and issue tracking services | [Documentation](Documentation/JC.Github/) |
 | **JC.BackgroundJobs** | Lightweight hosted-service background jobs and Hangfire recurring/ad-hoc job integration | [Documentation](Documentation/JC.BackgroundJobs/) |
 | **JC.SqlServer.Hangfire** | Hangfire SQL Server storage registration for JC-Packages applications | — |
@@ -36,6 +37,7 @@ git clone https://github.com/johncraik/JC-Packages.git
 JC.Core (foundation — no JC dependencies)
 ├── JC.Identity
 ├── JC.Web
+├── JC.Communication
 ├── JC.Github
 ├── JC.MySql
 └── JC.SqlServer
@@ -45,7 +47,7 @@ JC.BackgroundJobs (standalone — no JC dependencies)
 JC.SqlServer.Hangfire (standalone — no JC dependencies)
 ```
 
-JC.Identity, JC.Web, JC.Github, JC.MySql, and JC.SqlServer all depend on **JC.Core**. The database providers (JC.MySql / JC.SqlServer) are interchangeable.
+JC.Identity, JC.Web, JC.Communication, JC.Github, JC.MySql, and JC.SqlServer all depend on **JC.Core**. The database providers (JC.MySql / JC.SqlServer) are interchangeable.
 
 **JC.BackgroundJobs** and **JC.SqlServer.Hangfire** are standalone — they have no dependency on JC.Core or each other. JC.BackgroundJobs depends only on Hangfire.Core and Microsoft.Extensions.Hosting.Abstractions. JC.SqlServer.Hangfire depends on Hangfire.SqlServer and Hangfire.AspNetCore.
 
@@ -99,6 +101,15 @@ app.UseRateLimiting();
 ```
 
 See [JC.Web documentation](Documentation/JC.Web/) for security headers, cookie management, client profiling, rate limiting, bug reporter, and UI helpers.
+
+### JC.Communication
+
+```csharp
+// Email with database logging (Microsoft provider by default)
+builder.Services.AddEmail<AppDbContext>(builder.Configuration);
+```
+
+See [JC.Communication documentation](Documentation/JC.Communication/) for provider configuration, logging modes, and usage guide.
 
 ### JC.Github
 
@@ -181,6 +192,24 @@ Registers Hangfire with SQL Server storage. Reads the `HangfireConnection` conne
 
 Required when using encrypted cookies (enabled by default in `AddWebDefaults` / `AddCookieServices`). Set `useEncryptedCookies: false` to skip.
 
+### Email (JC.Communication)
+
+```json
+{
+  "Communication": {
+    "Email": {
+      "TenantId": "your-azure-tenant-id",
+      "ClientId": "your-azure-client-id",
+      "ClientSecret": "your-azure-client-secret",
+      "DefaultFromAddress": "noreply@yourdomain.com",
+      "DefaultFromDisplayName": "My Application"
+    }
+  }
+}
+```
+
+Required for the Microsoft provider (default). Other providers require different keys — see [Email setup](Documentation/JC.Communication/Email-Setup.md) for full configuration.
+
 ### GitHub Integration (JC.Github)
 
 ```json
@@ -215,6 +244,7 @@ Full documentation for each package is available in the [Documentation](Document
 | JC.Core | [Setup](Documentation/JC.Core/Setup.md) | [Guide](Documentation/JC.Core/Guide.md) | [API](Documentation/JC.Core/API.md) |
 | JC.Web | [Setup](Documentation/JC.Web/Setup.md) | [Guide](Documentation/JC.Web/Guide.md) | [API](Documentation/JC.Web/API.md) |
 | JC.Identity | [Setup](Documentation/JC.Identity/Setup.md) | [Guide](Documentation/JC.Identity/Guide.md) | [API](Documentation/JC.Identity/API.md) |
+| JC.Communication | [Email Setup](Documentation/JC.Communication/Email-Setup.md) | [Email Guide](Documentation/JC.Communication/Email-Guide.md) | [Email API](Documentation/JC.Communication/Email-API.md) |
 | JC.Github | [Setup](Documentation/JC.Github/Setup.md) | [Guide](Documentation/JC.Github/Guide.md) | [API](Documentation/JC.Github/API.md) |
 | JC.BackgroundJobs | [Setup](Documentation/JC.BackgroundJobs/Setup.md) | [Guide](Documentation/JC.BackgroundJobs/Guide.md) | [API](Documentation/JC.BackgroundJobs/API.md) |
 | JC.MySql / JC.SqlServer | [Database Setup](Documentation/JC.Core/Database-Setup.md) | — | — |

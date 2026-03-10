@@ -41,7 +41,7 @@ public class EmailOptions
     /// The SMTP server hostname. Required for <see cref="EmailProvider.SmtpRelay"/> and <see cref="EmailProvider.DirectSmtp"/> providers.
     /// Ignored for all other provider types.
     /// </summary>
-    public string Host { get; set; } = string.Empty;
+    public string Host { get; set; } = "smtp.office365.com";
 
     /// <summary>
     /// The SMTP server port. Defaults to 587.

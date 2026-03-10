@@ -36,7 +36,8 @@ public class SmtpRelayEmailService : IEmailService
         if(string.IsNullOrEmpty(fromAddress))
             throw new InvalidOperationException("From address is not configured.");
         
-        var message = new EmailMessage(fromAddress, plainBody, subject, recipients);
+        var message = new EmailMessage(fromAddress, htmlBody ?? string.Empty, plainBody, subject, 
+            recipients, ccRecipients ?? [], bccRecipients ?? []);
         return SendAsync(message);
     }
 
@@ -80,10 +81,11 @@ public class SmtpRelayEmailService : IEmailService
             else if (!string.IsNullOrEmpty(secret))
                 await client.AuthenticateAsync("apikey", secret, cancellationToken);
 
+            var timeStamp = DateTime.UtcNow;
             var serverResponse = await client.SendAsync(msg, cancellationToken);
             await client.DisconnectAsync(true, cancellationToken);
 
-            result = new EmailSendResult(EmailProvider.SmtpRelay, serverResponse);
+            result = new EmailSendResult(timeStamp, EmailProvider.SmtpRelay, serverResponse);
         }
         catch (Exception ex)
         {
