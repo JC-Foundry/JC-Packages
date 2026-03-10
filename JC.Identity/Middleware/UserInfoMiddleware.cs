@@ -30,15 +30,15 @@ public class UserInfoMiddleware(RequestDelegate next, ILogger<UserInfoMiddleware
             if (!context.User.Identity?.IsAuthenticated ?? true)
             {
                 logger.LogDebug("Unauthenticated request — assigning system user identity.");
-                userInfo.UserId = UserInfo.SYSTEM_USER_ID;
-                userInfo.Username = UserInfo.SYSTEM_USER_NAME;
-                userInfo.Email = UserInfo.SYSTEM_USER_EMAIL;
+                userInfo.UserId = IUserInfo.SYSTEM_USER_ID;
+                userInfo.Username = IUserInfo.SYSTEM_USER_NAME;
+                userInfo.Email = IUserInfo.SYSTEM_USER_EMAIL;
             }
             else
             {
-                userInfo.Username = context.User.Identity?.Name ?? UserInfo.UNKNOWN_USER_NAME;
-                userInfo.Email = context.User.FindFirst(io.Value.ClaimsIdentity.EmailClaimType)?.Value ?? UserInfo.UNKNOWN_USER_EMAIL;
-                userInfo.UserId = context.User.FindFirst(io.Value.ClaimsIdentity.UserIdClaimType)?.Value ?? UserInfo.UNKNOWN_USER_ID;
+                userInfo.Username = context.User.Identity?.Name ?? IUserInfo.UNKNOWN_USER_NAME;
+                userInfo.Email = context.User.FindFirst(io.Value.ClaimsIdentity.EmailClaimType)?.Value ?? IUserInfo.UNKNOWN_USER_EMAIL;
+                userInfo.UserId = context.User.FindFirst(io.Value.ClaimsIdentity.UserIdClaimType)?.Value ?? IUserInfo.UNKNOWN_USER_ID;
 
                 userInfo.EmailConfirmed = string.Equals(context.User.FindFirst(DefaultClaims.EmailConfirmed)?.Value, "true", StringComparison.OrdinalIgnoreCase);
                 userInfo.PhoneNumber = context.User.FindFirst(DefaultClaims.PhoneNumber)?.Value;

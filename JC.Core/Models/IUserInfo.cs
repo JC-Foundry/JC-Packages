@@ -10,6 +10,24 @@ public interface IUserInfo
 {
     public const string MissingUserInfoId = "<NONE>";
     
+    /// <summary>System user identifier used for unauthenticated requests.</summary>
+    public const string SYSTEM_USER_ID = "System__ID";
+
+    /// <summary>System username used for unauthenticated requests.</summary>
+    public const string SYSTEM_USER_NAME = "System";
+
+    /// <summary>System email used for unauthenticated requests.</summary>
+    public const string SYSTEM_USER_EMAIL = "<SYSTEM@EMAIL>";
+
+    /// <summary>Unknown user identifier used as the default fallback.</summary>
+    public const string UNKNOWN_USER_ID = "Unknown__ID";
+
+    /// <summary>Unknown username used as the default fallback.</summary>
+    public const string UNKNOWN_USER_NAME = "Unknown";
+
+    /// <summary>Unknown email used as the default fallback.</summary>
+    public const string UNKNOWN_USER_EMAIL = "<UNKNOWN@EMAIL>";
+    
     
     /// <summary>Gets the unique identifier of the current user.</summary>
     string UserId { get; set; }

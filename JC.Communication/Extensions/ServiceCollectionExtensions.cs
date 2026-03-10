@@ -4,7 +4,10 @@ using JC.Communication.Email.Services;
 using JC.Communication.Logging.Data;
 using JC.Communication.Logging.Models.Email;
 using JC.Communication.Logging.Services;
+using JC.Communication.Notifications.Data;
+using JC.Core.Data;
 using JC.Core.Extensions;
+using JC.Core.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -65,7 +68,7 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration,
         Action<EmailOptions>? configure = null)
-        where TContext : DbContext, IEmailDbContext
+        where TContext : DbContext, IDataDbContext, IEmailDbContext
     {
         var options = new EmailOptions();
         configure?.Invoke(options);
@@ -227,5 +230,12 @@ public static class ServiceCollectionExtensions
             throw new InvalidOperationException($"Email configuration validation failed: {errors}");
     }
 
+    #endregion
+
+
+    #region Notifications
+
+    
+    
     #endregion
 }

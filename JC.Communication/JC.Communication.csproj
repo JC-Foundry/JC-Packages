@@ -21,9 +21,7 @@
 
     <ItemGroup>
       <Folder Include="Extensions\" />
-      <Folder Include="Logging\Models\Notifications\" />
       <Folder Include="Logging\Models\SMS\" />
-      <Folder Include="Notifications\" />
       <Folder Include="SMS\" />
     </ItemGroup>
 

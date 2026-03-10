@@ -9,32 +9,14 @@ namespace JC.Identity.Models;
 /// </summary>
 public class UserInfo : IUserInfo
 {
-    /// <summary>System user identifier used for unauthenticated requests.</summary>
-    public const string SYSTEM_USER_ID = "System__ID";
-
-    /// <summary>System username used for unauthenticated requests.</summary>
-    public const string SYSTEM_USER_NAME = "System";
-
-    /// <summary>System email used for unauthenticated requests.</summary>
-    public const string SYSTEM_USER_EMAIL = "<SYSTEM@EMAIL>";
-
-    /// <summary>Unknown user identifier used as the default fallback.</summary>
-    public const string UNKNOWN_USER_ID = "Unknown__ID";
-
-    /// <summary>Unknown username used as the default fallback.</summary>
-    public const string UNKNOWN_USER_NAME = "Unknown";
-
-    /// <summary>Unknown email used as the default fallback.</summary>
-    public const string UNKNOWN_USER_EMAIL = "<UNKNOWN@EMAIL>";
+    /// <inheritdoc />
+    public string UserId { get; set; } = IUserInfo.UNKNOWN_USER_ID;
 
     /// <inheritdoc />
-    public string UserId { get; set; } = UNKNOWN_USER_ID;
+    public string Username { get; set; } = IUserInfo.UNKNOWN_USER_NAME;
 
     /// <inheritdoc />
-    public string Username { get; set; } = UNKNOWN_USER_NAME;
-
-    /// <inheritdoc />
-    public string Email { get; set; } = UNKNOWN_USER_EMAIL;
+    public string Email { get; set; } = IUserInfo.UNKNOWN_USER_EMAIL;
 
     /// <inheritdoc />
     public bool EmailConfirmed { get; set; }
@@ -91,5 +73,39 @@ public class UserInfo : IUserInfo
             return false;
 
         return Roles.Contains(role) || Claims.Any(c => c.Type == ClaimTypes.Role && c.Value == role);
+    }
+
+    public UserInfo()
+    {
+    }
+
+    public UserInfo(BaseUser user, IEnumerable<string?> roles)
+    {
+        UserId = user.Id;
+        Username = user.UserName ?? IUserInfo.UNKNOWN_USER_NAME;
+        Email = user.Email ?? IUserInfo.UNKNOWN_USER_EMAIL;
+        EmailConfirmed = user.EmailConfirmed;
+        PhoneNumber = user.PhoneNumber;
+        PhoneNumberConfirmed = user.PhoneNumberConfirmed;
+        
+        TwoFactorEnabled = user.TwoFactorEnabled;
+        LockoutEnabled = user.LockoutEnabled;
+        LockoutEnd = user.LockoutEnd?.DateTime;
+        AccessFailedCount = user.AccessFailedCount;
+        
+        TenantId = user.TenantId;
+        DisplayName = user.DisplayName;
+        LastLoginUtc = user.LastLoginUtc;
+        IsEnabled = user.IsEnabled;
+        
+        RequiresPasswordChange = user.RequirePasswordChange;
+
+        Roles = roles.Where(r => !string.IsNullOrEmpty(r)).ToList()!;
+        IsSetup = true;
+    }
+
+    public UserInfo(BaseUser user, IEnumerable<BaseRole> roles)
+        : this(user, roles.Select(r => r.Name))
+    {
     }
 }

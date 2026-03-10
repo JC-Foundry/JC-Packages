@@ -1,3 +1,4 @@
+using JC.Core.Data;
 using JC.Core.Extensions;
 using JC.Github.Data;
 using JC.Github.Helpers;
@@ -37,7 +38,7 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration,
         Action<GithubOptions>? configure = null)
-        where TContext : DbContext, IGithubDbContext
+        where TContext : DbContext, IDataDbContext, IGithubDbContext
     {
         var gitApiKey = configuration["Github:ApiKey"] ?? throw new InvalidOperationException("Configuration value 'Github:ApiKey' not found.");
 
