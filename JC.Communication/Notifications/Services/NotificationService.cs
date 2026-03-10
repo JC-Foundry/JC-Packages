@@ -241,6 +241,43 @@ public class NotificationService
         }
     }
 
+    public async Task<(bool Result, List<NotificationValidationResponse> Responses)> TryAddNotificationBatch(
+        IEnumerable<Notification> notifications)
+    {
+        var responses = notifications.Select(NotificationValidator.Validate).ToList();
+        if (responses.Any(r => !r.IsValid)) return (false, responses);
+
+        List<Notification> notificationsToAdd = responses
+            .Where(r => r.ValidatedNotification != null)
+            .Select(r => r.ValidatedNotification)
+            .ToList()!; //null ignored because we filter out null notifications.
+        List<NotificationStyle> styles = notificationsToAdd
+            .Where(n => n.Style != null)
+            .Select(n => n.Style)
+            .ToList()!; //null ignored because we filter out null styles.
+        
+        await _repos.BeginTransactionAsync();
+        try
+        {
+            await _repos.GetRepository<Notification>()
+                .AddRangeAsync(notificationsToAdd, saveNow: false);
+            
+            if (styles.Count > 0)
+                await _repos.GetRepository<NotificationStyle>()
+                    .AddRangeAsync(styles, saveNow: false);
+            
+            await _repos.SaveChangesAsync();
+            await _repos.CommitTransactionAsync();
+            return (true, responses);
+        }
+        catch (Exception ex)
+        {
+            await _repos.RollbackTransactionAsync();
+            _logger.LogError(ex, "Failed to create batch of notifications and their styling.");
+            return (false, responses);
+        }
+    }
+
     /// <summary>
     /// Deletes a notification and its associated style within a transaction.
     /// Supports both soft and hard deletion. Hard deletion also permanently removes

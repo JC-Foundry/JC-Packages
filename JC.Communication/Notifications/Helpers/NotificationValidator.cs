@@ -1,4 +1,5 @@
 using JC.Communication.Notifications.Models;
+using JC.Core.Models;
 
 namespace JC.Communication.Notifications.Helpers;
 
@@ -8,6 +9,12 @@ namespace JC.Communication.Notifications.Helpers;
 /// </summary>
 public static class NotificationValidator
 {
+    public static bool ValidateUserId(string? userId)
+        => !string.IsNullOrWhiteSpace(userId)
+           && !string.Equals(userId, IUserInfo.UNKNOWN_USER_ID, StringComparison.OrdinalIgnoreCase)
+           && !string.Equals(userId, IUserInfo.SYSTEM_USER_ID, StringComparison.OrdinalIgnoreCase)
+           && Guid.TryParse(userId, out _);
+    
     /// <summary>
     /// Validates a notification.
     /// </summary>
@@ -15,6 +22,9 @@ public static class NotificationValidator
     /// <returns>A <see cref="NotificationValidationResponse"/> indicating success or containing validation errors.</returns>
     public static NotificationValidationResponse Validate(Notification notification)
     {
+        if(notification.Style != null)
+            return Validate(notification, notification.Style);
+        
         var errors = ValidateNotification(notification);
         return string.IsNullOrEmpty(errors)
             ? new NotificationValidationResponse(notification)
@@ -31,8 +41,10 @@ public static class NotificationValidator
     {
         var notifErrors = ValidateNotification(notification);
         var styleErrors = ValidateStyle(style);
+
+        notification.Style = style;
         return string.IsNullOrEmpty(notifErrors) && string.IsNullOrEmpty(styleErrors)
-            ? new NotificationValidationResponse(notification, style)
+            ? new NotificationValidationResponse(notification)
             : new NotificationValidationResponse($"{(string.IsNullOrEmpty(notifErrors)
                 ? styleErrors
                 : string.IsNullOrEmpty(styleErrors)
@@ -57,8 +69,7 @@ public static class NotificationValidator
         if(notification.IsRead || notification.ReadAtUtc.HasValue)
             errorMessage = AppendError(errorMessage, "Notification is already read.");
         
-        var isGuid = Guid.TryParse(notification.UserId, out _);
-        if(!isGuid || string.IsNullOrWhiteSpace(notification.UserId))
+        if(!ValidateUserId(notification.UserId))
             errorMessage = AppendError(errorMessage, "A valid target user is required.");
         
         if(notification.Title.Length > 255)
@@ -114,9 +125,6 @@ public sealed class NotificationValidationResponse
     /// <summary>Gets the validated notification, or <c>null</c> if validation failed.</summary>
     public Notification? ValidatedNotification { get; }
 
-    /// <summary>Gets the validated style, or <c>null</c> if no style was provided or validation failed.</summary>
-    public NotificationStyle? ValidatedStyle { get; }
-
     /// <summary>Gets the validation error message, or <c>null</c> if validation passed.</summary>
     public string? ErrorMessage { get; }
 
@@ -125,11 +133,10 @@ public sealed class NotificationValidationResponse
     /// </summary>
     /// <param name="notification">The validated notification.</param>
     /// <param name="style">The optional validated style.</param>
-    public NotificationValidationResponse(Notification notification, NotificationStyle? style = null)
+    public NotificationValidationResponse(Notification notification)
     {
         IsValid = true;
         ValidatedNotification = notification;
-        ValidatedStyle = style;
     }
 
     /// <summary>

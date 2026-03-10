@@ -1,5 +1,7 @@
 using JC.Communication.Logging.Services;
+using JC.Communication.Notifications.Helpers;
 using JC.Communication.Notifications.Models.Options;
+using JC.Core.Models;
 using Microsoft.Extensions.Logging;
 
 namespace JC.Communication.Notifications.Services;
@@ -18,6 +20,7 @@ public class NotificationManager : INotificationManager
     private readonly NotificationCache _cache;
     private readonly NotificationOptions _options;
     private readonly ILogger<NotificationManager> _logger;
+    private readonly IUserInfo _userInfo;
 
     /// <summary>
     /// Creates a new instance of the notification manager.
@@ -27,17 +30,20 @@ public class NotificationManager : INotificationManager
     /// <param name="cache">The notification cache for keeping in-memory state in sync.</param>
     /// <param name="options">Notification options containing dismiss behaviour configuration.</param>
     /// <param name="logger">The logger instance.</param>
+    /// <param name="userInfo">The current user context information.</param>
     public NotificationManager(NotificationService notificationService,
         NotificationLogService logService,
         NotificationCache cache,
         NotificationOptions options,
-        ILogger<NotificationManager> logger)
+        ILogger<NotificationManager> logger,
+        IUserInfo userInfo)
     {
         _notificationService = notificationService;
         _logService = logService;
         _cache = cache;
         _options = options;
         _logger = logger;
+        _userInfo = userInfo;
     }
 
     /// <summary>
@@ -48,6 +54,9 @@ public class NotificationManager : INotificationManager
     /// <returns><c>true</c> if the notification was found and marked as read; otherwise <c>false</c>.</returns>
     public async Task<bool> TryMarkAsReadAsync(string id)
     {
+        var valid = NotificationValidator.ValidateUserId(_userInfo.UserId);
+        if(!valid) return false;
+        
         var result = await _notificationService.MarkNotificationAsRead(id);
         if (!result)
         {
@@ -68,6 +77,9 @@ public class NotificationManager : INotificationManager
     /// <returns><c>true</c> if the notification was found and marked as unread; otherwise <c>false</c>.</returns>
     public async Task<bool> TryMarkAsUnreadAsync(string id)
     {
+        var valid = NotificationValidator.ValidateUserId(_userInfo.UserId);
+        if(!valid) return false;
+        
         var result = await _notificationService.UnmarkNotificationAsRead(id);
         if (!result)
         {
@@ -89,6 +101,9 @@ public class NotificationManager : INotificationManager
     /// <returns><c>true</c> if the notification was found and dismissed; otherwise <c>false</c>.</returns>
     public async Task<bool> TryDismissAsync(string id)
     {
+        var valid = NotificationValidator.ValidateUserId(_userInfo.UserId);
+        if(!valid) return false;
+        
         var softDelete = !_options.HardDeleteOnDismiss;
         var result = await _notificationService.TryDeleteNotification(id, softDelete);
         if (!result)

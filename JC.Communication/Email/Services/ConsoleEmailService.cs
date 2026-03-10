@@ -60,19 +60,19 @@ public class ConsoleEmailService : IEmailService
         }
 
         _logger.Log(_logLevel,
-            "Email from {From} to {To} | Subject: {Subject}\n\n{Body}",
+            "Email from {From} to {RecipientCount} recipient(s) | Subject: {Subject}\n\n{Body}",
             message.FromAddress,
-            string.Join(", ", message.ToAddresses.Select(r => r.Address)),
+            message.ToAddresses.Count,
             message.Subject,
             message.PlainBody);
 
         if (message.CcAddresses.Count > 0)
-            _logger.Log(_logLevel, "CC: {Cc}",
-                string.Join(", ", message.CcAddresses.Select(r => r.Address)));
+            _logger.Log(_logLevel, "CC: {CcCount} recipient(s)",
+                message.CcAddresses.Count);
 
         if (message.BccAddresses.Count > 0)
-            _logger.Log(_logLevel, "BCC: {Bcc}",
-                string.Join(", ", message.BccAddresses.Select(r => r.Address)));
+            _logger.Log(_logLevel, "BCC: {BccCount} recipient(s)",
+                message.BccAddresses.Count);
 
         var result = new EmailSendResult(EmailProvider.Console);
 

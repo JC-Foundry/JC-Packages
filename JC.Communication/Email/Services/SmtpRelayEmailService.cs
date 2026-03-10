@@ -89,8 +89,8 @@ public class SmtpRelayEmailService : IEmailService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send email to {Recipients} with subject: {Subject}",
-                string.Join(", ", message.ToAddresses.Select(r => r.Address)),
+            _logger.LogError(ex, "Failed to send email to {RecipientCount} recipient(s) with subject: {Subject}",
+                message.ToAddresses.Count,
                 message.Subject);
 
             result = new EmailSendResult(ex.Message, EmailProvider.SmtpRelay);

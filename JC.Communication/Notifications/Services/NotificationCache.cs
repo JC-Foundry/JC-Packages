@@ -95,12 +95,11 @@ public class NotificationCache
     /// This is a cache-only operation — the caller is responsible for persisting to the database.
     /// </summary>
     /// <param name="notification">The notification to add to the cache.</param>
-    /// <param name="userId">The target user. Defaults to the current user.</param>
-    public async Task AddNotificationAsync(Notification notification, string? userId = null)
+    public async Task AddNotificationAsync(Notification notification)
     {
-        var notifications = await GetNotificationsAsync(userId);
+        var notifications = await GetNotificationsAsync(notification.UserId);
         notifications.Insert(0, notification);
-        SetCache(GetCacheKey(userId), notifications);
+        SetCache(GetCacheKey(notification.UserId), notifications);
     }
 
     /// <summary>
