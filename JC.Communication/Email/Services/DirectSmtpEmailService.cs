@@ -6,38 +6,25 @@ using MailKit.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.Identity.Client;
-using MimeKit;
 
 namespace JC.Communication.Email.Services;
 
-public class MicrosoftEmailService : IEmailService
+public class DirectSmtpEmailService : IEmailService
 {
     private readonly IConfiguration _config;
     private readonly EmailOptions _options;
     private readonly EmailLogService _logService;
-    private readonly ILogger<MicrosoftEmailService> _logger;
+    private readonly ILogger<DirectSmtpEmailService> _logger;
 
-    private readonly IConfidentialClientApplication _msalClient;
-
-    public MicrosoftEmailService(IConfiguration config,
+    public DirectSmtpEmailService(IConfiguration config,
         IOptions<EmailOptions> options,
         EmailLogService logService,
-        ILogger<MicrosoftEmailService> logger)
+        ILogger<DirectSmtpEmailService> logger)
     {
         _config = config;
         _options = options.Value;
         _logService = logService;
         _logger = logger;
-
-        if (!_options.EnableSsl)
-            throw new InvalidOperationException("SSL must be enabled for Microsoft email provider.");
-
-        _msalClient = ConfidentialClientApplicationBuilder
-            .Create(_config[MicrosoftOptions.ClientId])
-            .WithClientSecret(_config[MicrosoftOptions.ClientSecret])
-            .WithTenantId(_config[MicrosoftOptions.TenantId])
-            .Build();
     }
 
     public async Task<EmailSendResult> SendAsync(EmailMessage message,
@@ -46,7 +33,7 @@ public class MicrosoftEmailService : IEmailService
         var validationErrors = message.ValidateEmailMessage();
         if (validationErrors != null)
         {
-            var failed = new EmailSendResult(validationErrors, EmailProvider.Microsoft);
+            var failed = new EmailSendResult(validationErrors, EmailProvider.DirectSmtp);
             await _logService.LogAsync(message, failed, cancellationToken);
             return failed;
         }
@@ -60,21 +47,17 @@ public class MicrosoftEmailService : IEmailService
             using var client = new SmtpClient();
             client.Timeout = _options.TimeoutMs;
 
+            var socketOptions = _options.EnableSsl
+                ? SecureSocketOptions.StartTls
+                : SecureSocketOptions.None;
+
             await client.ConnectAsync(_options.Host, _options.Port,
-                SecureSocketOptions.StartTls, cancellationToken);
+                socketOptions, cancellationToken);
 
-            var tokenResult = await _msalClient
-                .AcquireTokenForClient(["https://outlook.office365.com/.default"])
-                .ExecuteAsync(cancellationToken);
-
-            var oauth2 = new SaslMechanismOAuth2(
-                message.FromAddress, tokenResult.AccessToken);
-
-            await client.AuthenticateAsync(oauth2, cancellationToken);
             var serverResponse = await client.SendAsync(msg, cancellationToken);
             await client.DisconnectAsync(true, cancellationToken);
 
-            result = new EmailSendResult(EmailProvider.Microsoft, serverResponse);
+            result = new EmailSendResult(EmailProvider.DirectSmtp, serverResponse);
         }
         catch (Exception ex)
         {
@@ -82,7 +65,7 @@ public class MicrosoftEmailService : IEmailService
                 string.Join(", ", message.ToAddresses.Select(r => r.Address)),
                 message.Subject);
 
-            result = new EmailSendResult(ex.Message, EmailProvider.Microsoft);
+            result = new EmailSendResult(ex.Message, EmailProvider.DirectSmtp);
         }
 
         await _logService.LogAsync(message, result, cancellationToken);

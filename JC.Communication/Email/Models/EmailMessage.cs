@@ -46,6 +46,55 @@ public sealed class EmailMessage
     }
 
 
+    public string? ValidateEmailMessage()
+    {
+        var errors = string.Empty;
+
+        try
+        {
+            if(string.IsNullOrWhiteSpace(FromAddress))
+                errors = AppendError(errors, "From address is required.");
+        
+            if(FromAddress?.Contains('@') != false)
+                errors = AppendError(errors, "Invalid From address.");
+        
+            if(string.IsNullOrWhiteSpace(PlainBody))
+                errors = AppendError(errors, "Email body is required.");
+        
+            var allAddresses = ToAddresses.Select(r => r.Address)
+                .Concat(CcAddresses.Select(r => r.Address))
+                .Concat(BccAddresses.Select(r => r.Address))
+                .ToList();
+
+            var invalid = allAddresses.Where(a => string.IsNullOrWhiteSpace(a) || !a.Contains('@')).ToList();
+            if (invalid.Count > 0)
+                errors = AppendError(errors, $"Invalid recipient addresses: {string.Join(", ", invalid.Select(a => string.IsNullOrWhiteSpace(a) ? "(empty)" : a))}");
+
+            var duplicates = allAddresses
+                .Where(a => !string.IsNullOrWhiteSpace(a))
+                .GroupBy(a => a, StringComparer.OrdinalIgnoreCase)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
+                .ToList();
+
+            if (duplicates.Count > 0)
+                errors = AppendError(errors, $"Duplicate recipients found: {string.Join(", ", duplicates)}");
+        }
+        catch (NullReferenceException)
+        {
+            errors = AppendError(errors, "One or more email addresses are invalid.");    
+        }
+        
+        return string.IsNullOrEmpty(errors) ? null : errors;
+    }
+
+    private string AppendError(string errors, string err)
+    {
+        if(!string.IsNullOrEmpty(errors)) errors += Environment.NewLine;
+        return errors + err;
+    }
+    
+
     public (EmailLog Log, List<EmailRecipientLog> Recipients) ToSafeLog()
     {
         var log = new EmailLog

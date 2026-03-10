@@ -42,25 +42,45 @@ public static class ServiceCollectionExtensions
             typeof(EmailContentLog),
             typeof(EmailSentLog));
 
-        // Provider registration
-        if (options.Provider == EmailProvider.Microsoft)
+        switch (options.Provider)
         {
-            ValidateConfig(configuration,
-                MicrosoftOptions.TenantId,
-                MicrosoftOptions.ClientId,
-                MicrosoftOptions.ClientSecret,
-                EmailOptions.ConfigFromAddress);
+            // Provider registration
+            case EmailProvider.Microsoft:
+                //Validates all config values are set for Microsoft provider
+                ValidateConfig(configuration,
+                    MicrosoftOptions.TenantId,
+                    MicrosoftOptions.ClientId,
+                    MicrosoftOptions.ClientSecret,
+                    EmailOptions.ConfigFromAddress);
 
-            services.TryAddScoped<IEmailService, MicrosoftEmailService>();
-        }
-        else if (options.Provider == EmailProvider.Console)
-        {
-            // TODO: ConsoleEmailService
-            throw new NotImplementedException("Console email provider is not yet implemented.");
-        }
-        else
-        {
-            throw new InvalidOperationException($"Unsupported email provider: {options.Provider}");
+                //Registers MicrosoftEmailService
+                services.TryAddScoped<IEmailService, MicrosoftEmailService>();
+                break;
+            
+            case EmailProvider.Console:
+                //Registers ConsoleEmailService
+                services.TryAddScoped<IEmailService, ConsoleEmailService>();
+                break;
+            
+            case EmailProvider.SmtpRelay:
+                if (options.UsernameRequired)
+                    ValidateConfig(configuration, SmtpRelayOptions.Username, EmailOptions.ConfigFromAddress);
+                else
+                    ValidateConfig(configuration, EmailOptions.ConfigFromAddress);
+
+                //Registers SmtpRelayEmailService
+                services.TryAddScoped<IEmailService, SmtpRelayEmailService>();
+                break;
+
+            case EmailProvider.DirectSmtp:
+                ValidateConfig(configuration, EmailOptions.ConfigFromAddress);
+
+                //Registers DirectSmtpEmailService
+                services.TryAddScoped<IEmailService, DirectSmtpEmailService>();
+                break;
+
+            default:
+                throw new InvalidOperationException($"Unsupported email provider: {options.Provider}");
         }
 
         return services;
@@ -68,10 +88,16 @@ public static class ServiceCollectionExtensions
 
     private static void ValidateConfig(IConfiguration configuration, params string[] keys)
     {
+        string? errors = null;
         foreach (var key in keys)
         {
-            if (string.IsNullOrEmpty(configuration[key]))
-                throw new InvalidOperationException($"Configuration value '{key}' is required but was not found.");
+            if (!string.IsNullOrEmpty(configuration[key])) continue;
+            
+            if(!string.IsNullOrEmpty(errors)) errors += ", ";
+            errors += $"Configuration value '{key}' is required but was not found.";
         }
+        
+        if(!string.IsNullOrEmpty(errors))
+            throw new InvalidOperationException($"Email configuration validation failed: {errors}");
     }
 }
