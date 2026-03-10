@@ -1,6 +1,6 @@
 # JC.Core — Guide
 
-Covers repository pattern usage, soft-delete and restore, pagination, audit trail behaviour, transactions, and utility helpers. See [Setup](Setup.md) for registration.
+Covers repository pattern usage, soft-delete and restore, pagination, audit trail behaviour, entity model hierarchy, background jobs, transactions, and utility helpers. See [Setup](Setup.md) for registration.
 
 ## Repository pattern
 
@@ -34,7 +34,7 @@ public class ProductService(IRepositoryContext<Product> products)
 }
 ```
 
-Every `AddAsync` call automatically populates `CreatedById` and `CreatedUtc` on entities extending `AuditModel`. Every `UpdateAsync` populates `LastModifiedById` and `LastModifiedUtc`. The user ID comes from `IUserInfo.UserId` — if JC.Identity is registered, this is the authenticated user; otherwise it falls back to `IUserInfo.MissingUserInfoId` (`"<NONE>"`).
+Every `AddAsync` call automatically populates `CreatedById` and `CreatedUtc` on entities extending `BaseCreateModel` (which includes both `AuditModel` and `LogModel`). Every `UpdateAsync` populates `LastModifiedById` and `LastModifiedUtc` on `AuditModel` entities. The user ID comes from `IUserInfo.UserId` — if JC.Identity is registered, this is the authenticated user; otherwise it falls back to `IUserInfo.MissingUserInfoId` (`"<NONE>"`).
 
 **Nuance:** The base `DataDbContext` passes `null` for `IUserInfo` to the audit service, so audit fields will always record `"<NONE>"` as the user. If you need real user tracking, use JC.Identity's `IdentityDataDbContext` which injects the authenticated user's details.
 
@@ -145,7 +145,7 @@ public class OrderService(IRepositoryManager repositoryManager)
 
 This is the primary use case for `saveNow: false` — coordinating writes across multiple entity types in a single atomic operation. For batching a single entity type, prefer the range overloads (`AddRangeAsync`, `UpdateRangeAsync`, etc.) which handle this naturally.
 
-**Nuance:** Audit fields (`CreatedById`, `CreatedUtc`, etc.) are populated at the point you call `AddAsync` or `UpdateAsync`, not when `SaveChangesAsync` runs. If there's a significant delay between the two, the audit timestamps will reflect when the repository method was called.
+**Nuance:** Audit fields (`CreatedById`, `CreatedUtc`, etc.) are populated at the point you call `AddAsync` or `UpdateAsync`, not when `SaveChangesAsync` runs. If there's a significant delay between the two, the audit timestamps will reflect when the repository method was called. This applies to both `AuditModel` and `LogModel` entities — `FillCreated` is called on any `BaseCreateModel` inheritor.
 
 ### Range operations
 
@@ -409,7 +409,10 @@ Every call to `SaveChangesAsync` on a `DataDbContext` (or any subclass) automati
 - **Restore** — detected when `IsDeleted` changes from `true` to `false`
 - **Delete** — permanent deletion, with old and new values for modified properties
 
-This happens transparently — there is no additional code to write. Any entity tracked by EF Core (except `AuditEntry` itself) is audited.
+This happens transparently — there is no additional code to write. Most entities tracked by EF Core are audited, with two exceptions:
+
+- **`LogModel` inheritors** — create is skipped (the log *is* its own audit trail), hard delete is logged, and any attempt to update, soft-delete, or restore throws `InvalidOperationException`.
+- **`AuditEntry`** — create and hard delete are both skipped (housekeeping), and any attempt to update, soft-delete, or restore throws `InvalidOperationException`.
 
 ### Querying the audit trail
 
@@ -474,6 +477,85 @@ For **Update**, **SoftDelete**, **Delete**, and **Restore** actions, `ActionData
 ### Two-phase audit for creates
 
 Create actions are logged in two phases. During the first `SaveChangesAsync`, the entity doesn't yet have its database-generated ID. The audit service defers create entries, then after the main save completes, it logs them with the now-available IDs and calls `SaveChangesAsync` a second time. This means a single `SaveChangesAsync` call may result in two actual database writes when new entities are being created.
+
+## Entity model hierarchy
+
+JC.Core provides a three-level base class hierarchy for entities:
+
+```
+BaseCreateModel          — creation fields only
+├── LogModel             — immutable log entities
+└── AuditModel           — full lifecycle auditing
+```
+
+Choose the right base class based on your entity's lifecycle:
+
+- **`AuditModel`** — for entities that are created, updated, soft-deleted, and restored. The most common choice. All lifecycle fields are populated automatically by the repository.
+- **`LogModel`** — for entities that are written once and never modified. The audit service enforces this at the data layer — any attempt to update, soft-delete, or restore throws `InvalidOperationException`.
+- **`BaseCreateModel`** — **never extend this directly.** It is an internal base class that exists solely to share creation fields between `LogModel` and `AuditModel`. Always use `LogModel` or `AuditModel` instead. Inheriting from `BaseCreateModel` directly bypasses the audit service's immutability enforcement and type discrimination — the entity won't be recognised as either a log or an auditable entity, leading to unpredictable audit behaviour.
+- **No base class** — entities without a base class still work with the repository pattern. They just don't get automatic audit field population. Soft-delete works if the entity has a `bool IsDeleted` property.
+
+### Using LogModel
+
+```csharp
+public class EmailLog : LogModel
+{
+    public string Id { get; set; }
+    public string Recipient { get; set; }
+    public string Subject { get; set; }
+    public bool Success { get; set; }
+}
+```
+
+`LogModel` entities behave like any other entity on creation — `AddAsync` populates `CreatedById` and `CreatedUtc`, and an audit entry is *not* created (the log is its own record). The enforcement kicks in on subsequent operations:
+
+```csharp
+// This works — creates the log entry
+await emailLogs.AddAsync(log);
+
+// This works — permanently removes the log entry, and an audit entry IS logged for the deletion
+await emailLogs.DeleteAsync(log);
+
+// These all throw InvalidOperationException at SaveChangesAsync:
+await emailLogs.UpdateAsync(log);           // "Cannot perform 'Update' on a LogModel entity"
+await emailLogs.SoftDeleteAsync(log);       // "Cannot perform 'SoftDelete' on a LogModel entity"
+await emailLogs.RestoreAsync(log);          // "Cannot perform 'Restore' on a LogModel entity"
+```
+
+**Nuance:** The `InvalidOperationException` is thrown by the audit service during `SaveChangesAsync`, not by the repository method itself. If you're batching with `saveNow: false`, the exception occurs when you eventually call `SaveChangesAsync` or `CommitTransactionAsync`.
+
+## Background jobs
+
+JC.Core defines the `IBackgroundJob` interface and provides two built-in cleanup jobs. The interface lives in JC.Core so any package can declare jobs — execution is handled by JC.BackgroundJobs (or custom hosting) in the consuming application.
+
+### Defining a background job
+
+```csharp
+public class MyCleanupJob : IBackgroundJob
+{
+    public async Task ExecuteAsync(CancellationToken cancellationToken = default)
+    {
+        // Job logic here — no looping, no lifecycle management
+        // The hosting infrastructure handles scheduling and error recovery
+    }
+}
+```
+
+Implementations should contain only the job's work. Looping, error handling, and lifecycle management are handled by the hosting infrastructure (JC.BackgroundJobs).
+
+### Built-in jobs
+
+#### AuditCleanupJob
+
+Deletes audit entries older than the configured retention period. When `RetentionRecordsPerTable` is enabled (the default), the job groups audit entries by table name and ensures each table retains at least `MinimumRetentionRecords` entries. When disabled, the minimum is applied globally across all tables. Processes in configurable chunks to limit the blast radius of each execution.
+
+#### SoftDeleteCleanupJob
+
+Hard-deletes soft-deleted entities that have been in the "deleted" state longer than the configured retention period. Automatically discovers all entity types in the `DbContext` model that extend `AuditModel` or have a `bool IsDeleted` property. For `AuditModel` entities, the job filters by `DeletedUtc` directly in the database query. For non-`AuditModel` entities with an `IsDeleted` property, it loads all records and filters in memory (EF Core cannot translate reflection-based property access). Respects the blacklist to skip specific entity types.
+
+See [Setup — ConfigureCoreBackgroundJobs](Setup.md#configurecorebackgroundjobs--background-job-options) for all configuration options and defaults.
+
+**Nuance:** `ConfigureCoreBackgroundJobs` only configures the options — it does not register the jobs themselves. The consuming application must register `AuditCleanupJob` and/or `SoftDeleteCleanupJob` with JC.BackgroundJobs (or its own hosting infrastructure) for them to execute.
 
 ## DateTime extensions
 

@@ -1,6 +1,7 @@
 using Hangfire;
 using JC.BackgroundJobs.Models;
 using JC.BackgroundJobs.Services;
+using JC.Core.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

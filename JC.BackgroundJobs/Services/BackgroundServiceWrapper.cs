@@ -1,4 +1,5 @@
 using JC.BackgroundJobs.Models;
+using JC.Core.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -44,6 +45,8 @@ internal sealed class BackgroundServiceWrapper<TJob>(
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
+                if (ShouldLogInfo())
+                    logger.LogInformation("{Job} canceled - stopping job", _jobName);
                 break;
             }
             catch (Exception ex)

@@ -9,7 +9,7 @@ namespace JC.Communication.Logging.Models.Email;
 /// Persisted log entry for an email recipient. Linked to an <see cref="EmailLog"/>
 /// and categorised by <see cref="RecipientLogType"/> (To, CC, or BCC).
 /// </summary>
-public class EmailRecipientLog : AuditModel
+public class EmailRecipientLog : LogModel
 {
     /// <summary>
     /// Unique identifier for the recipient log entry.

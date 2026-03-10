@@ -27,4 +27,22 @@ public interface INotificationManager
     /// <param name="id">The notification identifier.</param>
     /// <returns><c>true</c> if the notification was found and dismissed; otherwise <c>false</c>.</returns>
     Task<bool> TryDismissAsync(string id);
+
+    /// <summary>
+    /// Marks all notifications as read for the current user.
+    /// </summary>
+    /// <returns><c>true</c> if at least one notification was marked as read; otherwise <c>false</c>.</returns>
+    Task<bool> TryMarkAllAsReadAsync();
+
+    /// <summary>
+    /// Marks all notifications as unread for the current user.
+    /// </summary>
+    /// <returns><c>true</c> if at least one notification was marked as unread; otherwise <c>false</c>.</returns>
+    Task<bool> TryMarkAllAsUnreadAsync();
+
+    /// <summary>
+    /// Dismisses all notifications for the current user.
+    /// </summary>
+    /// <returns><c>true</c> if at least one notification was dismissed; otherwise <c>false</c>.</returns>
+    Task<bool> TryDismissAllAsync();
 }

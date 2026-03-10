@@ -1,4 +1,5 @@
 using Hangfire;
+using JC.Core.Models;
 
 namespace JC.BackgroundJobs.Models;
 

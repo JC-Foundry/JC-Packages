@@ -2,41 +2,162 @@
 
 Complete reference for all public types in the email module. See [Email setup](Email-Setup.md) for registration and [Email guide](Email-Guide.md) for usage examples.
 
+> **Note:** Registration extensions (`IServiceCollection`, `IServiceProvider`, `IApplicationBuilder`) and options classes (`EmailOptions`, `MicrosoftOptions`, `SmtpRelayOptions`) are documented in [Email setup](Email-Setup.md), not here.
+
 ---
 
-## IEmailService
+# Models
 
-**Namespace:** `JC.Communication.Email.Services`
+## EmailLog
 
-Provides email sending capabilities. Inject via `IEmailService`. The concrete implementation is determined by the configured `EmailProvider` at registration.
+**Namespace:** `JC.Communication.Logging.Models.Email`
 
-### Methods
+**Extends:** `LogModel`
 
-#### SendAsync(IEnumerable\<EmailRecipient\> recipients, string subject, string plainBody, string? htmlBody = null, IEnumerable\<EmailRecipient\>? ccRecipients = null, IEnumerable\<EmailRecipient\>? bccRecipients = null)
+Persisted log entry for an outbound email. Contains sender and subject metadata with navigation properties to recipients, content, and send results. Immutable once created — only creation and hard deletion are permitted.
 
-**Returns:** `Task<EmailSendResult>`
+### Properties
+
+| Property | Type | Default | Access | Description |
+|----------|------|---------|--------|-------------|
+| `Id` | `string` | `Guid.NewGuid().ToString()` | get; private set; | Unique identifier for the email log entry. |
+| `FromAddress` | `string` | — | get; set; | The sender's email address. Required. Max length 256. |
+| `Subject` | `string` | — | get; set; | The email subject line. Required. Max length 1024. |
+| `EmailRecipientLogs` | `ICollection<EmailRecipientLog>` | — | get; set; | Navigation property to the recipients associated with this email. |
+| `EmailContentLog` | `EmailContentLog?` | — | get; set; | Navigation property to the email body content log. Only populated when `FullLog` is used. |
+| `EmailSentLogs` | `ICollection<EmailSentLog>` | — | get; set; | Navigation property to the send attempt results. |
+
+Inherits `CreatedById` and `CreatedUtc` from `BaseCreateModel` via `LogModel`.
+
+---
+
+## EmailRecipientLog
+
+**Namespace:** `JC.Communication.Logging.Models.Email`
+
+**Extends:** `LogModel`
+
+Persisted log entry for an email recipient, categorised by `RecipientLogType`. Immutable once created.
+
+### Properties
+
+| Property | Type | Default | Access | Description |
+|----------|------|---------|--------|-------------|
+| `Id` | `string` | `Guid.NewGuid().ToString()` | get; private set; | Unique identifier for the recipient log entry. |
+| `EmailLogId` | `string` | — | get; set; | Foreign key to the parent `EmailLog`. |
+| `EmailLog` | `EmailLog` | — | get; set; | Navigation property to the parent email log entry. |
+| `Address` | `string` | — | get; set; | The recipient's email address. Required. Max length 256. |
+| `DisplayName` | `string?` | — | get; set; | The recipient's display name, if provided. |
+| `RecipientLogType` | `RecipientLogType` | `To` | get; set; | The type of recipient (To, CC, or BCC). Required. |
+
+### Constructors
+
+#### EmailRecipientLog()
+
+Parameterless constructor for EF Core.
+
+#### EmailRecipientLog(EmailRecipient recipient)
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `recipients` | `IEnumerable<EmailRecipient>` | — | The primary recipients of the email. |
-| `subject` | `string` | — | The email subject line. |
-| `plainBody` | `string` | — | The plain text body. |
-| `htmlBody` | `string?` | `null` | Optional HTML body. When `null`, the HTML body defaults to `plainBody` via the `EmailMessage` constructor. |
-| `ccRecipients` | `IEnumerable<EmailRecipient>?` | `null` | Optional carbon copy recipients. |
-| `bccRecipients` | `IEnumerable<EmailRecipient>?` | `null` | Optional blind carbon copy recipients. |
+| `recipient` | `EmailRecipient` | — | The email recipient to log. |
 
-Sends an email using the default from address read from `Communication:Email:DefaultFromAddress` configuration. Constructs an `EmailMessage` internally and delegates to the `SendAsync(EmailMessage, CancellationToken)` overload. Throws `InvalidOperationException` if the default from address is not configured.
+Sets `Address` and `DisplayName` from the recipient.
 
-#### SendAsync(EmailMessage message, CancellationToken cancellationToken = default)
-
-**Returns:** `Task<EmailSendResult>`
+#### EmailRecipientLog(string emailLogId, EmailRecipient recipient)
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `message` | `EmailMessage` | — | The fully constructed email message to send. |
-| `cancellationToken` | `CancellationToken` | `default` | Optional cancellation token. |
+| `emailLogId` | `string` | — | The parent email log ID. |
+| `recipient` | `EmailRecipient` | — | The email recipient to log. |
 
-Validates the message via `EmailMessage.ValidateEmailMessage()` before attempting to send. If validation fails, returns a failed `EmailSendResult` with the validation errors as the error message and logs the attempt. If validation passes, sends the email via the configured provider and logs the result. Both successful and failed attempts are logged.
+Sets `EmailLogId`, `Address`, and `DisplayName`.
+
+#### EmailRecipientLog(EmailRecipient recipient, RecipientLogType logType)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `recipient` | `EmailRecipient` | — | The email recipient to log. |
+| `logType` | `RecipientLogType` | — | The recipient type (To, CC, or BCC). |
+
+Sets `Address`, `DisplayName`, and `RecipientLogType`.
+
+#### EmailRecipientLog(string emailLogId, EmailRecipient recipient, RecipientLogType logType)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `emailLogId` | `string` | — | The parent email log ID. |
+| `recipient` | `EmailRecipient` | — | The email recipient to log. |
+| `logType` | `RecipientLogType` | — | The recipient type (To, CC, or BCC). |
+
+Sets `EmailLogId`, `Address`, `DisplayName`, and `RecipientLogType`.
+
+---
+
+## EmailContentLog
+
+**Namespace:** `JC.Communication.Logging.Models.Email`
+
+**Extends:** `LogModel`
+
+Persisted log entry for email body content. Only created when `FullLog` is used. One-to-one relationship with `EmailLog`. Immutable once created.
+
+### Properties
+
+| Property | Type | Default | Access | Description |
+|----------|------|---------|--------|-------------|
+| `Id` | `string` | `Guid.NewGuid().ToString()` | get; private set; | Unique identifier for the content log entry. |
+| `EmailLogId` | `string` | — | get; set; | Foreign key to the parent `EmailLog`. |
+| `EmailLog` | `EmailLog` | — | get; set; | Navigation property to the parent email log entry. |
+| `PlainBody` | `string` | — | get; set; | The plain text body of the email. Required. |
+| `HtmlBodyRaw` | `string?` | — | get; set; | The raw HTML body. `null` if the HTML body was identical to the plain body. |
+| `HtmlBody` | `string` | — | get (not mapped) | Resolved HTML body. Returns `HtmlBodyRaw` if set, otherwise falls back to `PlainBody`. Not persisted to the database. |
+
+---
+
+## EmailSentLog
+
+**Namespace:** `JC.Communication.Logging.Models.Email`
+
+**Extends:** `LogModel`
+
+Persisted log entry for an email send attempt result. Linked to an `EmailLog`. Multiple entries per email log support retry scenarios. Immutable once created.
+
+### Properties
+
+| Property | Type | Default | Access | Description |
+|----------|------|---------|--------|-------------|
+| `Id` | `string` | `Guid.NewGuid().ToString()` | get; private set; | Unique identifier for the send result log entry. |
+| `EmailLogId` | `string` | — | get; set; | Foreign key to the parent `EmailLog`. |
+| `EmailLog` | `EmailLog` | — | get; set; | Navigation property to the parent email log entry. |
+| `Succeeded` | `bool` | — | get; set; | Whether the send attempt succeeded. |
+| `Provider` | `EmailProvider` | — | get; set; | The email provider that handled the send attempt. Required. |
+| `SentAtUtc` | `DateTime` | — | get; set; | UTC timestamp of the send attempt. Required. |
+| `ServerResponse` | `string?` | — | get; set; | The SMTP server response string on success. `null` on failure or if not available. |
+| `ErrorMessage` | `string?` | — | get; set; | The error message if the send failed. `null` on success. |
+
+### Constructors
+
+#### EmailSentLog()
+
+Parameterless constructor for EF Core.
+
+#### EmailSentLog(EmailSendResult result)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `result` | `EmailSendResult` | — | The send result to log. |
+
+Copies `Succeeded`, `Provider`, `SentAtUtc`, `ServerResponse`, and `ErrorMessage` from the result.
+
+#### EmailSentLog(string emailLogId, EmailSendResult result)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `emailLogId` | `string` | — | The parent email log ID. |
+| `result` | `EmailSendResult` | — | The send result to log. |
+
+Sets `EmailLogId` and copies all properties from the result.
 
 ---
 
@@ -208,6 +329,8 @@ Creates a failed send result with an explicit timestamp. Sets `Succeeded` to `fa
 
 ---
 
+# Enums
+
 ## EmailProvider
 
 **Namespace:** `JC.Communication.Email.Models`
@@ -220,35 +343,6 @@ Enum determining which email provider implementation is used.
 | `Microsoft` | `0` | Sends email via Microsoft 365 / Exchange Online using OAuth2 (MSAL) SMTP relay. The from address must correspond to a mailbox the Azure AD app has "Send As" permission for. |
 | `SmtpRelay` | `1` | Sends email via a third-party SMTP relay using username/password or API key authentication. |
 | `DirectSmtp` | `2` | Sends email directly via SMTP without authentication. |
-
----
-
-## EmailOptions
-
-**Namespace:** `JC.Communication.Email.Models.Options`
-
-Configuration options for email communication.
-
-### Properties
-
-| Property | Type | Default | Access | Description |
-|----------|------|---------|--------|-------------|
-| `Provider` | `EmailProvider` | `Microsoft` | get; set; | The email provider to use for sending. |
-| `LoggingMode` | `EmailLoggingMode` | `ExcludeContent` | get; set; | Controls what is persisted to the database. Must be `None` when using the non-generic `AddEmail` overload. |
-| `TimeoutMs` | `int` | `30000` | get; set; | SMTP send timeout in milliseconds. Applies to Microsoft, SmtpRelay, and DirectSmtp providers. |
-| `LogLevel` | `LogLevel` | `Information` | get; set; | The log level used by the console provider when outputting email content. Ignored for all other providers. |
-| `Host` | `string` | `"smtp.office365.com"` | get; set; | SMTP server hostname. Validated at startup for SMTP-based providers. |
-| `Port` | `int` | `587` | get; set; | SMTP server port. Must be between 1 and 65535. Validated at startup. |
-| `EnableSsl` | `bool` | `true` | get; set; | Whether to use StartTLS when connecting. Must be `true` for the Microsoft provider. |
-| `SslProtocol` | `SslProtocols` | `None` | get; set; | SSL/TLS protocol version. `None` lets the OS negotiate the highest supported version. |
-| `UsernameRequired` | `bool` | `true` | get; set; | Whether a username is required for SMTP relay authentication. Only applies to the SmtpRelay provider. |
-
-### Constants
-
-| Constant | Type | Value | Description |
-|----------|------|-------|-------------|
-| `ConfigFromAddress` | `string` | `"Communication:Email:DefaultFromAddress"` | Configuration key for the default sender email address. |
-| `ConfigFromDisplayName` | `string` | `"Communication:Email:DefaultFromDisplayName"` | Configuration key for the default sender display name. |
 
 ---
 
@@ -266,36 +360,57 @@ Enum controlling how email send attempts are logged to the database.
 
 ---
 
-## MicrosoftOptions
+## RecipientLogType
 
-**Namespace:** `JC.Communication.Email.Models.Options`
+**Namespace:** `JC.Communication.Logging.Models.Email`
 
-Configuration key constants for the Microsoft OAuth email provider.
+Enum indicating the type of email recipient for logging purposes.
 
-### Constants
-
-| Constant | Type | Value | Description |
-|----------|------|-------|-------------|
-| `TenantId` | `string` | `"Communication:Email:TenantId"` | Configuration key for the Azure AD tenant ID. |
-| `ClientId` | `string` | `"Communication:Email:ClientId"` | Configuration key for the Azure AD application (client) ID. |
-| `ClientSecret` | `string` | `"Communication:Email:ClientSecret"` | Configuration key for the Azure AD client secret. |
+| Member | Value | Description |
+|--------|-------|-------------|
+| `To` | `0` | A primary (To) recipient. |
+| `Cc` | `1` | A carbon copy (CC) recipient. |
+| `Bcc` | `2` | A blind carbon copy (BCC) recipient. |
 
 ---
 
-## SmtpRelayOptions
+# Services
 
-**Namespace:** `JC.Communication.Email.Models.Options`
+## IEmailService
 
-Configuration key constants for the SMTP relay email provider. Multiple secret key names are supported to provide flexibility for different relay services.
+**Namespace:** `JC.Communication.Email.Services`
 
-### Constants
+Provides email sending capabilities. Inject via `IEmailService`. The concrete implementation is determined by the configured `EmailProvider` at registration.
 
-| Constant | Type | Value | Description |
-|----------|------|-------|-------------|
-| `Username` | `string` | `"Communication:Email:Username"` | Configuration key for the SMTP username. Only required when `EmailOptions.UsernameRequired` is `true`. |
-| `Password` | `string` | `"Communication:Email:Password"` | Configuration key for the SMTP password. Checked first when resolving the authentication secret. |
-| `ApiKey` | `string` | `"Communication:Email:ApiKey"` | Configuration key for the API key. Checked second when resolving the authentication secret. |
-| `Secret` | `string` | `"Communication:Email:Secret"` | Configuration key for a generic secret. Checked last when resolving the authentication secret. |
+### Methods
+
+#### SendAsync(IEnumerable\<EmailRecipient\> recipients, string subject, string plainBody, string? htmlBody = null, IEnumerable\<EmailRecipient\>? ccRecipients = null, IEnumerable\<EmailRecipient\>? bccRecipients = null)
+
+**Returns:** `Task<EmailSendResult>`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `recipients` | `IEnumerable<EmailRecipient>` | — | The primary recipients of the email. |
+| `subject` | `string` | — | The email subject line. |
+| `plainBody` | `string` | — | The plain text body. |
+| `htmlBody` | `string?` | `null` | Optional HTML body. When `null`, the HTML body defaults to `plainBody` via the `EmailMessage` constructor. |
+| `ccRecipients` | `IEnumerable<EmailRecipient>?` | `null` | Optional carbon copy recipients. |
+| `bccRecipients` | `IEnumerable<EmailRecipient>?` | `null` | Optional blind carbon copy recipients. |
+
+Sends an email using the default from address read from `Communication:Email:DefaultFromAddress` configuration. Constructs an `EmailMessage` internally and delegates to the `SendAsync(EmailMessage, CancellationToken)` overload. Throws `InvalidOperationException` if the default from address is not configured.
+
+---
+
+#### SendAsync(EmailMessage message, CancellationToken cancellationToken = default)
+
+**Returns:** `Task<EmailSendResult>`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `message` | `EmailMessage` | — | The fully constructed email message to send. |
+| `cancellationToken` | `CancellationToken` | `default` | Optional cancellation token. |
+
+Validates the message via `EmailMessage.ValidateEmailMessage()` before attempting to send. If validation fails, returns a failed `EmailSendResult` with the validation errors as the error message and logs the attempt. If validation passes, sends the email via the configured provider and logs the result. Both successful and failed attempts are logged.
 
 ---
 
@@ -325,6 +440,8 @@ All entities are added with `saveNow: false` and saved in a single `SaveChangesA
 
 ---
 
+# Data
+
 ## IEmailDbContext
 
 **Namespace:** `JC.Communication.Logging.Data`
@@ -339,160 +456,3 @@ Database context interface for email logging. Your application's `DbContext` mus
 | `EmailRecipientLogs` | `DbSet<EmailRecipientLog>` | get; set; | Recipient log entries linked to email logs. |
 | `EmailContentLogs` | `DbSet<EmailContentLog>` | get; set; | Content log entries containing email body content. Only populated when `FullLog` is used. |
 | `EmailSentLogs` | `DbSet<EmailSentLog>` | get; set; | Send result log entries containing success/failure status and error details. |
-
----
-
-## EmailLog
-
-**Namespace:** `JC.Communication.Logging.Models.Email`
-
-Persisted log entry for an outbound email. Contains sender and subject metadata with navigation properties to recipients, content, and send results. Extends `AuditModel`.
-
-### Properties
-
-| Property | Type | Default | Access | Description |
-|----------|------|---------|--------|-------------|
-| `Id` | `string` | `Guid.NewGuid().ToString()` | get; private set; | Unique identifier for the email log entry. |
-| `FromAddress` | `string` | — | get; set; | The sender's email address. Required. Max length 256. |
-| `Subject` | `string` | — | get; set; | The email subject line. Required. Max length 1024. |
-| `EmailRecipientLogs` | `ICollection<EmailRecipientLog>` | — | get; set; | Navigation property to the recipients associated with this email. |
-| `EmailContentLog` | `EmailContentLog?` | — | get; set; | Navigation property to the email body content log. Only populated when `FullLog` is used. |
-| `EmailSentLogs` | `ICollection<EmailSentLog>` | — | get; set; | Navigation property to the send attempt results. |
-
----
-
-## EmailRecipientLog
-
-**Namespace:** `JC.Communication.Logging.Models.Email`
-
-Persisted log entry for an email recipient, categorised by `RecipientLogType`. Extends `AuditModel`.
-
-### Properties
-
-| Property | Type | Default | Access | Description |
-|----------|------|---------|--------|-------------|
-| `Id` | `string` | `Guid.NewGuid().ToString()` | get; private set; | Unique identifier for the recipient log entry. |
-| `EmailLogId` | `string` | — | get; set; | Foreign key to the parent `EmailLog`. |
-| `EmailLog` | `EmailLog` | — | get; set; | Navigation property to the parent email log entry. |
-| `Address` | `string` | — | get; set; | The recipient's email address. Required. Max length 256. |
-| `DisplayName` | `string?` | — | get; set; | The recipient's display name, if provided. |
-| `RecipientLogType` | `RecipientLogType` | `To` | get; set; | The type of recipient (To, CC, or BCC). Required. |
-
-### Constructors
-
-#### EmailRecipientLog()
-
-Parameterless constructor for EF Core.
-
-#### EmailRecipientLog(EmailRecipient recipient)
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `recipient` | `EmailRecipient` | — | The email recipient to log. |
-
-Sets `Address` and `DisplayName` from the recipient.
-
-#### EmailRecipientLog(string emailLogId, EmailRecipient recipient)
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `emailLogId` | `string` | — | The parent email log ID. |
-| `recipient` | `EmailRecipient` | — | The email recipient to log. |
-
-Sets `EmailLogId`, `Address`, and `DisplayName`.
-
-#### EmailRecipientLog(EmailRecipient recipient, RecipientLogType logType)
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `recipient` | `EmailRecipient` | — | The email recipient to log. |
-| `logType` | `RecipientLogType` | — | The recipient type (To, CC, or BCC). |
-
-Sets `Address`, `DisplayName`, and `RecipientLogType`.
-
-#### EmailRecipientLog(string emailLogId, EmailRecipient recipient, RecipientLogType logType)
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `emailLogId` | `string` | — | The parent email log ID. |
-| `recipient` | `EmailRecipient` | — | The email recipient to log. |
-| `logType` | `RecipientLogType` | — | The recipient type (To, CC, or BCC). |
-
-Sets `EmailLogId`, `Address`, `DisplayName`, and `RecipientLogType`.
-
----
-
-## RecipientLogType
-
-**Namespace:** `JC.Communication.Logging.Models.Email`
-
-Enum indicating the type of email recipient for logging purposes.
-
-| Member | Value | Description |
-|--------|-------|-------------|
-| `To` | `0` | A primary (To) recipient. |
-| `Cc` | `1` | A carbon copy (CC) recipient. |
-| `Bcc` | `2` | A blind carbon copy (BCC) recipient. |
-
----
-
-## EmailContentLog
-
-**Namespace:** `JC.Communication.Logging.Models.Email`
-
-Persisted log entry for email body content. Only created when `FullLog` is used. One-to-one relationship with `EmailLog`. Extends `AuditModel`.
-
-### Properties
-
-| Property | Type | Default | Access | Description |
-|----------|------|---------|--------|-------------|
-| `Id` | `string` | `Guid.NewGuid().ToString()` | get; private set; | Unique identifier for the content log entry. |
-| `EmailLogId` | `string` | — | get; set; | Foreign key to the parent `EmailLog`. |
-| `EmailLog` | `EmailLog` | — | get; set; | Navigation property to the parent email log entry. |
-| `PlainBody` | `string` | — | get; set; | The plain text body of the email. Required. |
-| `HtmlBodyRaw` | `string?` | — | get; set; | The raw HTML body. `null` if the HTML body was identical to the plain body. |
-| `HtmlBody` | `string` | — | get (not mapped) | Resolved HTML body. Returns `HtmlBodyRaw` if set, otherwise falls back to `PlainBody`. Not persisted to the database. |
-
----
-
-## EmailSentLog
-
-**Namespace:** `JC.Communication.Logging.Models.Email`
-
-Persisted log entry for an email send attempt result. Linked to an `EmailLog`. Multiple entries per email log support retry scenarios. Extends `AuditModel`.
-
-### Properties
-
-| Property | Type | Default | Access | Description |
-|----------|------|---------|--------|-------------|
-| `Id` | `string` | `Guid.NewGuid().ToString()` | get; private set; | Unique identifier for the send result log entry. |
-| `EmailLogId` | `string` | — | get; set; | Foreign key to the parent `EmailLog`. |
-| `EmailLog` | `EmailLog` | — | get; set; | Navigation property to the parent email log entry. |
-| `Succeeded` | `bool` | — | get; set; | Whether the send attempt succeeded. |
-| `Provider` | `EmailProvider` | — | get; set; | The email provider that handled the send attempt. Required. |
-| `SentAtUtc` | `DateTime` | — | get; set; | UTC timestamp of the send attempt. Required. |
-| `ServerResponse` | `string?` | — | get; set; | The SMTP server response string on success. `null` on failure or if not available. |
-| `ErrorMessage` | `string?` | — | get; set; | The error message if the send failed. `null` on success. |
-
-### Constructors
-
-#### EmailSentLog()
-
-Parameterless constructor for EF Core.
-
-#### EmailSentLog(EmailSendResult result)
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `result` | `EmailSendResult` | — | The send result to log. |
-
-Copies `Succeeded`, `Provider`, `SentAtUtc`, `ServerResponse`, and `ErrorMessage` from the result.
-
-#### EmailSentLog(string emailLogId, EmailSendResult result)
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `emailLogId` | `string` | — | The parent email log ID. |
-| `result` | `EmailSendResult` | — | The send result to log. |
-
-Sets `EmailLogId` and copies all properties from the result.

@@ -1,3 +1,4 @@
+using JC.Core.Models;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace JC.BackgroundJobs.Models;

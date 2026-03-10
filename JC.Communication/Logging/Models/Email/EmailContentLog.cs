@@ -8,7 +8,7 @@ namespace JC.Communication.Logging.Models.Email;
 /// Persisted log entry for email body content. Only created when <see cref="Options.EmailLoggingMode.FullLog"/> is used.
 /// Linked to an <see cref="EmailLog"/> as a one-to-one relationship.
 /// </summary>
-public class EmailContentLog : AuditModel
+public class EmailContentLog : LogModel
 {
     /// <summary>
     /// Unique identifier for the content log entry.

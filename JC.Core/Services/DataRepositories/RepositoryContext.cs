@@ -20,6 +20,7 @@ public class RepositoryContext<T> : IRepositoryContext<T>
     private readonly IUserInfo? _userInfo;
     private readonly ILogger<RepositoryContext<T>> _logger;
     private readonly bool _isAuditModel;
+    private readonly bool _isLogModel;
     private readonly bool _hasIsDeletedProperty;
 
     public RepositoryContext(DbContext context,
@@ -31,6 +32,7 @@ public class RepositoryContext<T> : IRepositoryContext<T>
 
         var type = typeof(T);
         _isAuditModel = typeof(AuditModel).IsAssignableFrom(type);
+        _isLogModel = typeof(LogModel).IsAssignableFrom(type);
         _hasIsDeletedProperty = _isAuditModel || type.GetProperty("IsDeleted") != null;
 
         _userInfo = serviceProvider.GetService<IUserInfo>();
@@ -80,11 +82,11 @@ public class RepositoryContext<T> : IRepositoryContext<T>
 
         try
         {
-            if (_isAuditModel)
+            if (_isAuditModel || _isLogModel)
             {
-                foreach (var audit in list.Select(e => e as AuditModel))
+                foreach (var model in list.Select(e => e as BaseCreateModel))
                 {
-                    audit?.FillCreated(GetUserId(userId));
+                    model?.FillCreated(GetUserId(userId));
                 }
             }
 

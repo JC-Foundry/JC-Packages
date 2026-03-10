@@ -7,7 +7,7 @@ namespace JC.Communication.Logging.Models.Email;
 /// Persisted log entry for an outbound email. Contains sender and subject metadata,
 /// with navigation properties to recipients, content, and send results.
 /// </summary>
-public class EmailLog : AuditModel
+public class EmailLog : LogModel
 {
     /// <summary>
     /// Unique identifier for the email log entry.

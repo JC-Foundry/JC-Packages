@@ -2,93 +2,11 @@
 
 Complete reference of all public types, properties, and methods in JC.Github. See [Setup](Setup.md) for registration and [Guide](Guide.md) for usage examples.
 
-## BugReportService
-
-**Namespace:** `JC.Github.Services`
-
-Manages local persistence and GitHub synchronisation of issue reports. Reads `GithubRepoOwner` and `GithubRepoName` from `GithubOptions` at construction time — throws `InvalidOperationException` if either is empty. Inject via `BugReportService`.
-
-### Methods
-
-#### RecordIssue(string description, IssueType issueType, string? creatorId = null, string? creatorName = null)
-
-**Returns:** `Task<ReportedIssue>`
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `description` | `string` | — | The issue body text. Used as the GitHub issue body. |
-| `issueType` | `IssueType` | — | Whether this is a `Bug` or `Suggestion`. Determines the GitHub issue title (`"New Bug"` or `"New Suggestion"`). |
-| `creatorId` | `string?` | `null` | Local-only user identifier. Stored on the `ReportedIssue` but not sent to GitHub. |
-| `creatorName` | `string?` | `null` | Local-only display name. Stored on the `ReportedIssue` but not sent to GitHub. |
-
-Creates a new `ReportedIssue` entity with `Created` set to `DateTime.UtcNow` and `ReportSent` initially `false`. Attempts to create a corresponding GitHub issue via `GitHelper.RecordIssue` using the configured owner and repo. The GitHub issue title is set to `"New "` followed by the `issueType` name.
-
-If the GitHub API call succeeds, `ReportSent` is set to `true` and `ExternalId` is populated with the returned issue number. If it fails, the exception is logged but not thrown — `ReportSent` remains `false` and `ExternalId` remains `null`.
-
-The entity is always persisted to the database via `IRepositoryContext<ReportedIssue>.AddAsync` regardless of GitHub sync outcome.
+> **Note:** Registration extensions (`IServiceCollection`, `IServiceProvider`, `IApplicationBuilder`) and options classes are documented in [Setup](Setup.md), not here.
 
 ---
 
-## GithubWebhookService
-
-**Namespace:** `JC.Github.Services`
-
-Processes incoming GitHub webhook events and synchronises the local database. Inject via `GithubWebhookService`.
-
-### Methods
-
-#### ProcessEventAsync(string eventType, WebhookPayload payload)
-
-**Returns:** `Task`
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `eventType` | `string` | — | The GitHub event type from the `X-GitHub-Event` header (e.g. `"issues"`, `"issue_comment"`). |
-| `payload` | `WebhookPayload` | — | The deserialised webhook request body. |
-
-Routes the event to the appropriate handler based on `eventType`. Returns immediately without processing if `payload.Issue` is `null`.
-
-For `"issues"` events: looks up an existing `ReportedIssue` by `ExternalId` matching the issue number. If none exists, creates a new record with `Type = IssueType.Bug`, `ReportSent = true`, `Description` set to the issue body (falling back to the title if body is null), and `Closed` reflecting the current state. If a matching record exists, updates its `Description` and `Closed` status. Catches `DbUpdateException` silently on create to handle duplicate webhook deliveries.
-
-For `"issue_comment"` events (requires `payload.Comment` to be non-null): looks up an existing `IssueComment` by `CommentId`. On `"created"` action, inserts a new comment record (catching `DbUpdateException` for duplicates). On `"edited"`, updates the `Body` and `UpdatedAt` fields. On `"deleted"`, sets `Deleted = true` (soft-delete).
-
-All other event types are logged at debug level and ignored.
-
----
-
-## GitHelper
-
-**Namespace:** `JC.Github.Helpers`
-
-Low-level HTTP client for the GitHub API. Configured as a singleton with authentication headers set at construction time. Inject via `GitHelper`.
-
-### Constructor
-
-#### GitHelper(GithubOptions options, string apiKey)
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `options` | `GithubOptions` | — | Options providing the API URL (`GithubApiUrl`), API version (`GithubApiVersion`), and user agent (`GitHelperUserAgent`). |
-| `apiKey` | `string` | — | The personal access token used for `Authorization: Bearer` authentication. |
-
-Creates a `FlurlClient` configured with `Authorization`, `X-GitHub-Api-Version` (from `options.GithubApiVersion`), and `User-Agent` (from `options.GitHelperUserAgent`) headers applied to all requests.
-
-### Methods
-
-#### RecordIssue(string owner, string repo, string title, string desc)
-
-**Returns:** `Task<int>`
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `owner` | `string` | — | The GitHub username or organisation that owns the repository. |
-| `repo` | `string` | — | The repository name. |
-| `title` | `string` | — | The title for the new issue. |
-| `desc` | `string` | — | The body content for the new issue. |
-
-Sends a `POST` request to `/repos/{owner}/{repo}/issues` with the title and body as JSON. Deserialises the response as `NewIssueResponse` and returns the `Number` property (the GitHub issue number). Does not catch exceptions — failures propagate directly to the caller.
-
----
+# Models
 
 ## ReportedIssue
 
@@ -131,27 +49,6 @@ Entity representing a GitHub issue comment, synced via webhooks.
 | `CreatedAt` | `DateTime` | — | get; set; | UTC timestamp from GitHub. |
 | `UpdatedAt` | `DateTime?` | `null` | get; set; | UTC timestamp of last edit on GitHub. |
 | `Deleted` | `bool` | `false` | get; set; | Whether the comment has been soft-deleted (set when deleted on GitHub). |
-
----
-
-## GithubOptions
-
-**Namespace:** `JC.Github.Models.Options`
-
-Configuration options for JC.Github services. Populated during registration.
-
-### Properties
-
-| Property | Type | Default | Access | Description |
-|----------|------|---------|--------|-------------|
-| `GithubApiUrl` | `string` | `"https://api.github.com"` | get; set; | Base URL for the GitHub REST API. |
-| `GithubApiVersion` | `string` | `"2022-11-28"` | get; set; | The `X-GitHub-Api-Version` header value sent with all API requests. |
-| `GitHelperUserAgent` | `string` | `"JC-Application"` | get; set; | The `User-Agent` header value sent with GitHub API requests. |
-| `GithubRepoOwner` | `string` | `""` | get; set; | The GitHub repository owner (user or organisation) used by `BugReportService`. |
-| `GithubRepoName` | `string` | `""` | get; set; | The GitHub repository name used by `BugReportService`. |
-| `EnableWebhooks` | `bool` | `true` | get; set; | Whether webhook endpoint registration is enabled. |
-| `WebhookPath` | `string` | `"/api/github/webhook"` | get; set; | The URL path for the GitHub webhook endpoint. |
-| `WebhookSecret` | `string` | `""` | get; internal set; | The HMAC-SHA256 secret used to validate incoming webhook payloads. Set from the `Github:Secret` configuration key during post-configuration. |
 
 ---
 
@@ -240,6 +137,115 @@ Deserialisation model for the user object within GitHub webhook payloads.
 
 ---
 
+# Enums
+
+## IssueType
+
+**Namespace:** `JC.Github.Models`
+
+Enum indicating the type of reported issue.
+
+| Member | Value | Description |
+|--------|-------|-------------|
+| `Suggestion` | `0` | A feature suggestion. GitHub issue title: "New Suggestion". |
+| `Bug` | `1` | A bug report. GitHub issue title: "New Bug". |
+
+---
+
+# Services
+
+## BugReportService
+
+**Namespace:** `JC.Github.Services`
+
+Manages local persistence and GitHub synchronisation of issue reports. Reads `GithubRepoOwner` and `GithubRepoName` from `GithubOptions` at construction time — throws `InvalidOperationException` if either is empty. Inject via `BugReportService`.
+
+### Methods
+
+#### RecordIssue(string description, IssueType issueType, string? creatorId = null, string? creatorName = null)
+
+**Returns:** `Task<ReportedIssue>`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `description` | `string` | — | The issue body text. Used as the GitHub issue body. |
+| `issueType` | `IssueType` | — | Whether this is a `Bug` or `Suggestion`. Determines the GitHub issue title (`"New Bug"` or `"New Suggestion"`). |
+| `creatorId` | `string?` | `null` | Local-only user identifier. Stored on the `ReportedIssue` but not sent to GitHub. |
+| `creatorName` | `string?` | `null` | Local-only display name. Stored on the `ReportedIssue` but not sent to GitHub. |
+
+Creates a new `ReportedIssue` entity with `Created` set to `DateTime.UtcNow` and `ReportSent` initially `false`. Attempts to create a corresponding GitHub issue via `GitHelper.RecordIssue` using the configured owner and repo. The GitHub issue title is set to `"New "` followed by the `issueType` name.
+
+If the GitHub API call succeeds, `ReportSent` is set to `true` and `ExternalId` is populated with the returned issue number. If it fails, the exception is logged but not thrown — `ReportSent` remains `false` and `ExternalId` remains `null`.
+
+The entity is always persisted to the database via `IRepositoryContext<ReportedIssue>.AddAsync` regardless of GitHub sync outcome.
+
+---
+
+## GithubWebhookService
+
+**Namespace:** `JC.Github.Services`
+
+Processes incoming GitHub webhook events and synchronises the local database. Inject via `GithubWebhookService`.
+
+### Methods
+
+#### ProcessEventAsync(string eventType, WebhookPayload payload)
+
+**Returns:** `Task`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `eventType` | `string` | — | The GitHub event type from the `X-GitHub-Event` header (e.g. `"issues"`, `"issue_comment"`). |
+| `payload` | `WebhookPayload` | — | The deserialised webhook request body. |
+
+Routes the event to the appropriate handler based on `eventType`. Returns immediately without processing if `payload.Issue` is `null`.
+
+For `"issues"` events: looks up an existing `ReportedIssue` by `ExternalId` matching the issue number. If none exists, creates a new record with `Type = IssueType.Bug`, `ReportSent = true`, `Description` set to the issue body (falling back to the title if body is null), and `Closed` reflecting the current state. If a matching record exists, updates its `Description` and `Closed` status. Catches `DbUpdateException` silently on create to handle duplicate webhook deliveries.
+
+For `"issue_comment"` events (requires `payload.Comment` to be non-null): looks up an existing `IssueComment` by `CommentId`. On `"created"` action, inserts a new comment record (catching `DbUpdateException` for duplicates). On `"edited"`, updates the `Body` and `UpdatedAt` fields. On `"deleted"`, sets `Deleted = true` (soft-delete).
+
+All other event types are logged at debug level and ignored.
+
+---
+
+# Helpers
+
+## GitHelper
+
+**Namespace:** `JC.Github.Helpers`
+
+Low-level HTTP client for the GitHub API. Configured as a singleton with authentication headers set at construction time. Inject via `GitHelper`.
+
+### Constructor
+
+#### GitHelper(GithubOptions options, string apiKey)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `options` | `GithubOptions` | — | Options providing the API URL (`GithubApiUrl`), API version (`GithubApiVersion`), and user agent (`GitHelperUserAgent`). |
+| `apiKey` | `string` | — | The personal access token used for `Authorization: Bearer` authentication. |
+
+Creates a `FlurlClient` configured with `Authorization`, `X-GitHub-Api-Version` (from `options.GithubApiVersion`), and `User-Agent` (from `options.GitHelperUserAgent`) headers applied to all requests.
+
+### Methods
+
+#### RecordIssue(string owner, string repo, string title, string desc)
+
+**Returns:** `Task<int>`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `owner` | `string` | — | The GitHub username or organisation that owns the repository. |
+| `repo` | `string` | — | The repository name. |
+| `title` | `string` | — | The title for the new issue. |
+| `desc` | `string` | — | The body content for the new issue. |
+
+Sends a `POST` request to `/repos/{owner}/{repo}/issues` with the title and body as JSON. Deserialises the response as `NewIssueResponse` and returns the `Number` property (the GitHub issue number). Does not catch exceptions — failures propagate directly to the caller.
+
+---
+
+# Data
+
 ## IGithubDbContext
 
 **Namespace:** `JC.Github.Data`
@@ -252,16 +258,3 @@ Contract for the GitHub data context, exposing entity sets for issue tracking.
 |----------|------|--------|-------------|
 | `ReportedIssues` | `DbSet<ReportedIssue>` | get; set; | The set of locally persisted issue reports. |
 | `IssueComments` | `DbSet<IssueComment>` | get; set; | The set of locally persisted issue comments. |
-
----
-
-## IssueType
-
-**Namespace:** `JC.Github.Models`
-
-Enum indicating the type of reported issue.
-
-| Member | Value | Description |
-|--------|-------|-------------|
-| `Suggestion` | `0` | A feature suggestion. GitHub issue title: "New Suggestion". |
-| `Bug` | `1` | A bug report. GitHub issue title: "New Bug". |

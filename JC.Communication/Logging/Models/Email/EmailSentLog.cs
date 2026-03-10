@@ -10,7 +10,7 @@ namespace JC.Communication.Logging.Models.Email;
 /// and records the success/failure status, provider, timestamp, and any error details.
 /// Multiple entries per email log support retry scenarios.
 /// </summary>
-public class EmailSentLog : AuditModel
+public class EmailSentLog : LogModel
 {
     /// <summary>
     /// Unique identifier for the send result log entry.

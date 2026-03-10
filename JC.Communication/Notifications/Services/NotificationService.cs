@@ -78,6 +78,9 @@ public class NotificationService
     public async Task<List<Notification>> GetNotifications(bool orderByNewest = true, bool asNoTracking = true,
         string? userId = null, DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive)
     {
+        var valid = NotificationValidator.ValidateUserId(userId ?? _userInfo.UserId);
+        if(!valid) return [];
+        
         var query = QueryNotifications(orderByNewest, asNoTracking, userId, deletedQueryType);
         return await query
             .Where(n => !n.ExpiresAtUtc.HasValue || (n.ExpiresAtUtc.HasValue && n.ExpiresAtUtc.Value > DateTime.UtcNow))
@@ -98,6 +101,9 @@ public class NotificationService
     public async Task<IPagination<Notification>> GetNotifications(int pageNumber, int pageSize, bool orderByNewest = true,
         string? userId = null, bool asNoTracking = true, DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive)
     {
+        var valid = NotificationValidator.ValidateUserId(userId ?? _userInfo.UserId);
+        if(!valid) return new PagedList<Notification>([], pageNumber, pageSize, 0);
+        
         var query = QueryNotifications(orderByNewest, asNoTracking, userId, deletedQueryType);
         return await query
             .Where(n => !n.ExpiresAtUtc.HasValue || (n.ExpiresAtUtc.HasValue && n.ExpiresAtUtc.Value > DateTime.UtcNow))
@@ -116,6 +122,9 @@ public class NotificationService
     public async Task<List<Notification>> GetExpiredNotifications(bool orderByNewest = true, bool asNoTracking = true,
         string? userId = null, DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive)
     {
+        var valid = NotificationValidator.ValidateUserId(userId ?? _userInfo.UserId);
+        if(!valid) return [];
+        
         var query = QueryNotifications(orderByNewest, asNoTracking, userId, deletedQueryType);
         return await query
             .Where(n => n.ExpiresAtUtc.HasValue && n.ExpiresAtUtc.Value <= DateTime.UtcNow)
@@ -136,6 +145,9 @@ public class NotificationService
     public async Task<IPagination<Notification>> GetExpiredNotifications(int pageNumber, int pageSize, bool orderByNewest = true,
         bool asNoTracking = true, string? userId = null, DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive)
     {
+        var valid = NotificationValidator.ValidateUserId(userId ?? _userInfo.UserId);
+        if (!valid) return new PagedList<Notification>([], pageNumber, pageSize, 0);
+        
         var query = QueryNotifications(orderByNewest, asNoTracking, userId, deletedQueryType);
         return await query
             .Where(n => n.ExpiresAtUtc.HasValue && n.ExpiresAtUtc.Value <= DateTime.UtcNow)
@@ -151,6 +163,9 @@ public class NotificationService
     /// <returns>The notification if found; otherwise <c>null</c>.</returns>
     public async Task<Notification?> GetNotificationById(string id, string? userId = null, DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive)
     {
+        var valid = NotificationValidator.ValidateUserId(userId ?? _userInfo.UserId);
+        if (!valid) return null;
+        
         var query = QueryNotifications(true, false, userId, deletedQueryType);
         return await query.FirstOrDefaultAsync(n => n.Id == id);
     }
@@ -188,6 +203,47 @@ public class NotificationService
         notification.Unread();
         await UpdateNotificationReadStatus(notification);
         return true;
+    }
+
+    /// <summary>
+    /// Marks all unread notifications as read for the specified user.
+    /// </summary>
+    /// <param name="userId">The target user. Defaults to the current user.</param>
+    /// <returns>The list of notification IDs that were marked as read.</returns>
+    public async Task<List<string>> MarkAllNotificationsAsRead(string? userId = null)
+    {
+        var valid = NotificationValidator.ValidateUserId(userId ?? _userInfo.UserId);
+        return valid ? await UpdateNotificationReadStatus(true, userId) : [];
+    }
+
+    /// <summary>
+    /// Marks all read notifications as unread for the specified user.
+    /// </summary>
+    /// <param name="userId">The target user. Defaults to the current user.</param>
+    /// <returns>The list of notification IDs that were marked as unread.</returns>
+    public async Task<List<string>> UnmarkAllNotificationsAsRead(string? userId = null)
+    {
+        var valid = NotificationValidator.ValidateUserId(userId ?? _userInfo.UserId);
+        return valid ? await UpdateNotificationReadStatus(false, userId) : [];
+    }
+
+    private async Task<List<string>> UpdateNotificationReadStatus(bool isRead, string? userId = null)
+    {
+        var notifications = await QueryNotifications(false, false, userId, DeletedQueryType.OnlyActive)
+            .Where(n => n.IsRead != isRead)
+            .Where(n => !n.ExpiresAtUtc.HasValue || n.ExpiresAtUtc.Value > DateTime.UtcNow)
+            .ToListAsync();
+
+        if (notifications.Count == 0) return [];
+
+        foreach (var notification in notifications)
+        {
+            if(isRead) notification.Read();
+            else notification.Unread();
+        }
+
+        await _repos.GetRepository<Notification>().UpdateRangeAsync(notifications);
+        return notifications.Select(n => n.Id).ToList();
     }
 
     /// <summary>
@@ -332,6 +388,64 @@ public class NotificationService
     }
 
     /// <summary>
+    /// Deletes all active, non-expired notifications for the specified user within a transaction.
+    /// Supports both soft and hard deletion. Hard deletion also permanently removes
+    /// any related <see cref="NotificationLog"/> entries to satisfy FK constraints.
+    /// </summary>
+    /// <param name="softDelete">When <c>true</c>, performs a soft delete; otherwise permanently removes the entities. Defaults to <c>true</c>.</param>
+    /// <param name="userId">The target user. Defaults to the current user.</param>
+    /// <returns><c>true</c> if at least one notification was deleted; <c>false</c> if none found or an error occurred.</returns>
+    public async Task<bool> TryDeleteAllNotifications(bool softDelete = true, string? userId = null)
+    {
+        var notifications = await GetNotifications(asNoTracking: false, userId: userId);
+
+        if (notifications.Count == 0) return false;
+
+        var notificationIds = notifications.Select(n => n.Id).ToList();
+        var styles = notifications.Where(n => n.Style != null).Select(n => n.Style!).ToList();
+
+        await _repos.BeginTransactionAsync();
+        try
+        {
+            if (softDelete)
+            {
+                await _repos.GetRepository<Notification>()
+                    .SoftDeleteRangeAsync(notifications, saveNow: false);
+
+                if (styles.Count > 0)
+                    await _repos.GetRepository<NotificationStyle>()
+                        .SoftDeleteRangeAsync(styles, saveNow: false);
+            }
+            else
+            {
+                var logRepo = _repos.GetRepository<NotificationLog>();
+                var logs = await logRepo
+                    .GetAllAsync(l => notificationIds.Contains(l.NotificationId));
+                if (logs.Count > 0)
+                    await logRepo.DeleteRangeAsync(logs, false);
+
+                if (styles.Count > 0)
+                    await _repos.GetRepository<NotificationStyle>()
+                        .DeleteRangeAsync(styles, saveNow: false);
+
+                await _repos.GetRepository<Notification>()
+                    .DeleteRangeAsync(notifications, saveNow: false);
+            }
+
+            await _repos.SaveChangesAsync();
+            await _repos.CommitTransactionAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _repos.RollbackTransactionAsync();
+            _logger.LogError(ex, "Unable to {DeleteType} delete all notifications for user.",
+                softDelete ? "soft" : "hard");
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Restores a soft-deleted notification and its associated style within a transaction.
     /// Returns <c>true</c> if the notification is already active (not deleted).
     /// </summary>
@@ -364,6 +478,48 @@ public class NotificationService
         {
             await _repos.RollbackTransactionAsync();
             _logger.LogError(ex, "Unable to restore soft deleted notification and its styling.");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Restores all soft-deleted notifications and their associated styles for the specified user
+    /// within a transaction.
+    /// </summary>
+    /// <param name="userId">The target user. Defaults to the current user.</param>
+    /// <returns><c>true</c> if at least one notification was restored; <c>false</c> if none found or an error occurred.</returns>
+    public async Task<bool> TryRestoreAllNotifications(string? userId = null)
+    {
+        var notifications = await GetNotifications(asNoTracking: false, userId: userId,
+            deletedQueryType: DeletedQueryType.All);
+
+        if (notifications.Count == 0) return false;
+
+        //Return true if all the notifications are not soft deleted and are already restored:
+        if (notifications.All(n => !n.IsDeleted)) 
+            return true;
+        
+        notifications = notifications.Where(n => n.IsDeleted).ToList();
+        var styles = notifications.Where(n => n.Style != null).Select(n => n.Style!).ToList();
+
+        await _repos.BeginTransactionAsync();
+        try
+        {
+            await _repos.GetRepository<Notification>()
+                .RestoreRangeAsync(notifications, saveNow: false);
+
+            if (styles.Count > 0)
+                await _repos.GetRepository<NotificationStyle>()
+                    .RestoreRangeAsync(styles, saveNow: false);
+
+            await _repos.SaveChangesAsync();
+            await _repos.CommitTransactionAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _repos.RollbackTransactionAsync();
+            _logger.LogError(ex, "Unable to restore all soft deleted notifications for user.");
             return false;
         }
     }

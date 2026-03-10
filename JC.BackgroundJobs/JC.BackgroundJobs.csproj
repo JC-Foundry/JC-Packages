@@ -2,9 +2,17 @@
 
     <PropertyGroup>
         <PackageId>JC.BackgroundJobs</PackageId>
-        <Version>3.4.0</Version>
+        <Version>3.5.0</Version>
         <Description>Lightweight background job hosting for .NET applications — recurring job execution with configurable intervals, error handling, and logging.</Description>
     </PropertyGroup>
+
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' == 'true'">
+        <ProjectReference Include="..\JC.Core\JC.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' != 'true'">
+        <PackageReference Include="JC.Core" />
+    </ItemGroup>
 
     <ItemGroup>
       <PackageReference Include="Hangfire.Core" VersionOverride="1.8.23" />

@@ -559,9 +559,47 @@ var page = await products.AsQueryable()
 
 One sentence stating what this document covers. Link back to [Setup](Setup.md) and [Guide](Guide.md).
 
+> **Note:** Registration extensions (`IServiceCollection`, `IServiceProvider`, `IApplicationBuilder`) and options classes are documented in [Setup](Setup.md), not here.
+
+## Models
+
+Domain/database models first (entities, base classes), then any other model classes (pagination, DTOs, etc.). Never include options classes here — those belong in Setup.md.
+
+## ViewModels / Input models
+
+If the package defines any view models or input models. Omit this section if none exist.
+
+## Enums
+
+All public enums in the package.
+
+## Services
+
+All public services, including interfaces with in-package implementations (documented together under the implementation name).
+
+## Controllers
+
+If the package defines any controllers. Omit this section if none exist.
+
+## Helpers
+
+All public static helper classes. For web packages: non-UI helpers first, then UI helpers, then tag helpers.
+
+## Extensions
+
+All public extension method classes, excluding registration extensions (those are in Setup.md).
+
+## Data
+
+DbContext interfaces, implementations, and data mappings (e.g. `IEntityTypeConfiguration<T>` classes).
+```
+
+Within each section, individual classes follow this structure:
+
+```markdown
 ## {ClassName}
 
-For each public class, interface, or enum in the package.
+**Namespace:** `Full.Namespace.Here`
 
 ### Properties
 
@@ -588,13 +626,13 @@ One or two paragraphs describing the method's behaviour — what it does step by
 
 - **No code examples.** API.md is a reference, not a tutorial. Code belongs in Guide.md.
 - **Every public and protected member must be documented.** If a consumer can see it or override it, it belongs here. Internal and private members are excluded.
-- **Exclude registration extensions.** `IServiceCollection`, `IServiceProvider`, and `IApplicationBuilder` extension methods (e.g. `AddCore`, `UseIdentity`) are already fully documented in Setup.md — do not repeat them here.
+- **Exclude registration extensions and options classes.** `IServiceCollection`, `IServiceProvider`, and `IApplicationBuilder` extension methods (e.g. `AddCore`, `UseIdentity`) and their associated options classes (e.g. `CoreBackgroundJobOptions`, `NotificationOptions`) are already fully documented in Setup.md — do not repeat them here.
 - **Method signatures must be exact.** Show the correct method name, all parameters in order, their types, and default values. If a parameter has no default, use `—` in the default column.
 - **Combine interfaces with their implementations.** If `IFoo` is implemented by `Foo` in the same package, document them together under `Foo` (or whichever name is more recognisable). Note which type the consumer injects. Only document standalone interfaces (those with no in-package implementation) separately.
 - **Document access modifiers on properties.** If a property has a public get but a private or internal set (or vice versa), show this in the Access column (e.g. `get; internal set;`).
 - **Describe method behaviour, not usage.** Explain the flow: what the method checks, what it creates, what it persists, what it returns, what side effects occur. Think of it as the XML `<summary>` and `<remarks>` tags combined into prose.
 - **State included navigation properties.** If a method eagerly loads EF Core navigation properties (via `.Include()`), list them in the method description. This tells the consumer exactly what's materialised without needing to check the source.
-- **Group by class, not by feature.** Unlike Guide.md (which groups by feature), API.md groups by type — every member of a class appears together under that class heading.
+- **Group by category, then by class.** API.md is organised into top-level sections (Models, Enums, Services, Helpers, Extensions, Data, etc.) with individual classes documented under the appropriate section. Within each section, every member of a class appears together under that class heading. Omit any top-level section that has no entries for the package.
 - **Always include the namespace.** Every class, interface, enum, and record heading must state its full namespace (e.g. `**Namespace:** \`JC.Core.Models\``). Verify against the source code — never guess.
 - **Enums get a simple value table.** List each member with its integer value (if non-default) and a one-sentence description.
 - **Extension method classes are documented as their own section.** Group all extension methods under the static class name, with each method as a sub-heading.

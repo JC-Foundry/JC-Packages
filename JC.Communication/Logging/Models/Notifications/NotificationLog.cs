@@ -10,7 +10,7 @@ namespace JC.Communication.Logging.Models.Notifications;
 /// A new log entry is created each time a notification's read state changes,
 /// recording which user performed the action and when.
 /// </summary>
-public class NotificationLog : AuditModel
+public class NotificationLog : LogModel
 {
     /// <summary>Gets the unique identifier for this log entry.</summary>
     [Key]

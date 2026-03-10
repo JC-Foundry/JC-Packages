@@ -36,8 +36,7 @@ internal class AuditService
     internal async Task<List<EntityEntry>> ProcessChangesAsync(ChangeTracker changeTracker)
     {
         var entries = changeTracker.Entries()
-            .Where(e => e.Entity is not AuditEntry
-                        && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
             .ToList();
 
         var pendingCreates = new List<EntityEntry>();
@@ -47,6 +46,30 @@ internal class AuditService
             var action = ResolveAction(entry);
             if (action is null)
                 continue;
+
+            var isLogModel = entry.Entity is LogModel;
+            var isAuditEntry = entry.Entity is AuditEntry;
+
+            if (isLogModel || isAuditEntry)
+            {
+                switch (action)
+                {
+                    case AuditAction.Create:
+                        // These entities are their own audit trail — skip audit entry creation
+                        continue;
+                    case AuditAction.Delete:
+                        // Hard delete of a log is significant — log it
+                        // Hard delete of audit entries is housekeeping — skip silently
+                        if (isAuditEntry) continue;
+                        break;
+                    default:
+                        // Update, SoftDelete, Restore — immutable once written
+                        var entityType = isAuditEntry ? "AuditEntry" : "LogModel";
+                        throw new InvalidOperationException(
+                            $"Cannot perform '{action}' on a {entityType} entity ({entry.Metadata.GetTableName()}). " +
+                            $"{entityType} entities are immutable — only creation and hard deletion are permitted.");
+                }
+            }
 
             if (action == AuditAction.Create)
             {

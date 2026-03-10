@@ -1,10 +1,10 @@
 using JC.Core.Data;
 using JC.Core.Models;
 using JC.Core.Models.Auditing;
+using JC.Core.Models.Options;
 using JC.Core.Services;
 using JC.Core.Services.DataRepositories;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -44,6 +44,24 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection RegisterRepositoryContext<T>(this IServiceCollection services)
         where T : class
         => services.RegisterRepositoryContexts(typeof(T));
+
+    /// <summary>
+    /// Configures <see cref="CoreBackgroundJobOptions"/> for core background jobs
+    /// such as <see cref="AuditCleanupJob"/> and <see cref="SoftDeleteCleanupJob"/>.
+    /// Only needs to be called if overriding the default options — jobs will use
+    /// defaults automatically if this is not called.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configure">Action to configure <see cref="CoreBackgroundJobOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection ConfigureCoreBackgroundJobs(this IServiceCollection services,
+        Action<CoreBackgroundJobOptions> configure)
+    {
+        services.AddOptions<CoreBackgroundJobOptions>()
+            .Configure(opts => configure?.Invoke(opts));
+
+        return services;
+    }
 
     /// <summary>
     /// Registers <see cref="IRepositoryContext{T}"/> / <see cref="RepositoryContext{T}"/> pairs for multiple entity types via reflection.

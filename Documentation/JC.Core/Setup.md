@@ -69,6 +69,29 @@ With no additional configuration, `SaveChangesAsync` on your `DataDbContext` wil
 
 Audit entries are written to an `AuditEntries` table with the user ID, table name, action type, timestamp, and a JSON snapshot of the entity data. If no `IUserInfo` is available (e.g. JC.Identity isn't registered), the user ID falls back to `IUserInfo.MissingUserInfoId` (`"<NONE>"`).
 
+**Immutability enforcement:** The audit service enforces strict rules for certain entity types:
+
+| Entity type | Create | Hard delete | Update / Soft-delete / Restore |
+|-------------|--------|-------------|-------------------------------|
+| `LogModel` inheritors | Skipped (the log *is* its own audit trail) | Audit entry logged | Throws `InvalidOperationException` |
+| `AuditEntry` | Skipped | Skipped (housekeeping) | Throws `InvalidOperationException` |
+
+This prevents audit-of-audit duplication and enforces that log and audit entries are immutable once written.
+
+### Entity model hierarchy
+
+JC.Core provides a three-level model hierarchy for entities that need automatic audit field population:
+
+```
+BaseCreateModel          — creation fields only (CreatedById, CreatedUtc)
+├── LogModel             — immutable log entities (create + hard delete only)
+└── AuditModel           — full lifecycle (create, update, soft-delete, restore)
+```
+
+- **`BaseCreateModel`** — the shared base class. Provides `CreatedById`, `CreatedUtc`, and `FillCreated()`. Used by the repository to populate creation fields on any entity in the hierarchy. **Never extend this directly** — always use `LogModel` or `AuditModel`. Inheriting from `BaseCreateModel` directly bypasses the audit service's type discrimination and immutability enforcement.
+- **`LogModel`** — extends `BaseCreateModel`. A marker class with no extra properties. Entities extending `LogModel` are treated as immutable once created — the audit service will throw if an update, soft-delete, or restore is attempted. Only creation and hard deletion are permitted.
+- **`AuditModel`** — extends `BaseCreateModel`. Adds modification, soft-delete, and restore fields with corresponding `Fill*` methods.
+
 Entities extending `AuditModel` automatically have their audit fields populated by the repository:
 
 | Field | Populated when | Value |
@@ -77,6 +100,12 @@ Entities extending `AuditModel` automatically have their audit fields populated 
 | `LastModifiedById` / `LastModifiedUtc` | Entity is updated | Current user ID and UTC timestamp |
 | `DeletedById` / `DeletedUtc` / `IsDeleted` | Entity is soft-deleted | Current user ID, UTC timestamp, `true` |
 | `RestoredById` / `RestoredUtc` | Entity is restored | Current user ID, UTC timestamp; clears deleted fields |
+
+Entities extending `LogModel` have only the creation fields populated:
+
+| Field | Populated when | Value |
+|-------|---------------|-------|
+| `CreatedById` / `CreatedUtc` | Entity is added | Current user ID and UTC timestamp |
 
 ## 2. Full configuration
 
@@ -145,7 +174,7 @@ public class AppDbContext : DataDbContext
 
 ### AuditModel — auditable entities
 
-Extend `AuditModel` for entities that need automatic audit fields:
+Extend `AuditModel` for entities that need full lifecycle audit fields:
 
 ```csharp
 public class Product : AuditModel
@@ -156,16 +185,35 @@ public class Product : AuditModel
 }
 ```
 
-All audit properties on `AuditModel` have private setters — they can only be populated through the `Fill*` methods, which are called automatically by `RepositoryContext<T>`:
+All audit properties have private setters — they can only be populated through the `Fill*` methods, which are called automatically by `RepositoryContext<T>`:
 
-| Method | Called by | Sets |
-|--------|----------|------|
-| `FillCreated(userId)` | `AddAsync` / `AddRangeAsync` | `CreatedById`, `CreatedUtc` |
-| `FillModified(userId)` | `UpdateAsync` / `UpdateRangeAsync` | `LastModifiedById`, `LastModifiedUtc` |
-| `FillDeleted(userId)` | `SoftDeleteAsync` / `SoftDeleteRangeAsync` | `DeletedById`, `DeletedUtc`, `IsDeleted = true`; clears restored fields |
-| `FillRestored(userId)` | `RestoreAsync` / `RestoreRangeAsync` | `RestoredById`, `RestoredUtc`, `IsDeleted = false`; clears deleted fields |
+| Method | Defined on | Called by | Sets |
+|--------|-----------|----------|------|
+| `FillCreated(userId)` | `BaseCreateModel` | `AddAsync` / `AddRangeAsync` | `CreatedById`, `CreatedUtc` |
+| `FillModified(userId)` | `AuditModel` | `UpdateAsync` / `UpdateRangeAsync` | `LastModifiedById`, `LastModifiedUtc` |
+| `FillDeleted(userId)` | `AuditModel` | `SoftDeleteAsync` / `SoftDeleteRangeAsync` | `DeletedById`, `DeletedUtc`, `IsDeleted = true`; clears restored fields |
+| `FillRestored(userId)` | `AuditModel` | `RestoreAsync` / `RestoreRangeAsync` | `RestoredById`, `RestoredUtc`, `IsDeleted = false`; clears deleted fields |
 
-Entities that don't extend `AuditModel` can still use the repository pattern — they just won't get automatic audit field population. Soft-delete still works if the entity has a public `bool IsDeleted` property (detected via reflection).
+`FillCreated` is on `BaseCreateModel`, so it applies to both `AuditModel` and `LogModel` entities. It only sets values if they haven't already been populated (idempotent).
+
+### LogModel — immutable log entities
+
+Extend `LogModel` for entities that represent immutable log records (e.g. email logs, notification logs):
+
+```csharp
+public class EmailLog : LogModel
+{
+    public string Id { get; set; }
+    public string Recipient { get; set; }
+    public DateTime SentUtc { get; set; }
+}
+```
+
+`LogModel` entities get `CreatedById` and `CreatedUtc` populated on add, just like `AuditModel`. The key difference is enforcement — the audit service throws `InvalidOperationException` if any code attempts to update, soft-delete, or restore a `LogModel` entity. Only creation and hard deletion are permitted.
+
+### Non-model entities
+
+Entities that don't extend `AuditModel` or `LogModel` can still use the repository pattern — they just won't get automatic audit field population. Soft-delete still works if the entity has a public `bool IsDeleted` property (detected via reflection).
 
 ### IRepositoryContext — repository operations
 
@@ -212,6 +260,67 @@ catch
 ```
 
 `CommitTransactionAsync` calls `SaveChangesAsync` before committing. `RollbackTransactionAsync` and `CommitTransactionAsync` both throw `InvalidOperationException` if no transaction has been started.
+
+### IBackgroundJob — cross-package background jobs
+
+JC.Core defines the `IBackgroundJob` interface so that any package can declare background jobs without depending on JC.BackgroundJobs:
+
+```csharp
+public interface IBackgroundJob
+{
+    Task ExecuteAsync(CancellationToken cancellationToken = default);
+}
+```
+
+JC.Core only *defines* jobs — it does not execute them. The consuming application must use [JC.BackgroundJobs](../JC.BackgroundJobs/Setup.md) (hosted services or Hangfire) to register and schedule job execution. JC.Core itself provides two built-in jobs: `AuditCleanupJob` and `SoftDeleteCleanupJob`.
+
+### ConfigureCoreBackgroundJobs — background job options
+
+Configures `CoreBackgroundJobOptions` for the built-in cleanup jobs. Only call this if you need to override the defaults — `IOptions<CoreBackgroundJobOptions>` resolves with defaults automatically even without explicit registration.
+
+```csharp
+builder.Services.ConfigureCoreBackgroundJobs(options =>
+{
+    // Audit cleanup
+    options.RegisterAuditCleanupJob = true;
+    options.AuditRetentionMonths = 6;
+    options.MinimumRetentionRecords = 30;
+    options.RetentionRecordsPerTable = true;
+    options.CleanupChunkingValue = 500;
+
+    // Soft-delete cleanup
+    options.RegisterSoftDeleteCleanupJob = false;
+    options.SoftDeleteRetentionMonths = 24;
+    options.SetSoftDeleteRetentionBlackList("product", "order"); // Entity names to exclude (case-insensitive)
+});
+```
+
+#### `CoreBackgroundJobOptions`
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `RegisterAuditCleanupJob` | `bool` | `true` | Enables the audit cleanup job |
+| `AuditRetentionMonths` | `ushort` | `6` | Audit entries older than this are eligible for cleanup |
+| `MinimumRetentionRecords` | `ushort` | `30` | Minimum number of audit entries to keep regardless of age |
+| `RetentionRecordsPerTable` | `bool` | `true` | When `true`, minimum retention is applied per table; when `false`, globally |
+| `CleanupChunkingValue` | `ushort` | `500` | Maximum records to delete per execution. `0` disables chunking |
+| `RegisterSoftDeleteCleanupJob` | `bool` | `false` | Enables the soft-delete cleanup job (off by default) |
+| `SoftDeleteRetentionMonths` | `ushort` | `24` | Soft-deleted entities older than this are hard-deleted |
+| `SoftDeleteRetentionBlacklist` | `List<string>` | `[]` | Entity type names excluded from soft-delete cleanup (case-insensitive). Set via `SetSoftDeleteRetentionBlackList()` |
+
+#### AuditCleanupJob
+
+Deletes audit entries older than `AuditRetentionMonths`, respecting `MinimumRetentionRecords` (globally or per table depending on `RetentionRecordsPerTable`). Processes in chunks when `CleanupChunkingValue` is set.
+
+#### SoftDeleteCleanupJob
+
+Discovers all entity types in the `DbContext` model that extend `AuditModel` or have a `bool IsDeleted` property. Hard-deletes soft-deleted entities older than `SoftDeleteRetentionMonths`. For `AuditModel` entities, filters by `DeletedUtc` in the database query. For non-`AuditModel` entities with `IsDeleted`, loads all records and filters in memory. Respects `SoftDeleteRetentionBlacklist` to skip specific entity types.
+
+**Important:** These jobs are not self-executing. Configuring the options here only controls their behaviour — you still need to register them as background jobs using JC.BackgroundJobs for them to actually run. Without that registration, the jobs will never be invoked. See the JC.BackgroundJobs documentation for how to register and schedule jobs:
+
+- [JC.BackgroundJobs — Setup](../JC.BackgroundJobs/Setup.md)
+- [JC.BackgroundJobs — Guide](../JC.BackgroundJobs/Guide.md)
+- [JC.BackgroundJobs — API Reference](../JC.BackgroundJobs/API.md)
 
 ### MigrateDatabaseAsync — automatic migration
 

@@ -1,7 +1,9 @@
+using JC.Communication.Notifications.Helpers;
 using JC.Communication.Notifications.Models;
 using JC.Communication.Notifications.Models.Options;
 using JC.Core.Models;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 
 namespace JC.Communication.Notifications.Services;
 
@@ -32,12 +34,12 @@ public class NotificationCache
     public NotificationCache(NotificationService notificationService,
         IUserInfo userInfo,
         IMemoryCache cache,
-        NotificationOptions options)
+        IOptions<NotificationOptions> options)
     {
         _notificationService = notificationService;
         _userInfo = userInfo;
         _cache = cache;
-        _options = options;
+        _options = options.Value;
     }
 
 
@@ -51,6 +53,9 @@ public class NotificationCache
     /// <returns>A list of notifications for the user.</returns>
     public async Task<List<Notification>> GetNotificationsAsync(string? userId = null)
     {
+        var valid = NotificationValidator.ValidateUserId(userId ?? _userInfo.UserId);
+        if(!valid) return [];
+        
         var key = GetCacheKey(userId);
 
         if (_cache.TryGetValue(key, out List<Notification>? cached) && cached != null)
@@ -154,12 +159,43 @@ public class NotificationCache
     }
 
     /// <summary>
+    /// Marks all notifications in the cache as unread for the specified user.
+    /// This is a cache-only operation — the caller is responsible for persisting to the database.
+    /// </summary>
+    /// <param name="userId">The target user. Defaults to the current user.</param>
+    public async Task MarkAllAsUnreadAsync(string? userId = null)
+    {
+        var notifications = await GetNotificationsAsync(userId);
+        foreach (var notification in notifications.Where(n => n.IsRead))
+            notification.Unread();
+
+        SetCache(GetCacheKey(userId), notifications);
+    }
+
+    /// <summary>
+    /// Removes all notifications from the cache for the specified user.
+    /// This is a cache-only operation — the caller is responsible for persisting to the database.
+    /// </summary>
+    /// <param name="userId">The target user. Defaults to the current user.</param>
+    public void RemoveAllNotificationsAsync(string? userId = null)
+    {
+        // Clear the list but keep the cache entry to avoid a DB hydration on next access
+        var key = GetCacheKey(userId);
+        SetCache(key, []);
+    }
+
+    /// <summary>
     /// Invalidates the cached notification list for the specified user,
     /// forcing a fresh load from the database on next access.
     /// </summary>
     /// <param name="userId">The target user. Defaults to the current user.</param>
     public void Invalidate(string? userId = null)
-        => _cache.Remove(GetCacheKey(userId));
+    {
+        var valid = NotificationValidator.ValidateUserId(userId ?? _userInfo.UserId);
+        if(!valid) return;
+        
+        _cache.Remove(GetCacheKey(userId));
+    }
 
     #endregion
 

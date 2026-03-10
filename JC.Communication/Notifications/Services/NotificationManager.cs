@@ -3,6 +3,7 @@ using JC.Communication.Notifications.Helpers;
 using JC.Communication.Notifications.Models.Options;
 using JC.Core.Models;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace JC.Communication.Notifications.Services;
 
@@ -34,14 +35,14 @@ public class NotificationManager : INotificationManager
     public NotificationManager(NotificationService notificationService,
         NotificationLogService logService,
         NotificationCache cache,
-        NotificationOptions options,
+        IOptions<NotificationOptions> options,
         ILogger<NotificationManager> logger,
         IUserInfo userInfo)
     {
         _notificationService = notificationService;
         _logService = logService;
         _cache = cache;
-        _options = options;
+        _options = options.Value;
         _logger = logger;
         _userInfo = userInfo;
     }
@@ -103,7 +104,7 @@ public class NotificationManager : INotificationManager
     {
         var valid = NotificationValidator.ValidateUserId(_userInfo.UserId);
         if(!valid) return false;
-        
+
         var softDelete = !_options.HardDeleteOnDismiss;
         var result = await _notificationService.TryDeleteNotification(id, softDelete);
         if (!result)
@@ -113,6 +114,69 @@ public class NotificationManager : INotificationManager
         }
 
         await _cache.RemoveNotificationAsync(id);
+        return true;
+    }
+
+    /// <summary>
+    /// Marks all notifications as read for the current user. Persists the changes to the database,
+    /// logs each read event, then updates the cached state.
+    /// </summary>
+    /// <returns><c>true</c> if at least one notification was marked as read; otherwise <c>false</c>.</returns>
+    public async Task<bool> TryMarkAllAsReadAsync()
+    {
+        var valid = NotificationValidator.ValidateUserId(_userInfo.UserId);
+        if(!valid) return false;
+
+        var updatedIds = await _notificationService.MarkAllNotificationsAsRead();
+        if (updatedIds.Count == 0) return false;
+
+        foreach (var id in updatedIds)
+            await _logService.LogReadAsync(id);
+
+        await _cache.MarkAllAsReadAsync();
+        return true;
+    }
+
+    /// <summary>
+    /// Marks all notifications as unread for the current user. Persists the changes to the database,
+    /// logs each unread event, then updates the cached state.
+    /// </summary>
+    /// <returns><c>true</c> if at least one notification was marked as unread; otherwise <c>false</c>.</returns>
+    public async Task<bool> TryMarkAllAsUnreadAsync()
+    {
+        var valid = NotificationValidator.ValidateUserId(_userInfo.UserId);
+        if(!valid) return false;
+
+        var updatedIds = await _notificationService.UnmarkAllNotificationsAsRead();
+        if (updatedIds.Count == 0) return false;
+
+        foreach (var id in updatedIds)
+            await _logService.LogUnreadAsync(id);
+
+        await _cache.MarkAllAsUnreadAsync();
+        return true;
+    }
+
+    /// <summary>
+    /// Dismisses all notifications for the current user. Deletes them from the database
+    /// using the deletion mode configured in <see cref="NotificationOptions.HardDeleteOnDismiss"/>,
+    /// then clears them from the cache.
+    /// </summary>
+    /// <returns><c>true</c> if at least one notification was dismissed; otherwise <c>false</c>.</returns>
+    public async Task<bool> TryDismissAllAsync()
+    {
+        var valid = NotificationValidator.ValidateUserId(_userInfo.UserId);
+        if(!valid) return false;
+
+        var softDelete = !_options.HardDeleteOnDismiss;
+        var result = await _notificationService.TryDeleteAllNotifications(softDelete);
+        if (!result)
+        {
+            _logger.LogWarning("Failed to dismiss all notifications for user.");
+            return false;
+        }
+
+        _cache.RemoveAllNotificationsAsync();
         return true;
     }
 }
