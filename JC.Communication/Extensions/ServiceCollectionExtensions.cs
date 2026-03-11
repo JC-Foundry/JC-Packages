@@ -258,58 +258,6 @@ public static class ServiceCollectionExtensions
     #region Notifications
 
     /// <summary>
-    /// Registers notification services without database logging support, using the default <see cref="NotificationManager"/>.
-    /// Requires <see cref="IUserInfo"/> to be registered in the service collection (typically via JC.Identity).
-    /// Use <see cref="AddNotificationsWithLogging{TContext}"/> to enable database logging.
-    /// </summary>
-    /// <param name="services">The service collection.</param>
-    /// <param name="configure">Optional action to configure <see cref="NotificationOptions"/>.</param>
-    /// <returns>The service collection for chaining.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if <see cref="IUserInfo"/> is not registered,
-    /// if <see cref="NotificationOptions.CacheDurationHours"/> is outside the valid range (1–72),
-    /// or if <see cref="NotificationOptions.LoggingMode"/> is not <see cref="NotificationLoggingMode.None"/>.</exception>
-    public static IServiceCollection AddNotifications(this IServiceCollection services,
-        Action<NotificationOptions>? configure = null)
-        => services.AddNotifications<NotificationManager>(configure);
-
-
-    /// <summary>
-    /// Registers notification services without database logging support, using a custom <see cref="INotificationManager"/> implementation.
-    /// Requires <see cref="IUserInfo"/> to be registered in the service collection (typically via JC.Identity).
-    /// Use <see cref="AddNotificationsWithLogging{TContext, TNotificationManager}"/> to enable database logging.
-    /// </summary>
-    /// <typeparam name="TNotificationManager">The <see cref="INotificationManager"/> implementation type to register.</typeparam>
-    /// <param name="services">The service collection.</param>
-    /// <param name="configure">Optional action to configure <see cref="NotificationOptions"/>.</param>
-    /// <returns>The service collection for chaining.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if <see cref="IUserInfo"/> is not registered,
-    /// if <see cref="NotificationOptions.CacheDurationHours"/> is outside the valid range (1–72),
-    /// or if <see cref="NotificationOptions.LoggingMode"/> is not <see cref="NotificationLoggingMode.None"/>.</exception>
-    public static IServiceCollection AddNotifications<TNotificationManager>(this IServiceCollection services,
-        Action<NotificationOptions>? configure = null)
-        where TNotificationManager : class, INotificationManager
-    {
-        // Options
-        var options = new NotificationOptions();
-        configure?.Invoke(options);
-
-        if (options.CacheDurationHours is < 1 or > 72)
-            throw new InvalidOperationException(
-                $"NotificationOptions.CacheDurationHours must be between 1 and 72 hours (was {options.CacheDurationHours}).");
-
-        services.AddOptions<NotificationOptions>()
-            .Configure(opts => configure?.Invoke(opts));
-
-        if(options.LoggingMode != NotificationLoggingMode.None)
-            throw new InvalidOperationException("You must use generic overload to use logging.");
-        
-        services.AddNotificationsBase<TNotificationManager>();
-        return services;
-    }
-    
-    
-    
-    /// <summary>
     /// Registers notification services with database logging support, using the default <see cref="NotificationManager"/>.
     /// Configures the <see cref="INotificationDbContext"/> and repository contexts for all notification entities.
     /// Requires <see cref="IUserInfo"/> to be registered in the service collection (typically via JC.Identity).
@@ -321,11 +269,11 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection for chaining.</returns>
     /// <exception cref="InvalidOperationException">Thrown if <see cref="IUserInfo"/> is not registered
     /// or if <see cref="NotificationOptions.CacheDurationHours"/> is outside the valid range (1–72).</exception>
-    public static IServiceCollection AddNotificationsWithLogging<TContext>(
+    public static IServiceCollection AddNotifications<TContext>(
         this IServiceCollection services,
         Action<NotificationOptions>? configure = null)
         where TContext : DbContext, IDataDbContext, INotificationDbContext
-        => services.AddNotificationsWithLogging<TContext, NotificationManager>(configure);
+        => services.AddNotifications<TContext, NotificationManager>(configure);
 
     
     /// <summary>
@@ -341,7 +289,7 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection for chaining.</returns>
     /// <exception cref="InvalidOperationException">Thrown if <see cref="IUserInfo"/> is not registered
     /// or if <see cref="NotificationOptions.CacheDurationHours"/> is outside the valid range (1–72).</exception>
-    public static IServiceCollection AddNotificationsWithLogging<TContext, TNotificationManager>(
+    public static IServiceCollection AddNotifications<TContext, TNotificationManager>(
         this IServiceCollection services,
         Action<NotificationOptions>? configure = null)
         where TContext : DbContext, IDataDbContext, INotificationDbContext

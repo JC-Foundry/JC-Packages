@@ -6,6 +6,9 @@ namespace JC.Communication.Messaging.Models.DomainModels;
 
 public class ChatThread : AuditModel
 {
+    public const string DirectMessageName = "Direct Message";
+    public const string GroupChatName = "Group Chat";
+    
     [Key]
     [MaxLength(36)]
     public string Id { get; private set; } = Guid.NewGuid().ToString();

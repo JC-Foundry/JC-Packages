@@ -148,7 +148,7 @@ Controls which notification read/unread events are persisted by `NotificationLog
 
 | Member | Value | Description |
 |--------|-------|-------------|
-| `None` | `0` | No events are logged. Required when using `AddNotifications` (without logging). |
+| `None` | `0` | No events are logged. |
 | `ReadOnly` | `1` | Only read events are logged. |
 | `UnreadOnly` | `2` | Only unread events are logged. |
 | `All` | `3` | Both read and unread events are logged. |

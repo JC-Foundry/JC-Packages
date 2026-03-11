@@ -23,7 +23,6 @@
       <Folder Include="Extensions\" />
       <Folder Include="Logging\Data\DataMappings\Notifications\" />
       <Folder Include="Logging\Models\Messaging\" />
-      <Folder Include="Messaging\Services\" />
       <Folder Include="Notifications\Data\DataMappings\" />
     </ItemGroup>
 
