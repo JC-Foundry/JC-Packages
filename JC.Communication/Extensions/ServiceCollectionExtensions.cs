@@ -96,6 +96,24 @@ public static class ServiceCollectionExtensions
         services.AddEmailBase(configuration, options);
         return services;
     }
+    
+    /// <summary>
+    /// Configures <see cref="EmailBackgroundJobOptions"/> for email background jobs
+    /// such as <see cref="EmailLogCleanupJob"/>.
+    /// Only needs to be called if overriding the default options — jobs will use
+    /// defaults automatically if this is not called.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configure">Action to configure <see cref="EmailBackgroundJobOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection ConfigureEmailBackgroundJobs(this IServiceCollection services,
+        Action<EmailBackgroundJobOptions> configure)
+    {
+        services.AddOptions<EmailBackgroundJobOptions>()
+            .Configure(opts => configure?.Invoke(opts));
+
+        return services;
+    }
 
     /// <summary>
     /// Shared provider registration logic. Validates required configuration keys
