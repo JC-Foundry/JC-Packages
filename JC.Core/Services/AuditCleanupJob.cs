@@ -20,7 +20,7 @@ public class AuditCleanupJob : IBackgroundJob
     
     public async Task ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        if(_options.RegisterAuditCleanupJob)
+        if(!_options.RegisterAuditCleanupJob)
             return;
         
         //Get audits for cleanup:

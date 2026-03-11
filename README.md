@@ -11,7 +11,7 @@ A suite of .NET 9 NuGet packages providing shared infrastructure for .NET applic
 | **JC.Identity** | ASP.NET Core Identity integration, multi-tenancy query filters, middleware, user management | [Documentation](Documentation/JC.Identity/) |
 | **JC.MySql** | MySQL database provider extensions using Pomelo.EntityFrameworkCore.MySql | [Database Setup](Documentation/JC.Core/Database-Setup.md) |
 | **JC.SqlServer** | SQL Server database provider extensions using Microsoft.EntityFrameworkCore.SqlServer | [Database Setup](Documentation/JC.Core/Database-Setup.md) |
-| **JC.Communication** | Outbound communication — email sending with multiple providers, message validation, and database logging | [Documentation](Documentation/JC.Communication/) |
+| **JC.Communication** | Outbound communication — email sending with multiple providers, in-app notifications with caching and logging, message validation, and database logging | [Documentation](Documentation/JC.Communication/) |
 | **JC.Github** | GitHub integration for bug report and issue tracking services | [Documentation](Documentation/JC.Github/) |
 | **JC.BackgroundJobs** | Lightweight hosted-service background jobs and Hangfire recurring/ad-hoc job integration | [Documentation](Documentation/JC.BackgroundJobs/) |
 | **JC.SqlServer.Hangfire** | Hangfire SQL Server storage registration for JC-Packages applications | — |
@@ -84,7 +84,7 @@ builder.Services.AddIdentity<AppUser, AppRole, AppDbContext>();
 
 var app = builder.Build();
 app.UseIdentity();
-await app.ConfigureAdminAndRolesAsync<AppUser, AppRoles, AppRole>(setupTenancy: true);
+await app.ConfigureAdminAndRolesAsync<AppUser, AppRole, AppDbContext, AppRoles>(setupTenancy: true);
 ```
 
 See [JC.Identity documentation](Documentation/JC.Identity/) for multi-tenancy, custom IUserInfo, and role configuration.
@@ -112,11 +112,14 @@ See [JC.Web documentation](Documentation/JC.Web/) for security headers, cookie m
 ```csharp
 builder.Services.AddCore<AppDbContext>();
 
-// Email with database logging (Microsoft provider by default)
+// Email with database logging (Microsoft provider by default) — optional
 builder.Services.AddEmail<AppDbContext>(builder.Configuration);
+
+// In-app notifications with database logging — optional
+builder.Services.AddNotificationsWithLogging<AppDbContext>();
 ```
 
-See [JC.Communication documentation](Documentation/JC.Communication/) for provider configuration, logging modes, and usage guide.
+Either feature can be registered independently — you don't need both. See [JC.Communication documentation](Documentation/JC.Communication/) for provider configuration, notification options, logging modes, and usage guides.
 
 ### JC.Github
 
@@ -200,7 +203,7 @@ Registers Hangfire with SQL Server storage. Reads the `HangfireConnection` conne
 
 Required when using encrypted cookies (enabled by default in `AddWebDefaults` / `AddCookieServices`). Set `useEncryptedCookies: false` to skip.
 
-### Email (JC.Communication)
+### JC.Communication
 
 ```json
 {
@@ -216,7 +219,7 @@ Required when using encrypted cookies (enabled by default in `AddWebDefaults` / 
 }
 ```
 
-Required for the Microsoft provider (default). Other providers require different keys — see [Email setup](Documentation/JC.Communication/Email-Setup.md) for full configuration.
+Email configuration is required when using `AddEmail`. The keys shown above are for the Microsoft provider (default). Other providers require different keys — see [Email setup](Documentation/JC.Communication/Email-Setup.md) for full configuration. Notifications are configured entirely in code via `NotificationOptions` — see [Notifications setup](Documentation/JC.Communication/Notifications-Setup.md).
 
 ### GitHub Integration (JC.Github)
 
@@ -252,7 +255,7 @@ Full documentation for each package is available in the [Documentation](Document
 | JC.Core | [Setup](Documentation/JC.Core/Setup.md) | [Guide](Documentation/JC.Core/Guide.md) | [API](Documentation/JC.Core/API.md) |
 | JC.Web | [Setup](Documentation/JC.Web/Setup.md) | [Guide](Documentation/JC.Web/Guide.md) | [API](Documentation/JC.Web/API.md) |
 | JC.Identity | [Setup](Documentation/JC.Identity/Setup.md) | [Guide](Documentation/JC.Identity/Guide.md) | [API](Documentation/JC.Identity/API.md) |
-| JC.Communication | [Email Setup](Documentation/JC.Communication/Email-Setup.md) | [Email Guide](Documentation/JC.Communication/Email-Guide.md) | [Email API](Documentation/JC.Communication/Email-API.md) |
+| JC.Communication | [Email Setup](Documentation/JC.Communication/Email-Setup.md) · [Notifications Setup](Documentation/JC.Communication/Notifications-Setup.md) | [Email Guide](Documentation/JC.Communication/Email-Guide.md) · [Notifications Guide](Documentation/JC.Communication/Notifications-Guide.md) | [Email API](Documentation/JC.Communication/Email-API.md) · [Notifications API](Documentation/JC.Communication/Notifications-API.md) |
 | JC.Github | [Setup](Documentation/JC.Github/Setup.md) | [Guide](Documentation/JC.Github/Guide.md) | [API](Documentation/JC.Github/API.md) |
 | JC.BackgroundJobs | [Setup](Documentation/JC.BackgroundJobs/Setup.md) | [Guide](Documentation/JC.BackgroundJobs/Guide.md) | [API](Documentation/JC.BackgroundJobs/API.md) |
 | JC.MySql / JC.SqlServer | [Database Setup](Documentation/JC.Core/Database-Setup.md) | — | — |

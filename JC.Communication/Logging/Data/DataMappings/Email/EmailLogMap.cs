@@ -1,4 +1,5 @@
 using JC.Communication.Logging.Models.Email;
+using JC.Core.Data.DataMappings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -25,5 +26,7 @@ public class EmailLogMap : IEntityTypeConfiguration<EmailLog>
         builder.HasMany(e => e.EmailSentLogs)
             .WithOne(s => s.EmailLog)
             .HasForeignKey(s => s.EmailLogId);
+        
+        builder = LogModelMapping<EmailLog>.MapLogModel(builder);
     }
 }

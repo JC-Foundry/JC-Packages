@@ -93,17 +93,16 @@ if (userInfo.IsInRole(SystemRoles.Admin))
 
 ### Unauthenticated requests
 
-For unauthenticated requests, `UserInfoMiddleware` assigns system user constants instead of leaving properties at their defaults:
+`UserInfoMiddleware` assigns fallback identities based on the authentication state:
 
-| Property | Value |
-|----------|-------|
-| `UserId` | `"System__ID"` |
-| `Username` | `"System"` |
-| `Email` | `"<SYSTEM@EMAIL>"` |
+| Scenario | `UserId` | `Username` | `Email` |
+|----------|----------|------------|---------|
+| No identity present | `"System__ID"` | `"System"` | `"<SYSTEM@EMAIL>"` |
+| Identity present, not authenticated | `"Unknown__ID"` | `"Unknown"` | `"<UNKNOWN@EMAIL>"` |
 
-This means audit trails and any code reading `IUserInfo` always have a user identity — even for anonymous endpoints.
+The "no identity present" case occurs when no authentication middleware has run. The "not authenticated" case is the typical anonymous request — authentication middleware has run but the user hasn't logged in. Both cases ensure audit trails and any code reading `IUserInfo` always have a user identity.
 
-**Nuance:** If the middleware hasn't run yet (e.g. code executing before `UseUserInfo()`), properties have their initial defaults: `UserId = "Unknown__ID"`, `Username = "Unknown"`, `Email = "<UNKNOWN@EMAIL>"`. The system constants are only assigned once the middleware processes the request.
+**Nuance:** Before the middleware runs (e.g. code executing before `UseUserInfo()`), properties have their initial defaults: `UserId = "Unknown__ID"`, `Username = "Unknown"`, `Email = "<UNKNOWN@EMAIL>"`.
 
 ## Custom IUserInfo
 
@@ -147,36 +146,26 @@ builder.Services.AddIdentity<AppUser, AppRole, AppDbContext, AppUserInfo>();
 
 | Claim type | Source property | Format |
 |-----------|----------------|--------|
-| `email_confirmed` | `EmailConfirmed` | `"true"` / `"false"` |
+| `email_confirmed` | `EmailConfirmed` | `"True"` / `"False"` |
 | `phone_number` | `PhoneNumber` | String or empty |
-| `phone_number_confirmed` | `PhoneNumberConfirmed` | `"true"` / `"false"` |
-| `two_factor_enabled` | `TwoFactorEnabled` | `"true"` / `"false"` |
-| `lockout_enabled` | `LockoutEnabled` | `"true"` / `"false"` |
+| `phone_number_confirmed` | `PhoneNumberConfirmed` | `"True"` / `"False"` |
+| `two_factor_enabled` | `TwoFactorEnabled` | `"True"` / `"False"` |
+| `lockout_enabled` | `LockoutEnabled` | `"True"` / `"False"` |
 | `lockout_end` | `LockoutEnd` | ISO 8601 or empty |
 | `access_failed_count` | `AccessFailedCount` | Integer string |
 | `tenant_id` | `TenantId` | String or empty |
 | `display_name` | `DisplayName` | String or empty |
 | `last_login_utc` | `LastLoginUtc` | ISO 8601 or empty |
-| `is_enabled` | `IsEnabled` | `"true"` / `"false"` |
-| `require_password_change` | `RequirePasswordChange` | `"true"` / `"false"` |
+| `is_enabled` | `IsEnabled` | `"True"` / `"False"` |
+| `require_password_change` | `RequirePasswordChange` | `"True"` / `"False"` |
 
 `UserInfoMiddleware` then reads these claims back into `IUserInfo` on each request.
 
 **Nuance:** Claims are baked into the authentication cookie at login time. If you change a user's `IsEnabled`, `TenantId`, or any other property in the database, the change won't take effect until the cookie is refreshed. You can force a refresh without requiring the user to log out and back in by calling `SignInManager<TUser>.RefreshSignInAsync(user)` — this regenerates the claims and rewrites the cookie.
 
-### Reading claims directly
+### Claim type constants
 
-While `IUserInfo` is the recommended approach, you can also read claims directly:
-
-```csharp
-var tenantId = userInfo.Claims
-    .FirstOrDefault(c => c.Type == DefaultClaims.TenantId)?.Value;
-
-var isEnabled = userInfo.Claims
-    .FirstOrDefault(c => c.Type == DefaultClaims.IsEnabled)?.Value == "true";
-```
-
-The `DefaultClaims` class provides constants for all 12 custom claim types to avoid magic strings.
+The `DefaultClaims` class provides `const string` fields for all 12 custom claim types (e.g. `DefaultClaims.TenantId`, `DefaultClaims.IsEnabled`). You should not need to read claims directly — `IUserInfo` is a scoped service populated per-request by `UserInfoMiddleware`, so inject it wherever you need user data. The constants exist primarily as an implementation detail of the claims pipeline and are documented here for completeness. Boolean claims are stored as `"True"` / `"False"` (from `bool.ToString()`).
 
 ## Role management
 

@@ -23,6 +23,9 @@ public class HangfireJobOptions
 
     /// <summary>Gets or sets how missed job executions are handled. Defaults to <see cref="MisfireHandlingMode.Relaxed"/>.</summary>
     public MisfireHandlingMode MisfireHandling { get; set; } = MisfireHandlingMode.Relaxed;
+
+    /// <summary>Gets or sets the maximum execution time for a single job run. When exceeded, the job's cancellation token is triggered. <c>null</c> means no timeout (default).</summary>
+    public TimeSpan? ExecutionTimeout { get; set; }
 }
 
 /// <summary>

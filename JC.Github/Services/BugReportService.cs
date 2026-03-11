@@ -66,6 +66,7 @@ public class BugReportService
             var issueNumber = await _gitHelper.RecordIssue(_owner, _repo, "New " + issueType, description);
             ri.ReportSent = true;
             ri.ExternalId = issueNumber;
+            _logger.LogInformation("GitHub issue #{IssueNumber} created for {IssueType} in {Owner}/{Repo}", issueNumber, issueType, _owner, _repo);
         }
         catch (Exception ex)
         {

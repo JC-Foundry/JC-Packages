@@ -58,7 +58,7 @@ Optional custom UI styling for a notification, stored as a separate entity to av
 
 | Property | Type | Default | Access | Description |
 |----------|------|---------|--------|-------------|
-| `NotificationId` | `string` | — | get; set; | Primary key and foreign key to `Notification`. Marked `required`. Max 36 characters. |
+| `NotificationId` | `string` | — | get; set; | Primary key and foreign key to `Notification`. Max 36 characters. |
 | `Notification` | `Notification` | — | get; set; | Navigation property to the parent notification. |
 | `CustomColourClass` | `string?` | `null` | get; set; | CSS colour class override. Max 128 characters. |
 | `CustomIconClass` | `string?` | `null` | get; set; | CSS icon class override. Max 128 characters. |
@@ -239,61 +239,76 @@ Orchestrates notification state changes (read, unread, dismiss) with persistence
 
 ### Methods
 
-#### TryMarkAsReadAsync(string id)
+#### TryMarkAsReadAsync(string id, string? userId = null)
 
 **Returns:** `Task<bool>`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `id` | `string` | — | The notification ID. |
+| `userId` | `string?` | `null` | Optional user ID for cross-user operations. The default `NotificationManager` throws `InvalidOperationException` if provided — implement a custom `INotificationManager` to enable cross-user access. |
 
 Validates the current user ID, marks the notification as read via `NotificationService.MarkNotificationAsRead`, logs the read event via `NotificationLogService.LogReadAsync` (if logging mode permits), and updates the cache. Returns `true` on success; `false` if the user ID is invalid or the notification was not found.
 
 ---
 
-#### TryMarkAsUnreadAsync(string id)
+#### TryMarkAsUnreadAsync(string id, string? userId = null)
 
 **Returns:** `Task<bool>`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `id` | `string` | — | The notification ID. |
+| `userId` | `string?` | `null` | Optional user ID for cross-user operations. The default `NotificationManager` throws `InvalidOperationException` if provided. |
 
 Validates the current user ID, marks the notification as unread via `NotificationService.UnmarkNotificationAsRead`, logs the unread event (if logging mode permits), and updates the cache. Returns `true` on success; `false` if the user ID is invalid or the notification was not found.
 
 ---
 
-#### TryDismissAsync(string id)
+#### TryDismissAsync(string id, string? userId = null)
 
 **Returns:** `Task<bool>`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `id` | `string` | — | The notification ID. |
+| `userId` | `string?` | `null` | Optional user ID for cross-user operations. The default `NotificationManager` throws `InvalidOperationException` if provided. |
 
 Validates the current user ID, then deletes the notification via `NotificationService.TryDeleteNotification`. Uses soft delete or hard delete based on `NotificationOptions.HardDeleteOnDismiss`. Removes the notification from the cache on success. Returns `true` on success; `false` if the user ID is invalid or the notification was not found.
 
 ---
 
-#### TryMarkAllAsReadAsync()
+#### TryMarkAllAsReadAsync(string? userId = null)
 
 **Returns:** `Task<bool>`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `userId` | `string?` | `null` | Optional user ID for cross-user operations. The default `NotificationManager` throws `InvalidOperationException` if provided. |
 
 Validates the current user ID, marks all unread, non-expired, active notifications as read for the current user, logs a read event for each updated notification individually, and updates the cache. Returns `true` if at least one notification was updated; `false` if the user ID is invalid or no notifications were updated.
 
 ---
 
-#### TryMarkAllAsUnreadAsync()
+#### TryMarkAllAsUnreadAsync(string? userId = null)
 
 **Returns:** `Task<bool>`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `userId` | `string?` | `null` | Optional user ID for cross-user operations. The default `NotificationManager` throws `InvalidOperationException` if provided. |
 
 Validates the current user ID, marks all read, non-expired, active notifications as unread for the current user, logs an unread event for each updated notification individually, and updates the cache. Returns `true` if at least one notification was updated; `false` if the user ID is invalid or no notifications were updated.
 
 ---
 
-#### TryDismissAllAsync()
+#### TryDismissAllAsync(string? userId = null)
 
 **Returns:** `Task<bool>`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `userId` | `string?` | `null` | Optional user ID for cross-user operations. The default `NotificationManager` throws `InvalidOperationException` if provided. |
 
 Validates the current user ID, deletes all active, non-expired notifications for the current user (soft or hard based on `NotificationOptions.HardDeleteOnDismiss`), and clears the user's cache. Returns `true` on success; `false` if the user ID is invalid or no notifications existed.
 
@@ -687,7 +702,7 @@ Static validation logic for notifications and styles.
 |-----------|------|---------|-------------|
 | `userId` | `string?` | — | The user ID to validate. |
 
-Returns `true` if the user ID is a valid GUID and is not null, whitespace, `IUserInfo.MissingUserInfoId`, or a system/unknown user constant. Rejects `UNKNOWN_USER_ID` and `SYSTEM_USER_ID` via case-insensitive comparison.
+Returns `true` if the user ID is not null or whitespace, is not `UNKNOWN_USER_ID` or `SYSTEM_USER_ID` (case-insensitive comparison), and is a valid GUID.
 
 ---
 

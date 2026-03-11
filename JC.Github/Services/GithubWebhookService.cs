@@ -106,6 +106,12 @@ public class GithubWebhookService(
                 break;
 
             case "edited" when existing is not null:
+                if (comment.UpdatedAt <= existing.UpdatedAt)
+                {
+                    logger.LogDebug("Ignoring stale edit for comment {CommentId} — incoming {Incoming} <= stored {Stored}",
+                        comment.Id, comment.UpdatedAt, existing.UpdatedAt);
+                    break;
+                }
                 existing.Body = comment.Body;
                 existing.UpdatedAt = comment.UpdatedAt;
                 await issueComments.UpdateAsync(existing);

@@ -120,7 +120,7 @@ builder.Services.AddGithub<AppDbContext>(builder.Configuration, options =>
 
 | Type parameter | Constraint | Description |
 |---------------|-----------|-------------|
-| `TContext` | `DbContext, IGithubDbContext` | Your DbContext. Must implement `IGithubDbContext` (requires `DbSet<ReportedIssue>` and `DbSet<IssueComment>` properties) |
+| `TContext` | `DbContext, IDataDbContext, IGithubDbContext` | Your DbContext. Must extend `DataDbContext` (which implements `IDataDbContext`) and implement `IGithubDbContext` (requires `DbSet<ReportedIssue>` and `DbSet<IssueComment>` properties) |
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|

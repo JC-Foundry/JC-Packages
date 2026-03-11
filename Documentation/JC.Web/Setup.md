@@ -389,7 +389,7 @@ app.UseRateLimiting();
 | `PermitLimit` | `int` | `100` | Maximum requests within the window (used by `FixedWindow` and `SlidingWindow`) |
 | `Window` | `TimeSpan` | `1 minute` | Time window for rate limiting |
 | `SegmentsPerWindow` | `int` | `6` | Segments per window for `SlidingWindow` (each segment = `Window / SegmentsPerWindow`). Ignored by other strategies |
-| `PartitionBy` | `RateLimitPartitionBy` | `ClientIp` | How requests are grouped. Values: `ClientIp`, `User` (falls back to IP for anonymous), `Endpoint`, `ClientIpAndEndpoint` |
+| `PartitionBy` | `RateLimitPartitionBy` | `ClientIp` | How requests are grouped. Values: `ClientIp`, `User` (falls back to endpoint path for anonymous), `Endpoint`, `ClientIpAndEndpoint` |
 | `ExcludeStaticFiles` | `bool` | `true` | When `true`, static file requests (.css, .js, .png, .jpg, .jpeg, .gif, .svg, .ico, .woff, .woff2, .ttf, .eot, .map, .webp, .avif, .bmp) bypass the rate limiter |
 | `QueueLimit` | `int` | `0` | Requests to queue when the limit is reached. `0` = no queuing (immediate 429) |
 | `QueueProcessingOrder` | `QueueProcessingOrder` | `OldestFirst` | Processing order for queued requests |

@@ -38,8 +38,8 @@ public class EmailOptions
     //SMTP Relay Options:
 
     /// <summary>
-    /// The SMTP server hostname. Required for <see cref="EmailProvider.SmtpRelay"/> and <see cref="EmailProvider.DirectSmtp"/> providers.
-    /// Ignored for all other provider types.
+    /// The SMTP server hostname. Required for <see cref="EmailProvider.Microsoft"/>, <see cref="EmailProvider.SmtpRelay"/>,
+    /// and <see cref="EmailProvider.DirectSmtp"/> providers. Ignored for <see cref="EmailProvider.Console"/>.
     /// </summary>
     public string Host { get; set; } = "smtp.office365.com";
 

@@ -22,9 +22,7 @@
     <ItemGroup>
       <Folder Include="Extensions\" />
       <Folder Include="Logging\Data\DataMappings\Notifications\" />
-      <Folder Include="Logging\Models\SMS\" />
       <Folder Include="Notifications\Data\DataMappings\" />
-      <Folder Include="SMS\" />
     </ItemGroup>
 
 </Project>

@@ -1,4 +1,5 @@
 using JC.Communication.Notifications.Models;
+using JC.Core.Data.DataMappings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -13,5 +14,7 @@ public class NotificationStyleMap : IEntityTypeConfiguration<NotificationStyle>
 
         builder.Property(s => s.CustomColourClass).HasMaxLength(128);
         builder.Property(s => s.CustomIconClass).HasMaxLength(128);
+        
+        builder = AuditModelMapping<NotificationStyle>.MapAuditModel(builder);
     }
 }

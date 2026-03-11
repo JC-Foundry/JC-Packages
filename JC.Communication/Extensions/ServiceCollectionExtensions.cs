@@ -285,7 +285,7 @@ public static class ServiceCollectionExtensions
         if(options.LoggingMode != NotificationLoggingMode.None)
             throw new InvalidOperationException("You must use generic overload to use logging.");
         
-        services.AddNotificationsBase<TNotificationManager>(options);
+        services.AddNotificationsBase<TNotificationManager>();
         return services;
     }
     
@@ -349,7 +349,7 @@ public static class ServiceCollectionExtensions
             typeof(NotificationStyle),
             typeof(NotificationLog));
 
-        services.AddNotificationsBase<TNotificationManager>(options);
+        services.AddNotificationsBase<TNotificationManager>();
         return services;
     }
 
@@ -361,12 +361,9 @@ public static class ServiceCollectionExtensions
     /// </summary>
     /// <typeparam name="TNotificationManager">The <see cref="INotificationManager"/> implementation type to register.</typeparam>
     /// <param name="services">The service collection.</param>
-    /// <param name="options">The resolved notification options.</param>
     /// <returns>The service collection for chaining.</returns>
     /// <exception cref="InvalidOperationException">Thrown if <see cref="IUserInfo"/> is not registered.</exception>
-    private static IServiceCollection AddNotificationsBase<TNotificationManager>(
-        this IServiceCollection services,
-        NotificationOptions options)
+    private static IServiceCollection AddNotificationsBase<TNotificationManager>(this IServiceCollection services)
         where TNotificationManager : class, INotificationManager
     {
         // Guard: IUserInfo must be registered (typically by JC.Identity)
@@ -375,6 +372,9 @@ public static class ServiceCollectionExtensions
                 $"{nameof(IUserInfo)} is not registered. " +
                 "Ensure JC.Identity services are registered before calling AddNotifications.");
         
+        // Memory cache (required by NotificationCache)
+        services.AddMemoryCache();
+
         // Services
         services.TryAddScoped<NotificationService>();
         services.TryAddScoped<NotificationLogService>();

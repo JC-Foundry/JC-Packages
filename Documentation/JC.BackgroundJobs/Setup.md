@@ -85,6 +85,7 @@ Hangfire requires a connection string for its storage. When using `JC.SqlServer.
 | `ErrorBehavior` | `Continue` | Log the error and continue running on the next interval |
 | `LogBehavior` | `LogAll` | Log both informational and error messages |
 | `ServiceLifetime` | `Scoped` | DI lifetime used to resolve the job — a fresh scope is created per tick |
+| `ExecutionTimeout` | `null` (no timeout) | Maximum execution time per run — cancellation token is triggered when exceeded |
 
 The job class is registered in DI with the specified lifetime. A `BackgroundService` wrapper manages the execution loop, creating a new DI scope for each tick when the lifetime is `Scoped` or `Transient`. `Singleton` jobs are resolved from the root provider.
 
@@ -97,10 +98,11 @@ The job class is registered in DI with the specified lifetime. A `BackgroundServ
 | `JobId` | Job type name | Unique identifier for the recurring job |
 | `TimeZone` | `TimeZoneInfo.Utc` | Time zone for cron evaluation |
 | `MisfireHandling` | `Relaxed` | How missed executions are handled when the server was offline |
+| `ExecutionTimeout` | `null` (no timeout) | Maximum execution time per run — cancellation token is triggered when exceeded |
 
 The job class is registered as scoped in DI. At startup, a hosted service registers all collected recurring jobs with Hangfire's `IRecurringJobManager`.
 
-**Note:** Hangfire jobs receive `CancellationToken.None` in `ExecuteAsync`. Hangfire manages cancellation through its own infrastructure, not via the token parameter. For hosted service jobs, the token is the host's stopping token and is signalled during graceful shutdown.
+**Note:** Hangfire jobs receive `CancellationToken.None` in `ExecuteAsync` by default. Hangfire manages cancellation through its own infrastructure, not via the token parameter. When `ExecutionTimeout` is configured, a timeout runner wraps execution and provides a token that is triggered when the timeout elapses. For hosted service jobs, the token is the host's stopping token (or a linked timeout token when `ExecutionTimeout` is set) and is signalled during graceful shutdown or timeout.
 
 #### Hangfire scheduler — `AddHangfireScheduler()`
 
@@ -127,6 +129,7 @@ builder.Services.AddBackgroundJob<CleanupJob>(options =>
     options.ErrorBehavior = JobErrorBehavior.Continue;
     options.LogBehavior = JobLogBehavior.LogAll;
     options.ServiceLifetime = ServiceLifetime.Scoped;
+    options.ExecutionTimeout = null; // No timeout by default — set a TimeSpan to limit execution time
 });
 ```
 
@@ -147,8 +150,9 @@ builder.Services.AddBackgroundJob<CleanupJob>(options =>
 | `ErrorBehavior` | `JobErrorBehavior` | `Continue` | How the wrapper handles exceptions thrown by `ExecuteAsync` |
 | `LogBehavior` | `JobLogBehavior` | `LogAll` | Controls which lifecycle messages the wrapper logs |
 | `ServiceLifetime` | `ServiceLifetime` | `Scoped` | The DI lifetime for the job class. `Scoped` and `Transient` create a new scope per tick; `Singleton` resolves from the root provider |
+| `ExecutionTimeout` | `TimeSpan?` | `null` | Maximum execution time for a single run. When exceeded, the job's cancellation token is triggered. `null` means no timeout |
 
-`Interval` must be greater than zero and `InitialDelay` must not be negative — invalid values throw `ArgumentOutOfRangeException` at registration time.
+`Interval` must be greater than zero, `InitialDelay` must not be negative, and `ExecutionTimeout` (when set) must be greater than zero — invalid values throw `ArgumentOutOfRangeException` at registration time.
 
 #### JobErrorBehavior
 
@@ -214,6 +218,7 @@ builder.Services.AddHangfireJob<ReportGenerationJob>(options =>
     options.JobId = "ReportGenerationJob";
     options.TimeZone = TimeZoneInfo.Utc;
     options.MisfireHandling = MisfireHandlingMode.Relaxed;
+    options.ExecutionTimeout = null; // No timeout by default — set a TimeSpan to limit execution time
 });
 ```
 
@@ -234,8 +239,9 @@ builder.Services.AddHangfireJob<ReportGenerationJob>(options =>
 | `JobId` | `string?` | `null` (falls back to type name) | Unique identifier for the recurring job in Hangfire. Defaults to the job class name (e.g. `"ReportGenerationJob"`) |
 | `TimeZone` | `TimeZoneInfo` | `TimeZoneInfo.Utc` | Time zone used for cron evaluation |
 | `MisfireHandling` | `MisfireHandlingMode` | `Relaxed` | How missed executions are handled. `Relaxed` executes once when the server comes back; `Strict` attempts to catch up on every missed execution |
+| `ExecutionTimeout` | `TimeSpan?` | `null` | Maximum execution time for a single run. When exceeded, the job's cancellation token is triggered. `null` means no timeout |
 
-`Cron`, `Queue`, and `JobId` (when set) must not be null, empty, or whitespace — invalid values throw `ArgumentException` at registration time.
+`Cron`, `Queue`, and `JobId` (when set) must not be null, empty, or whitespace — invalid values throw `ArgumentException` at registration time. `ExecutionTimeout` (when set) must be greater than zero — invalid values throw `ArgumentOutOfRangeException`.
 
 Hangfire jobs are registered as scoped in DI. Hangfire creates its own scope when executing a job, so scoped dependencies (DbContext, repositories) work correctly.
 

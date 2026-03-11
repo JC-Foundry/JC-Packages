@@ -171,7 +171,7 @@ When you configure a webhook in your GitHub repository settings, GitHub sends PO
 | `issues` | `opened`, `closed`, `reopened`, `edited` | Creates or updates `ReportedIssue` records |
 | `issue_comment` | `created`, `edited`, `deleted` | Creates, updates, or soft-deletes `IssueComment` records |
 
-All other event types are logged at debug level and ignored.
+Events with an `Issue` field that aren't `issues` or `issue_comment` are logged at debug level and ignored. Events without an `Issue` field (e.g. `push`, `star`) return `400 BadRequest` — configure your GitHub webhook to send only the events listed above.
 
 ### Issue sync behaviour
 
@@ -197,7 +197,7 @@ issue.Closed; // true — updated by the webhook
 When a webhook arrives for an `issue_comment` event:
 
 - **`created`** — a new `IssueComment` record is inserted with the comment body, author, and timestamps.
-- **`edited`** — the existing comment's `Body` and `UpdatedAt` are updated.
+- **`edited`** — the existing comment's `Body` and `UpdatedAt` are updated. Stale edits are ignored — if the incoming `UpdatedAt` is equal to or earlier than the stored value, the update is skipped.
 - **`deleted`** — the existing comment's `Deleted` flag is set to `true`. The record is retained for audit purposes.
 
 ```csharp

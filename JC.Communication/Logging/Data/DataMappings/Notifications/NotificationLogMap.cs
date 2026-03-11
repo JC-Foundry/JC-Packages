@@ -1,4 +1,5 @@
 using JC.Communication.Logging.Models.Notifications;
+using JC.Core.Data.DataMappings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -17,5 +18,7 @@ public class NotificationLogMap : IEntityTypeConfiguration<NotificationLog>
 
         builder.HasIndex(l => l.NotificationId);
         builder.HasIndex(l => l.UserId);
+        
+        builder = LogModelMapping<NotificationLog>.MapLogModel(builder);
     }
 }

@@ -35,6 +35,7 @@ public class NotificationSender
         if(!string.IsNullOrWhiteSpace(colourClass) || !string.IsNullOrWhiteSpace(iconClass))
             style = new NotificationStyle
             {
+                NotificationId = notification.Id,
                 CustomColourClass = colourClass,
                 CustomIconClass = iconClass
             };

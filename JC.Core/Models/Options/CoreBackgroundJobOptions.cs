@@ -13,6 +13,6 @@ public class CoreBackgroundJobOptions
     public ushort SoftDeleteRetentionMonths { get; set; } = 24;
     public List<string> SoftDeleteRetentionBlacklist { get; private set; } = [];
 
-    public void SetSoftDeleteRetentionBlackList(params IEnumerable<string> classNames)
+    public void SetSoftDeleteRetentionBlacklist(params IEnumerable<string> classNames)
         => SoftDeleteRetentionBlacklist = classNames.Select(n => n.ToLowerInvariant()).ToList();
 }

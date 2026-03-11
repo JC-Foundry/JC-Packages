@@ -106,7 +106,7 @@ When called with no configuration callbacks, `AddIdentity` sets:
 3. `UseAuthorization()` — ASP.NET Core authorisation
 4. `UseIdentityMiddleware()` — enforces disabled account redirects, password change, and 2FA
 
-`IdentityMiddleware` automatically skips static file requests (.css, .js, .jpg, .png, .gif, .svg, .ico, .woff, .woff2, .ttf, .eot, .map, .json, .xml) and unauthenticated requests. For authenticated users it checks, in order:
+`IdentityMiddleware` automatically skips static file requests (.css, .js, .jpg, .jpeg, .png, .gif, .svg, .ico, .woff, .woff2, .ttf, .eot, .map, .json, .xml) and unauthenticated requests. For authenticated users it checks, in order:
 
 1. **Disabled accounts** — if `IUserInfo.IsEnabled` is `false`, redirects to the access denied route
 2. **Password change** — if `RequirePasswordChange` is enabled and the user's `RequiresPasswordChange` is `true`, redirects to the change password route
@@ -143,7 +143,7 @@ builder.Services.AddIdentity<AppUser, AppRole, AppDbContext>(
 |---------------|-----------|-------------|
 | `TUser` | `BaseUser` | Your user entity |
 | `TRole` | `BaseRole` | Your role entity |
-| `TContext` | `DbContext` | Your DbContext (should extend `IdentityDataDbContext<TUser, TRole>`) |
+| `TContext` | `IdentityDataDbContext<TUser, TRole>` | Your DbContext — must extend `IdentityDataDbContext<TUser, TRole>` |
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -253,6 +253,7 @@ await app.ConfigureAdminAndRolesAsync<AppUser, AppRole, AppDbContext, AppRoles>(
     emailConfigKey: "Admin:Email",
     passwordConfigKey: "Admin:Password",
     displayNameConfigKey: "Admin:DisplayName",
+    defaultTenantConfigKey: "Admin:DefaultTenantName",
     additionalRoles: null
 );
 ```
@@ -271,6 +272,7 @@ await app.ConfigureAdminAndRolesAsync<AppUser, AppRole, AppDbContext, AppRoles>(
 | `emailConfigKey` | `string` | `"Admin:Email"` | Configuration key for the admin email |
 | `passwordConfigKey` | `string` | `"Admin:Password"` | Configuration key for the admin password |
 | `displayNameConfigKey` | `string` | `"Admin:DisplayName"` | Configuration key for the admin display name (falls back to "System Administrator") |
+| `defaultTenantConfigKey` | `string` | `"Admin:DefaultTenantName"` | Configuration key for the default tenant name. Only used when `setupTenancy` is `true`. Falls back to "Default Tenant" if not configured |
 | `additionalRoles` | `IEnumerable<string>?` | `null` | Extra roles to assign to the admin beyond the system defaults |
 
 Configuration — `appsettings.json`:
@@ -286,7 +288,7 @@ Configuration — `appsettings.json`:
 }
 ```
 
-`Username`, `Email`, and `Password` are required — throws `InvalidOperationException` if missing. `DisplayName` is optional, defaulting to "System Administrator".
+`Username`, `Email`, and `Password` are required — throws `InvalidOperationException` if missing. `DisplayName` is optional, defaulting to "System Administrator". `DefaultTenantName` is optional and only used when `setupTenancy` is `true`, defaulting to "Default Tenant".
 
 The admin user is created with `EmailConfirmed = true` and `IsEnabled = true`. If `setupTenancy` is `false`, the admin receives both `SystemAdmin` and `Admin` roles. If `setupTenancy` is `true`, the admin receives only `SystemAdmin`.
 
@@ -311,6 +313,7 @@ await app.SeedDefaultAdminAsync<AppUser, AppRole, AppDbContext>(
     emailConfigKey: "Admin:Email",
     passwordConfigKey: "Admin:Password",
     displayNameConfigKey: "Admin:DisplayName",
+    defaultTenantConfigKey: "Admin:DefaultTenantName",
     additionalRoles: ["Editor", "Reviewer"]
 );
 ```

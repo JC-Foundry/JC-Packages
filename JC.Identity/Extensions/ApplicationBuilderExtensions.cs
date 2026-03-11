@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace JC.Identity.Extensions;
 
@@ -39,6 +40,7 @@ public static class ApplicationBuilderExtensions
     /// <param name="emailConfigKey">The configuration key for the admin email.</param>
     /// <param name="passwordConfigKey">The configuration key for the admin password.</param>
     /// <param name="displayNameConfigKey">The configuration key for the admin display name.</param>
+    /// <param name="defaultTenantConfigKey">The configuration key for the default tenant name. Falls back to "Default Tenant" if not configured.</param>
     /// <param name="additionalRoles">A collection of additional roles to be seeded into the system.</param>
     /// <typeparam name="TUser">The user entity type representing the administrator, inheriting from BaseUser.</typeparam>
     /// <typeparam name="TRoles">The type representing the system roles, inheriting from SystemRoles.</typeparam>
@@ -54,6 +56,7 @@ public static class ApplicationBuilderExtensions
         string emailConfigKey = "Admin:Email",
         string passwordConfigKey = "Admin:Password",
         string displayNameConfigKey = "Admin:DisplayName",
+        string defaultTenantConfigKey = "Admin:DefaultTenantName",
         IEnumerable<string>? additionalRoles = null)
         where TUser : BaseUser, new()
         where TRole : BaseRole, new()
@@ -62,7 +65,7 @@ public static class ApplicationBuilderExtensions
     {
         await app.SeedRolesAsync<TRoles, TRole>();
         await app.SeedDefaultAdminAsync<TUser, TRole, TContext>
-            (setupTenancy, usernameConfigKey, emailConfigKey, passwordConfigKey, displayNameConfigKey, additionalRoles);
+            (setupTenancy, usernameConfigKey, emailConfigKey, passwordConfigKey, displayNameConfigKey, defaultTenantConfigKey, additionalRoles);
 
         return app;
     }
@@ -103,7 +106,7 @@ public static class ApplicationBuilderExtensions
 
     /// <summary>
     /// Seeds a default administrator account to the database with specified configuration settings.
-    /// When <paramref name="setupTenancy"/> is <c>true</c>, finds or creates a "Default Tenant" and assigns it to the admin user.
+    /// When <paramref name="setupTenancy"/> is <c>true</c>, finds or creates a default tenant (configurable via <paramref name="defaultTenantConfigKey"/>) and assigns it to the admin user.
     /// </summary>
     /// <param name="app">The application builder instance used to access services.</param>
     /// <param name="setupTenancy">Indicates whether a default tenant should be found or created for the admin user.</param>
@@ -111,9 +114,11 @@ public static class ApplicationBuilderExtensions
     /// <param name="emailConfigKey">The configuration key for the administrator's email address.</param>
     /// <param name="passwordConfigKey">The configuration key for the administrator's password.</param>
     /// <param name="displayNameConfigKey">The configuration key for the administrator's display name.</param>
+    /// <param name="defaultTenantConfigKey">The configuration key for the default tenant name. Falls back to "Default Tenant" if not configured.</param>
     /// <param name="additionalRoles">A collection of additional roles to assign to the administrator.</param>
     /// <typeparam name="TUser">The type representing the user entity inheriting from BaseUser.</typeparam>
     /// <typeparam name="TRole">The type representing the role entity inheriting from BaseRole.</typeparam>
+    /// <typeparam name="TContext">The database context type inheriting from IdentityDataDbContext.</typeparam>
     /// <returns>The configured application builder instance for chaining.</returns>
     /// <exception cref="InvalidOperationException">
     /// Thrown if required configuration values are not found or invalid.
@@ -125,6 +130,7 @@ public static class ApplicationBuilderExtensions
         string emailConfigKey = "Admin:Email",
         string passwordConfigKey = "Admin:Password",
         string displayNameConfigKey = "Admin:DisplayName",
+        string defaultTenantConfigKey = "Admin:DefaultTenantName",
         IEnumerable<string>? additionalRoles = null)
         where TUser : BaseUser, new()
         where TRole : BaseRole
@@ -150,14 +156,15 @@ public static class ApplicationBuilderExtensions
         Tenant? tenant = null;
         if (setupTenancy)
         {
+            var tenantName = config[defaultTenantConfigKey] ?? "Default Tenant";
             var context = scope.ServiceProvider.GetRequiredService<TContext>();
-            tenant = await context.Tenants.FirstOrDefaultAsync(t => t.Name == "Default Tenant");
+            tenant = await context.Tenants.FirstOrDefaultAsync(t => t.Name == tenantName);
 
             if (tenant == null)
             {
                 tenant = new Tenant
                 {
-                    Name = "Default Tenant",
+                    Name = tenantName,
                     Description = "Default system tenant"
                 };
                 await context.Tenants.AddAsync(tenant);
@@ -177,17 +184,33 @@ public static class ApplicationBuilderExtensions
 
         var result = await userManager.CreateAsync(admin, password);
 
-        if (!result.Succeeded) return app;
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<TUser>>();
+        if (!result.Succeeded)
+        {
+            var errors = string.Join("; ", result.Errors.Select(e => e.Description));
+            logger.LogError("Failed to create default admin user '{Username}': {Errors}", username, errors);
+            return app;
+        }
 
-        await userManager.AddToRoleAsync(admin, SystemRoles.SystemAdmin);
-        if (!setupTenancy) await userManager.AddToRoleAsync(admin, SystemRoles.Admin);
+        await AssignRoleAsync(userManager, logger, admin, SystemRoles.SystemAdmin);
+        if (!setupTenancy) await AssignRoleAsync(userManager, logger, admin, SystemRoles.Admin);
 
         if (additionalRoles == null) return app;
 
-        var roles = additionalRoles.ToList();
-        foreach (var role in roles)
-            await userManager.AddToRoleAsync(admin, role);
+        foreach (var role in additionalRoles)
+            await AssignRoleAsync(userManager, logger, admin, role);
 
         return app;
+    }
+
+    private static async Task AssignRoleAsync<TUser>(UserManager<TUser> userManager, ILogger logger, TUser user, string role)
+        where TUser : BaseUser
+    {
+        var result = await userManager.AddToRoleAsync(user, role);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join("; ", result.Errors.Select(e => e.Description));
+            logger.LogError("Failed to assign role '{Role}' to user '{Username}': {Errors}", role, user.UserName, errors);
+        }
     }
 }

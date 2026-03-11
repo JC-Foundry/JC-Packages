@@ -1,4 +1,5 @@
 using JC.Communication.Notifications.Models;
+using JC.Core.Data.DataMappings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -23,5 +24,7 @@ public class NotificationMap : IEntityTypeConfiguration<Notification>
             .HasForeignKey<NotificationStyle>(s => s.NotificationId);
 
         builder.HasIndex(n => n.UserId);
+
+        builder = AuditModelMapping<Notification>.MapAuditModel(builder);
     }
 }

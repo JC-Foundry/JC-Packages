@@ -192,6 +192,7 @@ var result = await emailService.SendAsync(message);
 // result.Succeeded == false
 // result.ErrorMessage contains:
 //   "From address is required."
+//   "Invalid From address."
 //   "Invalid recipient addresses: not-an-email"
 ```
 

@@ -138,16 +138,19 @@ public class CookieDefaultOverride
     /// <param name="httpOnly">Optional HttpOnly override.</param>
     /// <param name="secure">Optional Secure override.</param>
     /// <param name="maxAge">Optional MaxAge override.</param>
+    /// <param name="isEssential">Optional IsEssential override.</param>
     public CookieDefaultOverride(
         SameSiteMode sameSite,
         bool? httpOnly = null,
         bool? secure = null,
-        TimeSpan? maxAge = null)
+        TimeSpan? maxAge = null,
+        bool? isEssential = null)
     {
         SameSite = sameSite;
         HttpOnly = httpOnly;
         Secure = secure;
         MaxAge = maxAge;
+        IsEssential = isEssential;
     }
 
     /// <summary>
@@ -170,11 +173,10 @@ public class CookieDefaultOverride
         TimeSpan? maxAge = null,
         DateTimeOffset? expires = null,
         bool? isEssential = null)
-        : this(sameSite, httpOnly, secure, maxAge)
+        : this(sameSite, httpOnly, secure, maxAge, isEssential)
     {
         Path = path;
         Domain = domain;
         Expires = expires;
-        IsEssential = isEssential;
     }
 }

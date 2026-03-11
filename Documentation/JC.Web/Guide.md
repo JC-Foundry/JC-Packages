@@ -327,13 +327,12 @@ public class MaxMindGeoProvider : IGeoLocationProvider
         // Look up the IP in your MaxMind database
         var result = _reader.City(ipAddress);
 
-        return new GeoLocation
-        {
-            Country = result.Country.Name,
-            CountryCode = result.Country.IsoCode,
-            Region = options.IncludeRegion ? result.MostSpecificSubdivision.Name : null,
-            City = options.IncludeCity ? result.City.Name : null
-        };
+        return new GeoLocation(
+            country: result.Country.Name,
+            countryCode: result.Country.IsoCode,
+            region: options.IncludeRegion ? result.MostSpecificSubdivision.Name : null,
+            city: options.IncludeCity ? result.City.Name : null
+        );
     }
 }
 ```
@@ -406,7 +405,7 @@ Available status codes: `NoContent` (204), `BadRequest` (400), `Unauthorized` (4
 | Partition | Key | Use case |
 |-----------|-----|----------|
 | `ClientIp` | Client IP address | General API protection |
-| `User` | Authenticated user name (falls back to IP) | Per-user limits |
+| `User` | Authenticated user name (falls back to endpoint path) | Per-user limits |
 | `Endpoint` | Request path | Per-endpoint limits |
 | `ClientIpAndEndpoint` | `"{ip}:{path}"` | Per-IP per-endpoint limits |
 

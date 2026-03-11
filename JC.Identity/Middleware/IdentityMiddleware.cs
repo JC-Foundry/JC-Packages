@@ -1,5 +1,5 @@
 using JC.Core.Models;
-using JC.Identity.Extensions.Options;
+using JC.Identity.Models.Options;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -71,7 +71,7 @@ public class IdentityMiddleware(RequestDelegate next, IOptions<IdentityMiddlewar
             }
         }
 
-        // Check 2FA enforcement (only if password is sorted)
+        // Check 2FA enforcement (only if password is changed)
         if (_options.EnforceTwoFactor && !userInfo.TwoFactorEnabled)
         {
             if (!path.StartsWith(_options.TwoFactorRoute, StringComparison.OrdinalIgnoreCase))

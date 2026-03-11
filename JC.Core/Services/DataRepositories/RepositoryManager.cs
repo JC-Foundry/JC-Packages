@@ -31,7 +31,7 @@ public class RepositoryManager : IRepositoryManager, IDisposable, IAsyncDisposab
 
     public async Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
     {
-        _currentTransaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        _currentTransaction ??= await _context.Database.BeginTransactionAsync(cancellationToken);
         return _currentTransaction;
     }
 
@@ -64,10 +64,15 @@ public class RepositoryManager : IRepositoryManager, IDisposable, IAsyncDisposab
     public void Dispose()
     {
         _currentTransaction?.Dispose();
+        _currentTransaction = null;
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (_currentTransaction != null) await _currentTransaction.DisposeAsync();
+        if (_currentTransaction != null)
+        {
+            await _currentTransaction.DisposeAsync();
+            _currentTransaction = null;
+        }
     }
 }

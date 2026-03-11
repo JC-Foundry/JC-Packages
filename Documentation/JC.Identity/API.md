@@ -363,7 +363,9 @@ Middleware that populates the scoped `IUserInfo` instance from the current `Clai
 
 Resolves `IUserInfo` from the request's service provider. If not already set up:
 
-For **unauthenticated requests**: assigns `SYSTEM_USER_ID`, `SYSTEM_USER_NAME`, and `SYSTEM_USER_EMAIL`.
+For requests with **no identity** (`context.User.Identity` is null): assigns `SYSTEM_USER_ID`, `SYSTEM_USER_NAME`, and `SYSTEM_USER_EMAIL`.
+
+For requests with an **identity present but not authenticated**: assigns `UNKNOWN_USER_ID`, `UNKNOWN_USER_NAME`, and `UNKNOWN_USER_EMAIL`.
 
 For **authenticated requests**: reads the user ID, username, and email from the claims principal using the claim types configured in `IdentityOptions.ClaimsIdentity`. Reads all 12 custom claims defined by `DefaultClaims` and parses them into the corresponding `IUserInfo` properties. Populates `Roles` by filtering claims with the configured `RoleClaimType`, and `Claims` with the full claim list. Sets `MultiTenancyEnabled` to `true` if `TenantId` is non-empty.
 

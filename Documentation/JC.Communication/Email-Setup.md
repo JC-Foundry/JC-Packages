@@ -236,7 +236,7 @@ options.UsernameRequired = false;
 }
 ```
 
-When `UsernameRequired` is `false` and no username is configured, authentication uses `"apikey"` as the username with the resolved secret. If no secret is configured either, authentication is skipped entirely (for unauthenticated internal relays).
+When `UsernameRequired` is `false`, only the API key (or secret) is needed — no separate username is required. The SMTP protocol still requires a username field, so `"apikey"` is sent as a placeholder. At least one secret (Password, ApiKey, or Secret) is always required — startup validation will fail if none are configured.
 
 #### Direct SMTP — no authentication
 

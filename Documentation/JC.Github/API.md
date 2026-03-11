@@ -66,7 +66,7 @@ Deserialisation model for the GitHub API response when creating an issue.
 | `Number` | `int` | get; set; | The issue number within the repository. |
 | `Title` | `string?` | get; set; | The issue title. |
 | `State` | `string?` | get; set; | The issue state (e.g. `"open"`, `"closed"`). |
-| `Html_Url` | `string?` | get; set; | The browser URL for the issue. |
+| `HtmlUrl` | `string?` | get; set; | The browser URL for the issue. Mapped from `html_url` via `[JsonPropertyName]`. |
 
 ---
 
@@ -202,7 +202,7 @@ Routes the event to the appropriate handler based on `eventType`. Returns immedi
 
 For `"issues"` events: looks up an existing `ReportedIssue` by `ExternalId` matching the issue number. If none exists, creates a new record with `Type = IssueType.Bug`, `ReportSent = true`, `Description` set to the issue body (falling back to the title if body is null), and `Closed` reflecting the current state. If a matching record exists, updates its `Description` and `Closed` status. Catches `DbUpdateException` silently on create to handle duplicate webhook deliveries.
 
-For `"issue_comment"` events (requires `payload.Comment` to be non-null): looks up an existing `IssueComment` by `CommentId`. On `"created"` action, inserts a new comment record (catching `DbUpdateException` for duplicates). On `"edited"`, updates the `Body` and `UpdatedAt` fields. On `"deleted"`, sets `Deleted = true` (soft-delete).
+For `"issue_comment"` events (requires `payload.Comment` to be non-null): looks up an existing `IssueComment` by `CommentId`. On `"created"` action, inserts a new comment record (catching `DbUpdateException` for duplicates). On `"edited"`, compares the incoming `UpdatedAt` against the stored value — if the incoming timestamp is equal to or earlier than the stored value, the update is skipped as stale. Otherwise, updates the `Body` and `UpdatedAt` fields. On `"deleted"`, sets `Deleted = true` (soft-delete).
 
 All other event types are logged at debug level and ignored.
 

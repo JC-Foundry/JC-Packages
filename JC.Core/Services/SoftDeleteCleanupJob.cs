@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Reflection;
 using JC.Core.Models;
 using JC.Core.Models.Auditing;
@@ -29,7 +30,7 @@ public class SoftDeleteCleanupJob : IBackgroundJob
 
     public async Task ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        if(_options.RegisterSoftDeleteCleanupJob)
+        if(!_options.RegisterSoftDeleteCleanupJob)
             return;
         
         var softDeletableTypes = _context.Model.GetEntityTypes()
@@ -81,11 +82,12 @@ public class SoftDeleteCleanupJob : IBackgroundJob
         }
         else
         {
-            // Reflection-based filter for non-AuditModel entities with IsDeleted property
-            // Must evaluate in-memory as EF can't translate reflection-based property access
-            var isDeletedProp = typeof(T).GetProperty("IsDeleted")!;
-            var all = await _context.Set<T>().ToListAsync(cancellationToken);
-            toDelete = all.Where(e => (bool)isDeletedProp.GetValue(e)!).ToList();
+            // Build expression tree so EF can translate IsDeleted filter to SQL
+            var parameter = Expression.Parameter(typeof(T), "e");
+            var property = Expression.Property(parameter, "IsDeleted");
+            var lambda = Expression.Lambda<Func<T, bool>>(property, parameter);
+
+            toDelete = await _context.Set<T>().Where(lambda).ToListAsync(cancellationToken);
         }
 
         if (toDelete.Count == 0) return;

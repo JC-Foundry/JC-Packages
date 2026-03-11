@@ -27,12 +27,19 @@ public class UserInfoMiddleware(RequestDelegate next, ILogger<UserInfoMiddleware
 
         if (!userInfo.IsSetup)
         {
-            if (!context.User.Identity?.IsAuthenticated ?? true)
+            if (context.User.Identity is null)
             {
-                logger.LogDebug("Unauthenticated request — assigning system user identity.");
+                logger.LogDebug("No identity present — assigning system user identity.");
                 userInfo.UserId = IUserInfo.SYSTEM_USER_ID;
                 userInfo.Username = IUserInfo.SYSTEM_USER_NAME;
                 userInfo.Email = IUserInfo.SYSTEM_USER_EMAIL;
+            }
+            else if (!context.User.Identity.IsAuthenticated)
+            {
+                logger.LogDebug("Unauthenticated request — assigning unknown user identity.");
+                userInfo.UserId = IUserInfo.UNKNOWN_USER_ID;
+                userInfo.Username = IUserInfo.UNKNOWN_USER_NAME;
+                userInfo.Email = IUserInfo.UNKNOWN_USER_EMAIL;
             }
             else
             {

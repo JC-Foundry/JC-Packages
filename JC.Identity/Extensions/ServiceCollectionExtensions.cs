@@ -1,7 +1,8 @@
 using JC.Core.Extensions;
 using JC.Core.Models;
 using JC.Identity.Authentication;
-using JC.Identity.Extensions.Options;
+using JC.Identity.Data;
+using JC.Identity.Models.Options;
 using JC.Identity.Models;
 using JC.Identity.Models.MultiTenancy;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -37,7 +38,7 @@ public static class ServiceCollectionExtensions
         Action<CookieAuthenticationOptions>? configureCookie = null)
         where TUser : BaseUser
         where TRole : BaseRole
-        where TContext : DbContext
+        where TContext : IdentityDataDbContext<TUser, TRole>
     {
         services.AddIdentity<TUser, TRole>()
             .AddEntityFrameworkStores<TContext>()
@@ -70,7 +71,7 @@ public static class ServiceCollectionExtensions
         Action<CookieAuthenticationOptions>? configureCookie = null)
         where TUser : BaseUser
         where TRole : BaseRole
-        where TContext : DbContext
+        where TContext : IdentityDataDbContext<TUser, TRole>
         where TUserInfo : class, IUserInfo
     {
         services.AddIdentity<TUser, TRole>()

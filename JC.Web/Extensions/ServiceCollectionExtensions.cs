@@ -379,8 +379,8 @@ public static class ServiceCollectionExtensions
         {
             RateLimitPartitionBy.User =>
                 context.User.Identity?.IsAuthenticated == true
-                    ? context.User.Identity.Name ?? ClientIpResolver.Resolve(context)
-                    : ClientIpResolver.Resolve(context),
+                    ? context.User.Identity.Name ?? context.Request.Path.ToString()
+                    : context.Request.Path.ToString(),
             RateLimitPartitionBy.Endpoint =>
                 context.Request.Path.ToString(),
             RateLimitPartitionBy.ClientIpAndEndpoint =>

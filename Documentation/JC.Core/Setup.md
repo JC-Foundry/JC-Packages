@@ -170,6 +170,7 @@ public class AppDbContext : DataDbContext
 | Index | `UserId` (max 256 characters) |
 | Index | `TableName` (max 256 characters) |
 | Index | `AuditDate` |
+| Max length | `UserName` (max 256 characters) |
 | Required properties | `Action`, `AuditDate` |
 
 ### AuditModel — auditable entities
@@ -291,7 +292,7 @@ builder.Services.ConfigureCoreBackgroundJobs(options =>
     // Soft-delete cleanup
     options.RegisterSoftDeleteCleanupJob = false;
     options.SoftDeleteRetentionMonths = 24;
-    options.SetSoftDeleteRetentionBlackList("product", "order"); // Entity names to exclude (case-insensitive)
+    options.SetSoftDeleteRetentionBlacklist("product", "order"); // Entity names to exclude (case-insensitive)
 });
 ```
 
@@ -306,7 +307,7 @@ builder.Services.ConfigureCoreBackgroundJobs(options =>
 | `CleanupChunkingValue` | `ushort` | `500` | Maximum records to delete per execution. `0` disables chunking |
 | `RegisterSoftDeleteCleanupJob` | `bool` | `false` | Enables the soft-delete cleanup job (off by default) |
 | `SoftDeleteRetentionMonths` | `ushort` | `24` | Soft-deleted entities older than this are hard-deleted |
-| `SoftDeleteRetentionBlacklist` | `List<string>` | `[]` | Entity type names excluded from soft-delete cleanup (case-insensitive). Set via `SetSoftDeleteRetentionBlackList()` |
+| `SoftDeleteRetentionBlacklist` | `List<string>` | `[]` | Entity type names excluded from soft-delete cleanup (case-insensitive). Set via `SetSoftDeleteRetentionBlacklist()` |
 
 #### AuditCleanupJob
 
@@ -314,7 +315,7 @@ Deletes audit entries older than `AuditRetentionMonths`, respecting `MinimumRete
 
 #### SoftDeleteCleanupJob
 
-Discovers all entity types in the `DbContext` model that extend `AuditModel` or have a `bool IsDeleted` property. Hard-deletes soft-deleted entities older than `SoftDeleteRetentionMonths`. For `AuditModel` entities, filters by `DeletedUtc` in the database query. For non-`AuditModel` entities with `IsDeleted`, loads all records and filters in memory. Respects `SoftDeleteRetentionBlacklist` to skip specific entity types.
+Discovers all entity types in the `DbContext` model that extend `AuditModel` or have a `bool IsDeleted` property. Hard-deletes soft-deleted entities older than `SoftDeleteRetentionMonths`. For `AuditModel` entities, filters by `DeletedUtc` in the database query. For non-`AuditModel` entities with `IsDeleted`, builds an expression tree so EF Core translates the filter to SQL. Respects `SoftDeleteRetentionBlacklist` to skip specific entity types.
 
 **Important:** These jobs are not self-executing. Configuring the options here only controls their behaviour — you still need to register them as background jobs using JC.BackgroundJobs for them to actually run. Without that registration, the jobs will never be invoked. See the JC.BackgroundJobs documentation for how to register and schedule jobs:
 

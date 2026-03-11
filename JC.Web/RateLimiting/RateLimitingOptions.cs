@@ -38,7 +38,7 @@ public class RateLimitingOptions
 
     /// <summary>
     /// The number of segments per window for <see cref="RateLimitingStrategy.SlidingWindow"/>.
-    /// Ignored by other strategies. Defaults to <c>4</c>.
+    /// Ignored by other strategies. Defaults to <c>6</c>.
     /// </summary>
     public int SegmentsPerWindow { get; set; } = 6;
 
@@ -73,8 +73,8 @@ public class RateLimitingOptions
 
     /// <summary>
     /// Whether to exclude static file requests from rate limiting.
-    /// When <c>true</c>, requests for common static file extensions (.css, .js, .png, .jpg, .gif,
-    /// .svg, .ico, .woff, .woff2, .ttf, .map) are not counted against the rate limit.
+    /// When <c>true</c>, requests for common static file extensions (.css, .js, .png, .jpg, .jpeg, .gif,
+    /// .svg, .ico, .woff, .woff2, .ttf, .eot, .map, .webp, .avif, .bmp) are not counted against the rate limit.
     /// Defaults to <c>true</c>.
     /// </summary>
     public bool ExcludeStaticFiles { get; set; } = true;
@@ -121,7 +121,7 @@ public enum RateLimitPartitionBy
     /// <summary>Partition by client IP address, resolved via <see cref="ClientProfiling.Helpers.ClientIpResolver"/>.</summary>
     ClientIp,
 
-    /// <summary>Partition by authenticated user identity. Falls back to client IP for anonymous requests.</summary>
+    /// <summary>Partition by authenticated user identity. Falls back to endpoint path for anonymous requests.</summary>
     User,
 
     /// <summary>Partition by request endpoint path.</summary>

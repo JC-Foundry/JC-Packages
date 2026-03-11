@@ -91,19 +91,41 @@ public static class ServiceCollectionExtensions
 
         var registry = EnsureHangfireInfrastructure(services);
 
-        registry.Add((manager, _) =>
+        if (options.ExecutionTimeout.HasValue)
         {
-            manager.AddOrUpdate<TJob>(
-                jobId,
-                options.Queue,
-                job => job.ExecuteAsync(CancellationToken.None),
-                options.Cron,
-                new RecurringJobOptions
-                {
-                    TimeZone = options.TimeZone,
-                    MisfireHandling = options.MisfireHandling
-                });
-        });
+            var timeout = options.ExecutionTimeout.Value;
+            services.TryAddScoped<HangfireTimeoutRunner<TJob>>();
+
+            registry.Add((manager, _) =>
+            {
+                manager.AddOrUpdate<HangfireTimeoutRunner<TJob>>(
+                    jobId,
+                    options.Queue,
+                    runner => runner.RunWithTimeoutAsync(timeout, CancellationToken.None),
+                    options.Cron,
+                    new RecurringJobOptions
+                    {
+                        TimeZone = options.TimeZone,
+                        MisfireHandling = options.MisfireHandling
+                    });
+            });
+        }
+        else
+        {
+            registry.Add((manager, _) =>
+            {
+                manager.AddOrUpdate<TJob>(
+                    jobId,
+                    options.Queue,
+                    job => job.ExecuteAsync(CancellationToken.None),
+                    options.Cron,
+                    new RecurringJobOptions
+                    {
+                        TimeZone = options.TimeZone,
+                        MisfireHandling = options.MisfireHandling
+                    });
+            });
+        }
 
         return services;
     }
@@ -152,6 +174,9 @@ public static class ServiceCollectionExtensions
 
         if (options.InitialDelay < TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(options), "InitialDelay must not be negative.");
+
+        if (options.ExecutionTimeout.HasValue && options.ExecutionTimeout.Value <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(options), "ExecutionTimeout must be greater than zero when specified.");
     }
 
     private static void ValidateHangfireJobOptions(string jobId, HangfireJobOptions options)
@@ -164,6 +189,9 @@ public static class ServiceCollectionExtensions
 
         if (string.IsNullOrWhiteSpace(options.Queue))
             throw new ArgumentException("Queue must not be null, empty, or whitespace.", nameof(options));
+
+        if (options.ExecutionTimeout.HasValue && options.ExecutionTimeout.Value <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(options), "ExecutionTimeout must be greater than zero when specified.");
     }
 
     // ── Internal helpers ────────────────────────────────────────────────

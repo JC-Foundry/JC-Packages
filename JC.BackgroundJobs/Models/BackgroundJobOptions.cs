@@ -23,6 +23,9 @@ public class BackgroundJobOptions
 
     /// <summary>Gets or sets the DI lifetime used to resolve the job. Defaults to <see cref="ServiceLifetime.Scoped"/>.</summary>
     public ServiceLifetime ServiceLifetime { get; set; } = ServiceLifetime.Scoped;
+
+    /// <summary>Gets or sets the maximum execution time for a single job run. When exceeded, the job's cancellation token is triggered. <c>null</c> means no timeout (default).</summary>
+    public TimeSpan? ExecutionTimeout { get; set; }
 }
 
 /// <summary>

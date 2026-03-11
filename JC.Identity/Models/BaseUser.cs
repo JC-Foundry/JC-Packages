@@ -19,7 +19,7 @@ public class BaseUser : IdentityUser
     public DateTime? LastLoginUtc { get; set; }
 
     /// <summary>Gets or sets whether the user account is enabled.</summary>
-    public bool IsEnabled { get; set; }
+    public bool IsEnabled { get; set; } = true;
 
     /// <summary>Gets or sets whether the user must change their password on next login.</summary>
     public bool RequirePasswordChange { get; set; }

@@ -86,7 +86,7 @@ Creates an empty override. All properties default to `null` (use global defaults
 
 ---
 
-#### CookieDefaultOverride(SameSiteMode sameSite, bool? httpOnly = null, bool? secure = null, TimeSpan? maxAge = null)
+#### CookieDefaultOverride(SameSiteMode sameSite, bool? httpOnly = null, bool? secure = null, TimeSpan? maxAge = null, bool? isEssential = null)
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -94,6 +94,7 @@ Creates an empty override. All properties default to `null` (use global defaults
 | `httpOnly` | `bool?` | `null` | Optional HttpOnly override. |
 | `secure` | `bool?` | `null` | Optional Secure override. |
 | `maxAge` | `TimeSpan?` | `null` | Optional MaxAge override. |
+| `isEssential` | `bool?` | `null` | Optional IsEssential override. |
 
 Creates an override with the most commonly adjusted properties.
 
@@ -363,7 +364,7 @@ How requests are partitioned for rate limiting.
 | Member | Value | Description |
 |--------|-------|-------------|
 | `ClientIp` | `0` | Partition by client IP address, resolved via `ClientIpResolver`. |
-| `User` | `1` | Partition by authenticated user identity. Falls back to client IP for anonymous requests. |
+| `User` | `1` | Partition by authenticated user identity. Falls back to endpoint path for anonymous requests. |
 | `Endpoint` | `2` | Partition by request endpoint path. |
 | `ClientIpAndEndpoint` | `3` | Partition by client IP combined with endpoint path. |
 

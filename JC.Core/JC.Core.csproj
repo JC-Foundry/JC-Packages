@@ -16,8 +16,4 @@
       <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="Data\DataMappings\" />
-    </ItemGroup>
-
 </Project>

@@ -1,4 +1,5 @@
 using JC.Communication.Logging.Models.Email;
+using JC.Core.Data.DataMappings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -15,5 +16,7 @@ public class EmailContentLogMap : IEntityTypeConfiguration<EmailContentLog>
 
         builder.Property(e => e.EmailLogId).HasMaxLength(36);
         builder.HasIndex(e => e.EmailLogId).IsUnique();
+        
+        builder = LogModelMapping<EmailContentLog>.MapLogModel(builder);
     }
 }

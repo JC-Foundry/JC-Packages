@@ -8,7 +8,8 @@
       "WebSearch",
       "Bash(dotnet pack:*)",
       "Bash(ls:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(tree -L 3 \"D:/Temp/JC-Packages/JC.BackgroundJobs\" -I \"bin|obj\" --charset ascii 2>/dev/null || find \"D:/Temp/JC-Packages/JC.BackgroundJobs\" -type f ! -path \"*/obj/*\" ! -path \"*/bin/*\" -exec dirname {} \\\\; | sort -u)"
     ]
   }
 }

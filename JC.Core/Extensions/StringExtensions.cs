@@ -14,7 +14,7 @@ public static partial class StringExtensions
     /// Returns the original string unchanged if it is shorter than or equal to the maximum length.
     /// </summary>
     /// <param name="value">The string to truncate.</param>
-    /// <param name="maxLength">The maximum total length of the returned string, including the suffix.</param>
+    /// <param name="maxLength">The maximum length of the string content before the suffix is appended.</param>
     /// <param name="suffix">The suffix to append when truncation occurs. Defaults to "...".</param>
     /// <returns>The original string if within the limit, or a truncated string ending with the suffix.</returns>
     public static string Truncate(this string value, int maxLength, string suffix = "...")
@@ -22,10 +22,7 @@ public static partial class StringExtensions
         if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
             return value;
 
-        if (maxLength <= suffix.Length)
-            return suffix[..maxLength];
-
-        return string.Concat(value.AsSpan(0, maxLength - suffix.Length), suffix);
+        return string.Concat(value.AsSpan(0, maxLength), suffix);
     }
 
     /// <summary>

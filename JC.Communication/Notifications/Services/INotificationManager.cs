@@ -11,38 +11,44 @@ public interface INotificationManager
     /// Marks a notification as read.
     /// </summary>
     /// <param name="id">The notification identifier.</param>
+    /// <param name="userId">Optional user identifier for cross-user operations. The default <see cref="NotificationManager"/> does not support this and will throw; implement a custom <see cref="INotificationManager"/> to enable cross-user access.</param>
     /// <returns><c>true</c> if the notification was found and marked as read; otherwise <c>false</c>.</returns>
-    Task<bool> TryMarkAsReadAsync(string id);
+    Task<bool> TryMarkAsReadAsync(string id, string? userId = null);
 
     /// <summary>
     /// Marks a notification as unread.
     /// </summary>
     /// <param name="id">The notification identifier.</param>
+    /// <param name="userId">Optional user identifier for cross-user operations. The default <see cref="NotificationManager"/> does not support this and will throw; implement a custom <see cref="INotificationManager"/> to enable cross-user access.</param>
     /// <returns><c>true</c> if the notification was found and marked as unread; otherwise <c>false</c>.</returns>
-    Task<bool> TryMarkAsUnreadAsync(string id);
+    Task<bool> TryMarkAsUnreadAsync(string id, string? userId = null);
 
     /// <summary>
     /// Dismisses a notification.
     /// </summary>
     /// <param name="id">The notification identifier.</param>
+    /// <param name="userId">Optional user identifier for cross-user operations. The default <see cref="NotificationManager"/> does not support this and will throw; implement a custom <see cref="INotificationManager"/> to enable cross-user access.</param>
     /// <returns><c>true</c> if the notification was found and dismissed; otherwise <c>false</c>.</returns>
-    Task<bool> TryDismissAsync(string id);
+    Task<bool> TryDismissAsync(string id, string? userId = null);
 
     /// <summary>
-    /// Marks all notifications as read for the current user.
+    /// Marks all notifications as read for the current user, or the specified user.
     /// </summary>
+    /// <param name="userId">Optional user identifier for cross-user operations. The default <see cref="NotificationManager"/> does not support this and will throw; implement a custom <see cref="INotificationManager"/> to enable cross-user access.</param>
     /// <returns><c>true</c> if at least one notification was marked as read; otherwise <c>false</c>.</returns>
-    Task<bool> TryMarkAllAsReadAsync();
+    Task<bool> TryMarkAllAsReadAsync(string? userId = null);
 
     /// <summary>
-    /// Marks all notifications as unread for the current user.
+    /// Marks all notifications as unread for the current user, or the specified user.
     /// </summary>
+    /// <param name="userId">Optional user identifier for cross-user operations. The default <see cref="NotificationManager"/> does not support this and will throw; implement a custom <see cref="INotificationManager"/> to enable cross-user access.</param>
     /// <returns><c>true</c> if at least one notification was marked as unread; otherwise <c>false</c>.</returns>
-    Task<bool> TryMarkAllAsUnreadAsync();
+    Task<bool> TryMarkAllAsUnreadAsync(string? userId = null);
 
     /// <summary>
-    /// Dismisses all notifications for the current user.
+    /// Dismisses all notifications for the current user, or the specified user.
     /// </summary>
+    /// <param name="userId">Optional user identifier for cross-user operations. The default <see cref="NotificationManager"/> does not support this and will throw; implement a custom <see cref="INotificationManager"/> to enable cross-user access.</param>
     /// <returns><c>true</c> if at least one notification was dismissed; otherwise <c>false</c>.</returns>
-    Task<bool> TryDismissAllAsync();
+    Task<bool> TryDismissAllAsync(string? userId = null);
 }

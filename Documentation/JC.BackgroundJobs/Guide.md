@@ -94,7 +94,9 @@ public class DataExportJob(AppDbContext db) : IBackgroundJob
 
 **Nuance:** When the hosted service wrapper catches an `OperationCanceledException` and the stopping token is cancelled, it exits the loop cleanly without triggering the error behaviour. This is normal shutdown — not a job failure.
 
-**Nuance:** For **Hangfire jobs**, `ExecuteAsync` receives `CancellationToken.None`. Hangfire manages job cancellation through its own infrastructure (server shutdown, job deletion from dashboard), not via the token parameter. If your job is used exclusively with Hangfire and needs to respond to cancellation, use Hangfire's `IJobCancellationToken` directly. If your job is shared across both paths, the token is useful for hosted service shutdown but will not be signalled by Hangfire.
+**Nuance:** When `ExecutionTimeout` is configured (see [Setup](Setup.md)), the token passed to `ExecuteAsync` is a linked token that triggers on either host shutdown or timeout. If the timeout fires, the wrapper logs a warning and continues to the next interval — it does not trigger the `ErrorBehavior`. Check `cancellationToken.IsCancellationRequested` inside long-running loops so your job exits promptly when the timeout fires.
+
+**Nuance:** For **Hangfire jobs**, `ExecuteAsync` receives `CancellationToken.None` unless `ExecutionTimeout` is configured, in which case the job is wrapped with a timeout-linked token. Hangfire manages job cancellation through its own infrastructure (server shutdown, job deletion from dashboard), not via the token parameter. If your job is used exclusively with Hangfire and needs to respond to cancellation, use Hangfire's `IJobCancellationToken` directly. If your job is shared across both paths, the token is useful for hosted service shutdown but will not be signalled by Hangfire.
 
 ## Hosted service jobs
 
@@ -112,6 +114,8 @@ Host starts → [InitialDelay] → Execute → [Interval] → Execute → [Inter
 ```
 
 **Nuance:** The interval is measured from when the previous execution finishes, not from when it started. A job that takes 30 seconds to run with a 1-minute interval will execute roughly every 90 seconds, not every 60 seconds.
+
+**Nuance:** If `ExecutionTimeout` is configured, a job that exceeds the timeout is cancelled and the wrapper moves straight to the interval wait. The timed-out execution does not count as an error — it is logged as a warning and does not trigger `ErrorBehavior`.
 
 ### Error handling
 
@@ -302,6 +306,20 @@ builder.Services.AddHangfireJob<CleanupJob>(options =>
 ```
 
 **Nuance:** Job IDs must be unique across all recurring jobs. If two jobs share the same ID, the second registration overwrites the first in Hangfire.
+
+### Execution timeout
+
+When `ExecutionTimeout` is configured on a Hangfire job, the job is wrapped with `HangfireTimeoutRunner` which creates a linked cancellation token. If the timeout fires, the runner logs a warning and re-throws the `OperationCanceledException` — this causes Hangfire to treat it as a failed execution, subject to the normal retry policy.
+
+```csharp
+builder.Services.AddHangfireJob<LongRunningExportJob>(options =>
+{
+    options.Cron = "0 2 * * *";
+    options.ExecutionTimeout = TimeSpan.FromMinutes(10);
+});
+```
+
+If the job is cancelled by Hangfire itself (server shutdown, job deletion from the dashboard) rather than by the timeout, the exception propagates without the timeout warning log.
 
 ### Retry attempts
 

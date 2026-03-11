@@ -1,4 +1,4 @@
-namespace JC.Identity.Extensions.Options;
+namespace JC.Identity.Models.Options;
 
 /// <summary>
 /// Configuration options for <see cref="JC.Identity.Middleware.IdentityMiddleware"/>,

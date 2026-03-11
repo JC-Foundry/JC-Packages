@@ -46,15 +46,25 @@ public class NotificationManager : INotificationManager
         _logger = logger;
         _userInfo = userInfo;
     }
-
+    
+    private void CheckUserId(string? userId)
+    {
+        if (!string.IsNullOrWhiteSpace(userId))
+            throw new InvalidOperationException("User ID cannot be specified when using the default notification manager." +
+                                                "Please implement your own notification manager and register it with the " +
+                                                "generic service collection overload method.");
+    }
+    
     /// <summary>
     /// Marks a notification as read. Persists the change to the database,
     /// logs the read event, then updates the cached state.
     /// </summary>
     /// <param name="id">The notification identifier.</param>
+    /// <param name="userId">Not supported by the default manager. Throws <see cref="InvalidOperationException"/> if provided.</param>
     /// <returns><c>true</c> if the notification was found and marked as read; otherwise <c>false</c>.</returns>
-    public async Task<bool> TryMarkAsReadAsync(string id)
+    public async Task<bool> TryMarkAsReadAsync(string id, string? userId = null)
     {
+        CheckUserId(userId);
         var valid = NotificationValidator.ValidateUserId(_userInfo.UserId);
         if(!valid) return false;
         
@@ -75,9 +85,11 @@ public class NotificationManager : INotificationManager
     /// logs the unread event, then updates the cached state.
     /// </summary>
     /// <param name="id">The notification identifier.</param>
+    /// <param name="userId">Not supported by the default manager. Throws <see cref="InvalidOperationException"/> if provided.</param>
     /// <returns><c>true</c> if the notification was found and marked as unread; otherwise <c>false</c>.</returns>
-    public async Task<bool> TryMarkAsUnreadAsync(string id)
+    public async Task<bool> TryMarkAsUnreadAsync(string id, string? userId = null)
     {
+        CheckUserId(userId);
         var valid = NotificationValidator.ValidateUserId(_userInfo.UserId);
         if(!valid) return false;
         
@@ -99,9 +111,11 @@ public class NotificationManager : INotificationManager
     /// then removes it from the cache.
     /// </summary>
     /// <param name="id">The notification identifier.</param>
+    /// <param name="userId">Not supported by the default manager. Throws <see cref="InvalidOperationException"/> if provided.</param>
     /// <returns><c>true</c> if the notification was found and dismissed; otherwise <c>false</c>.</returns>
-    public async Task<bool> TryDismissAsync(string id)
+    public async Task<bool> TryDismissAsync(string id, string? userId = null)
     {
+        CheckUserId(userId);
         var valid = NotificationValidator.ValidateUserId(_userInfo.UserId);
         if(!valid) return false;
 
@@ -121,9 +135,11 @@ public class NotificationManager : INotificationManager
     /// Marks all notifications as read for the current user. Persists the changes to the database,
     /// logs each read event, then updates the cached state.
     /// </summary>
+    /// <param name="userId">Not supported by the default manager. Throws <see cref="InvalidOperationException"/> if provided.</param>
     /// <returns><c>true</c> if at least one notification was marked as read; otherwise <c>false</c>.</returns>
-    public async Task<bool> TryMarkAllAsReadAsync()
+    public async Task<bool> TryMarkAllAsReadAsync(string? userId = null)
     {
+        CheckUserId(userId);
         var valid = NotificationValidator.ValidateUserId(_userInfo.UserId);
         if(!valid) return false;
 
@@ -141,9 +157,11 @@ public class NotificationManager : INotificationManager
     /// Marks all notifications as unread for the current user. Persists the changes to the database,
     /// logs each unread event, then updates the cached state.
     /// </summary>
+    /// <param name="userId">Not supported by the default manager. Throws <see cref="InvalidOperationException"/> if provided.</param>
     /// <returns><c>true</c> if at least one notification was marked as unread; otherwise <c>false</c>.</returns>
-    public async Task<bool> TryMarkAllAsUnreadAsync()
+    public async Task<bool> TryMarkAllAsUnreadAsync(string? userId = null)
     {
+        CheckUserId(userId);
         var valid = NotificationValidator.ValidateUserId(_userInfo.UserId);
         if(!valid) return false;
 
@@ -162,9 +180,11 @@ public class NotificationManager : INotificationManager
     /// using the deletion mode configured in <see cref="NotificationOptions.HardDeleteOnDismiss"/>,
     /// then clears them from the cache.
     /// </summary>
+    /// <param name="userId">Not supported by the default manager. Throws <see cref="InvalidOperationException"/> if provided.</param>
     /// <returns><c>true</c> if at least one notification was dismissed; otherwise <c>false</c>.</returns>
-    public async Task<bool> TryDismissAllAsync()
+    public async Task<bool> TryDismissAllAsync(string? userId = null)
     {
+        CheckUserId(userId);
         var valid = NotificationValidator.ValidateUserId(_userInfo.UserId);
         if(!valid) return false;
 

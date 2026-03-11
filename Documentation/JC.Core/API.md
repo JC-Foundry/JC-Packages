@@ -136,6 +136,12 @@ Read-only contract representing the current user's identity, profile, security s
 | Constant | Type | Value | Description |
 |----------|------|-------|-------------|
 | `MissingUserInfoId` | `string` | `"<NONE>"` | Fallback user identifier used when `IUserInfo` is not resolved from DI. |
+| `SYSTEM_USER_ID` | `string` | `"System__ID"` | User ID assigned when no identity is present on the request. |
+| `SYSTEM_USER_NAME` | `string` | `"System"` | Username assigned when no identity is present on the request. |
+| `SYSTEM_USER_EMAIL` | `string` | `"<SYSTEM@EMAIL>"` | Email assigned when no identity is present on the request. |
+| `UNKNOWN_USER_ID` | `string` | `"Unknown__ID"` | User ID assigned when an identity is present but not authenticated. Also the default field value on `UserInfo`. |
+| `UNKNOWN_USER_NAME` | `string` | `"Unknown"` | Username assigned when an identity is present but not authenticated. Also the default field value on `UserInfo`. |
+| `UNKNOWN_USER_EMAIL` | `string` | `"<UNKNOWN@EMAIL>"` | Email assigned when an identity is present but not authenticated. Also the default field value on `UserInfo`. |
 
 ### Properties
 
@@ -700,7 +706,7 @@ Hard-deletes soft-deleted entities that have exceeded the configured retention p
 
 On execution, the job inspects `DbContext.Model.GetEntityTypes()` and identifies types that either extend `AuditModel` (which has `IsDeleted` built in) or have their own `bool IsDeleted` property (detected via reflection). For each qualifying type not in the `SoftDeleteRetentionBlacklist`, it invokes a generic cleanup method via reflection (`MakeGenericMethod`).
 
-For `AuditModel` entities, the cleanup filters by `IsDeleted == true` and `DeletedUtc < cutoff` directly in the database query. For non-`AuditModel` entities, it loads all records and filters in memory (EF Core cannot translate reflection-based property access). Matching entities are removed via `DbSet<T>.RemoveRange` and persisted with `SaveChangesAsync`.
+For `AuditModel` entities, the cleanup filters by `IsDeleted == true` and `DeletedUtc < cutoff` directly in the database query. For non-`AuditModel` entities, it builds an EF-translatable expression tree to filter by `IsDeleted == true` in the database — note that this path does not filter by date, so all soft-deleted records are removed regardless of when they were deleted. Matching entities are removed via `DbSet<T>.RemoveRange` and persisted with `SaveChangesAsync`.
 
 Controlled by `CoreBackgroundJobOptions.RegisterSoftDeleteCleanupJob` — if `false`, `ExecuteAsync` returns immediately. Errors for individual entity types are logged and do not halt processing of remaining types. See [Setup](Setup.md#configurecorebackgroundjobs--background-job-options) for configuration.
 
@@ -935,10 +941,10 @@ Static extension methods for common string operations.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `value` | `string` | — | The string to truncate. |
-| `maxLength` | `int` | — | The maximum total length of the returned string, including the suffix. |
+| `maxLength` | `int` | — | The number of characters to keep from the original string before appending the suffix. The total returned length is `maxLength + suffix.Length`. |
 | `suffix` | `string` | `"..."` | The suffix to append when truncation occurs. |
 
-Returns the original string unchanged if it is shorter than or equal to `maxLength`. If `maxLength` is less than or equal to the suffix length, returns the suffix truncated to `maxLength`. Otherwise, returns the first `maxLength - suffix.Length` characters followed by the suffix.
+Returns the original string unchanged if it is shorter than or equal to `maxLength`. If `maxLength` is less than or equal to the suffix length, returns the suffix truncated to `maxLength`. Otherwise, returns the first `maxLength` characters followed by the suffix.
 
 ---
 

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace JC.Github.Models.Responses;
 
 public class NewIssueResponse
@@ -6,5 +8,7 @@ public class NewIssueResponse
     public int Number { get; set; }
     public string? Title { get; set; }
     public string? State { get; set; }
-    public string? Html_Url { get; set; }
+
+    [JsonPropertyName("html_url")]
+    public string? HtmlUrl { get; set; }
 }

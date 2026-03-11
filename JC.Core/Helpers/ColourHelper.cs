@@ -43,11 +43,22 @@ public static class ColourHelper
     // ReSharper disable once InconsistentNaming
     private static (int R, int G, int B) ExtractRGB(string colour)
     {
-        var hex = colour[1..];
-        
-        var r = Convert.ToInt32(hex[..2], 16);
-        var g = Convert.ToInt32(hex[2..4], 16);
-        var b = Convert.ToInt32(hex[4..6], 16);
+        if (string.IsNullOrWhiteSpace(colour))
+            throw new ArgumentException("Colour must not be null or empty.", nameof(colour));
+
+        var hex = colour.StartsWith('#') ? colour[1..] : colour;
+
+        // Expand shorthand (e.g. "fff" → "ffffff")
+        if (hex.Length == 3)
+            hex = $"{hex[0]}{hex[0]}{hex[1]}{hex[1]}{hex[2]}{hex[2]}";
+
+        if (hex.Length != 6)
+            throw new ArgumentException("Colour must be in '#RRGGBB', '#RGB', 'RRGGBB', or 'RGB' format.", nameof(colour));
+
+        if (!int.TryParse(hex[..2], System.Globalization.NumberStyles.HexNumber, null, out var r) ||
+            !int.TryParse(hex[2..4], System.Globalization.NumberStyles.HexNumber, null, out var g) ||
+            !int.TryParse(hex[4..6], System.Globalization.NumberStyles.HexNumber, null, out var b))
+            throw new ArgumentException("Colour contains invalid hexadecimal characters.", nameof(colour));
 
         return (r, g, b);
     }

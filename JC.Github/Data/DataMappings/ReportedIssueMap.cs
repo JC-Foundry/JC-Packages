@@ -9,6 +9,7 @@ public class ReportedIssueMap : IEntityTypeConfiguration<ReportedIssue>
     public void Configure(EntityTypeBuilder<ReportedIssue> builder)
     {
         builder.HasKey(e => e.Id);
+        builder.Property(e => e.Id).HasMaxLength(36);
 
         builder.Property(e => e.Description).IsRequired();
         builder.Property(e => e.Type).IsRequired();

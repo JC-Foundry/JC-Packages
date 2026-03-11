@@ -422,9 +422,8 @@ Restoring sets `IsDeleted = false` and populates the restore audit fields (`Rest
 All notification operations validate the target user ID. The following are rejected:
 
 - `null` or whitespace
-- `IUserInfo.MissingUserInfoId` (`"<NONE>"`) — the fallback when no identity provider is registered
-- System user IDs (`SYSTEM_USER_ID`, `UNKNOWN_USER_ID`) — prevents notifications targeted at non-real users
-- Non-GUID strings — user IDs must be valid GUIDs
+- `IUserInfo.UNKNOWN_USER_ID` or `IUserInfo.SYSTEM_USER_ID` — prevents notifications targeted at system or placeholder users
+- Non-GUID strings — user IDs must be valid GUIDs. This also rejects `IUserInfo.MissingUserInfoId` (`"<NONE>"`), which is not a valid GUID
 
 This validation runs automatically through `NotificationSender` and `INotificationManager`. You can also call it directly:
 
@@ -485,9 +484,9 @@ public class SignalRNotificationManager(
     IOptions<NotificationOptions> options,
     IUserInfo userInfo) : INotificationManager
 {
-    public async Task<bool> TryMarkAsReadAsync(string id)
+    public async Task<bool> TryMarkAsReadAsync(string id, string? userId = null)
     {
-        if (!NotificationValidator.ValidateUserId(userInfo.UserId))
+        if (!NotificationValidator.ValidateUserId(userId ?? userInfo.UserId))
             return false;
 
         var result = await notificationService.MarkNotificationAsRead(id);
@@ -497,7 +496,7 @@ public class SignalRNotificationManager(
         await cache.UpdateReadStateAsync(id, isRead: true);
 
         // Push update to connected client
-        await hub.Clients.User(userInfo.UserId)
+        await hub.Clients.User(userId ?? userInfo.UserId)
             .SendAsync("NotificationRead", id);
 
         return true;

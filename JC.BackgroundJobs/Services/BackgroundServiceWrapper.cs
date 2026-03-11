@@ -46,8 +46,13 @@ internal sealed class BackgroundServiceWrapper<TJob>(
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 if (ShouldLogInfo())
-                    logger.LogInformation("{Job} canceled - stopping job", _jobName);
+                    logger.LogInformation("{Job} cancelled — stopping job", _jobName);
                 break;
+            }
+            catch (OperationCanceledException) when (_options.ExecutionTimeout.HasValue)
+            {
+                if (ShouldLogErrors())
+                    logger.LogWarning("{Job} timed out after {Timeout}", _jobName, _options.ExecutionTimeout.Value);
             }
             catch (Exception ex)
             {
@@ -78,19 +83,30 @@ internal sealed class BackgroundServiceWrapper<TJob>(
 
     /// <summary>
     /// Resolves and executes the job, creating a scope for scoped/transient lifetimes.
+    /// When <see cref="BackgroundJobOptions.ExecutionTimeout"/> is configured, a linked
+    /// cancellation token is used that triggers when either the host stops or the timeout elapses.
     /// </summary>
     private async Task RunJobAsync(CancellationToken stoppingToken)
     {
+        using var timeoutCts = _options.ExecutionTimeout.HasValue
+            ? CancellationTokenSource.CreateLinkedTokenSource(stoppingToken)
+            : null;
+
+        if (timeoutCts != null)
+            timeoutCts.CancelAfter(_options.ExecutionTimeout!.Value);
+
+        var token = timeoutCts?.Token ?? stoppingToken;
+
         if (_options.ServiceLifetime == ServiceLifetime.Singleton)
         {
             var job = serviceProvider.GetRequiredService<TJob>();
-            await job.ExecuteAsync(stoppingToken);
+            await job.ExecuteAsync(token);
         }
         else
         {
             await using var scope = scopeFactory.CreateAsyncScope();
             var job = scope.ServiceProvider.GetRequiredService<TJob>();
-            await job.ExecuteAsync(stoppingToken);
+            await job.ExecuteAsync(token);
         }
     }
 
