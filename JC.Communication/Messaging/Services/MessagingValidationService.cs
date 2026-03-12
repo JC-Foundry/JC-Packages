@@ -1,6 +1,8 @@
 using JC.Communication.Messaging.Models;
 using JC.Communication.Messaging.Models.DomainModels;
 using JC.Communication.Messaging.Models.Options;
+using JC.Core.Enums;
+using JC.Core.Extensions;
 using JC.Core.Models;
 using JC.Core.Services.DataRepositories;
 using Microsoft.EntityFrameworkCore;
@@ -40,7 +42,8 @@ public class MessagingValidationService
             participantIdList.Add(_userInfo.UserId);
 
         return await _repos.GetRepository<ChatThread>()
-            .AsQueryable().AnyAsync(t => t.IsDefaultThread
+            .AsQueryable().FilterDeleted(DeletedQueryType.OnlyActive)
+            .AnyAsync(t => t.IsDefaultThread
                                          && t.Participants.Count == participantIdList.Count
                                          && t.Participants.All(p =>
                                              participantIdList.Contains(p.UserId)));
@@ -83,12 +86,12 @@ public class MessagingValidationService
     
 
     internal ParticipantValidationResponse ValidateAndPrepareParticipants(string threadId, List<ChatParticipant> participants, 
-        string? errors = null)
+        string? errors = null, bool addCurrentUser = true)
     {
         var containsUser = participants.Select(pt => pt.UserId).Contains(_userInfo.UserId);
         switch (containsUser)
         {
-            case false:
+            case false when addCurrentUser:
                 participants.Add(new ChatParticipant(threadId, _userInfo.UserId));
                 break;
             case true when participants.Count == 1:

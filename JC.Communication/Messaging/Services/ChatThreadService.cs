@@ -134,6 +134,23 @@ public class ChatThreadService
         var thread = await QueryThreads(asNoTracking, deletedQueryType).FirstOrDefaultAsync(t => t.Id == chatThreadId);
         return thread == null ? null : new ChatModel(thread, dateFormat, preferHexCode);
     }
+    
+    
+    /// <summary>
+    /// Finds an existing default chat thread for the given participant set, excluding the specified thread ID.
+    /// Used internally to detect default-thread conflicts during promotion and restore operations.
+    /// </summary>
+    /// <param name="threadId">The thread ID to exclude from the search (typically the thread being promoted or restored).</param>
+    /// <param name="participantIdList">The user IDs of the expected participants.</param>
+    /// <returns>The existing default <see cref="ChatThread"/>, or <c>null</c> if none exists.</returns>
+    private async Task<ChatThread?> GetDefaultChat(string threadId, List<string> participantIdList)
+        => await _repos.GetRepository<ChatThread>()
+            .AsQueryable().FilterDeleted(DeletedQueryType.OnlyActive)
+            .FirstOrDefaultAsync(t => t.IsDefaultThread
+                                      && t.Id != threadId
+                                      && t.Participants.Count == participantIdList.Count
+                                      && t.Participants.All(p =>
+                                          participantIdList.Contains(p.UserId)));
 
     #endregion
     
@@ -262,6 +279,72 @@ public class ChatThreadService
     #endregion
 
 
+    #region Operations
+
+    /// <summary>
+    /// Promotes a non-default chat thread to default status. The current user must be a participant.
+    /// If the thread is already the default, returns <c>true</c> immediately.
+    /// When another default thread exists for the same participants, the <paramref name="demoteExisting"/>
+    /// parameter controls whether the existing default is demoted or the operation is blocked.
+    /// </summary>
+    /// <param name="threadId">The ID of the thread to promote.</param>
+    /// <param name="demoteExisting">
+    /// If <c>true</c>, the existing default thread is demoted to allow promotion.
+    /// If <c>false</c>, the operation returns <c>false</c> when another default already exists.
+    /// </param>
+    /// <returns><c>true</c> if the thread is now the default (or already was); <c>false</c> if not found, the user is not a participant, or promotion was blocked.</returns>
+    public async Task<bool> PromoteChatToDefault(string threadId, bool demoteExisting = false)
+    {
+        var thread = await _repos.GetRepository<ChatThread>()
+            .AsQueryable().FilterDeleted(DeletedQueryType.OnlyActive)
+            .Include(t => t.Participants)
+            .FirstOrDefaultAsync(t => t.Id == threadId 
+                                      && t.Participants.Any(p => p.UserId == _userInfo.UserId));
+        
+        if (thread == null)
+            return false;
+        
+        if (thread.IsDefaultThread)
+            return true;
+
+        var existingModified = false;
+        var existingDefault = await GetDefaultChat(threadId, thread.Participants.Select(p => p.UserId).ToList());
+        if (existingDefault != null)
+        {
+            if (!demoteExisting)
+                return false;
+            
+            existingDefault.IsDefaultThread = false;
+            existingModified = true;
+        }
+
+        thread.IsDefaultThread = true;
+        
+        await _repos.BeginTransactionAsync();
+        try
+        {
+            await _repos.GetRepository<ChatThread>()
+                .UpdateAsync(thread, saveNow: false);
+            
+            if (existingModified && existingDefault != null)
+                await _repos.GetRepository<ChatThread>()
+                    .UpdateAsync(existingDefault, saveNow: false);
+            
+            await _repos.SaveChangesAsync();
+            await _repos.CommitTransactionAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _repos.RollbackTransactionAsync();
+            _logger.LogError(ex, "Unable to promote chat to default");
+            return false;
+        }
+    }
+
+    #endregion
+    
+
     #region Standard Create/Update/Delete/Restore
 
     /// <summary>
@@ -335,7 +418,7 @@ public class ChatThreadService
         await _repos.GetRepository<ChatThread>()
             .UpdateAsync(response.ValidatedChatThread 
                          ?? throw new InvalidOperationException("Unexpected error occured during thread validation. Thread is null"));
-        return new ChatThreadValidationResponse(updatedThread);
+        return response;
     }
 
 
@@ -387,13 +470,7 @@ public class ChatThreadService
             return true;
         
         var participantIdList = thread.Participants.Select(p => p.UserId).ToList();
-        var existingDefault = await _repos.GetRepository<ChatThread>()
-            .AsQueryable().FilterDeleted(DeletedQueryType.OnlyActive)
-            .FirstOrDefaultAsync(t => t.IsDefaultThread
-                                      && t.Id != thread.Id
-                                      && t.Participants.Count == participantIdList.Count
-                                      && t.Participants.All(p =>
-                                          participantIdList.Contains(p.UserId)));
+        var existingDefault = await GetDefaultChat(threadId, participantIdList);
 
         var existingModified = false;
         if (existingDefault != null && thread.IsDefaultThread)
