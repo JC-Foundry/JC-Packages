@@ -33,3 +33,10 @@ public class ChatThread : AuditModel
             ? IsGroupThread
             : Participants.Count > 2;
 }
+
+public enum DefaultThreadRestoreMode
+{
+    Block,
+    DemoteExisting,
+    DemoteRestored
+}

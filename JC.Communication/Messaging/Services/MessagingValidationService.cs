@@ -60,6 +60,9 @@ public class MessagingValidationService
         thread.IsGroupThread = !IsThreadDirectMessage(participants);
         thread.IsDefaultThread = !await CheckForDefaultChat(participants.Select(p => p.UserId));
         
+        if(!thread.IsDefaultThread && _options.PreventDuplicateChatThreads)
+            errors = AppendError(errors, "A default chat already exists for these participants.");
+        
         return string.IsNullOrEmpty(errors)
             ? new ChatThreadValidationResponse(thread)
             : new ChatThreadValidationResponse(errors);

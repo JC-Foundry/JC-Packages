@@ -18,22 +18,30 @@ public class ChatThreadService
     private readonly IUserInfo _userInfo;
     private readonly ILogger<ChatThreadService> _logger;
     private readonly MessagingValidationService _validationService;
-    //private readonly MessagingOptions _options;
+    private readonly MessagingOptions _options;
 
     public ChatThreadService(IRepositoryManager repos,
         IUserInfo userInfo,
         ILogger<ChatThreadService> logger,
-        MessagingValidationService validationService)
+        MessagingValidationService validationService,
+        IOptions<MessagingOptions> options)
     {
         _repos = repos;
         _userInfo = userInfo;
         _logger = logger;
         _validationService = validationService;
-        //_options = options.Value;
+        _options = options.Value;
     }
 
     #region Queries
 
+    /// <summary>
+    /// Builds a base query for chat threads the current user participates in,
+    /// including messages, participants, and metadata, ordered by creation date descending.
+    /// </summary>
+    /// <param name="asNoTracking">If <c>true</c>, the query uses no-tracking for read-only access.</param>
+    /// <param name="deletedQueryType">Controls whether active, deleted, or all threads are included.</param>
+    /// <returns>An ordered queryable of <see cref="ChatThread"/> scoped to the current user.</returns>
     private IQueryable<ChatThread> QueryThreads(bool asNoTracking, DeletedQueryType deletedQueryType)
     {
         var query = _repos.GetRepository<ChatThread>()
@@ -50,19 +58,53 @@ public class ChatThreadService
     }
 
 
+    /// <summary>
+    /// Retrieves all chat threads the current user participates in, projected as <see cref="ChatModel"/>s.
+    /// </summary>
+    /// <param name="dateFormat">The format string used to display dates. Defaults to general short format.</param>
+    /// <param name="preferHexCode">If <c>true</c>, colour values prefer hex over RGB in the returned model.</param>
+    /// <param name="asNoTracking">If <c>true</c>, entities are queried without change tracking.</param>
+    /// <param name="deletedQueryType">Controls whether active, deleted, or all threads are returned.</param>
+    /// <returns>A list of <see cref="ChatModel"/> representing the user's chat threads.</returns>
     public async Task<List<ChatModel>> GetUserChats(string dateFormat = "g", bool preferHexCode = true,
         bool asNoTracking = true, DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive)
         => (await QueryThreads(asNoTracking, deletedQueryType).ToListAsync())
             .Select(t => new ChatModel(t, dateFormat, preferHexCode)).ToList();
 
+    /// <summary>
+    /// Retrieves a paginated subset of chat threads the current user participates in, projected as <see cref="ChatModel"/>s.
+    /// Pagination is applied at the database level for efficiency.
+    /// </summary>
+    /// <param name="pageNumber">The 1-based page number to retrieve.</param>
+    /// <param name="pageSize">The number of items per page.</param>
+    /// <param name="dateFormat">The format string used to display dates. Defaults to general short format.</param>
+    /// <param name="preferHexCode">If <c>true</c>, colour values prefer hex over RGB in the returned model.</param>
+    /// <param name="asNoTracking">If <c>true</c>, entities are queried without change tracking.</param>
+    /// <param name="deletedQueryType">Controls whether active, deleted, or all threads are returned.</param>
+    /// <returns>A paginated collection of <see cref="ChatModel"/>.</returns>
     public async Task<IPagination<ChatModel>> GetUserChats(int pageNumber, int pageSize, string dateFormat = "g",
         bool preferHexCode = true,
         bool asNoTracking = true, DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive)
-        => (await GetUserChats(dateFormat, preferHexCode, asNoTracking, deletedQueryType))
-            .ToPagedList(pageNumber, pageSize);
+    {
+        var pagedThreads = await QueryThreads(asNoTracking, deletedQueryType)
+            .ToPagedListAsync(pageNumber, pageSize);
+
+        var models = pagedThreads.Select(t => new ChatModel(t, dateFormat, preferHexCode)).ToList();
+        return new PagedList<ChatModel>(models, pageNumber, pageSize, pagedThreads.TotalCount);
+    }
 
 
-    public async Task<ChatModel?> GetDefaultUserChat(string dateFormat = "g", bool preferHexCode = true, bool asNoTracking = false, 
+    /// <summary>
+    /// Finds the default chat thread between the current user and the specified participants.
+    /// The current user is automatically included if not already present in the participant list.
+    /// </summary>
+    /// <param name="dateFormat">The format string used to display dates.</param>
+    /// <param name="preferHexCode">If <c>true</c>, colour values prefer hex over RGB in the returned model.</param>
+    /// <param name="asNoTracking">If <c>true</c>, entities are queried without change tracking.</param>
+    /// <param name="deletedQueryType">Controls whether active, deleted, or all threads are searched.</param>
+    /// <param name="participantUserIds">The user IDs of the expected participants.</param>
+    /// <returns>The matching <see cref="ChatModel"/>, or <c>null</c> if no default thread exists for these participants.</returns>
+    public async Task<ChatModel?> GetDefaultUserChat(string dateFormat = "g", bool preferHexCode = true, bool asNoTracking = false,
         DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive, params IEnumerable<string> participantUserIds)
     {
         var participantIdList = participantUserIds.ToList();
@@ -77,6 +119,15 @@ public class ChatThreadService
         return thread == null ? null : new ChatModel(thread, dateFormat, preferHexCode);
     }
 
+    /// <summary>
+    /// Retrieves a single chat thread by its ID, provided the current user is a participant.
+    /// </summary>
+    /// <param name="chatThreadId">The unique identifier of the chat thread.</param>
+    /// <param name="dateFormat">The format string used to display dates.</param>
+    /// <param name="preferHexCode">If <c>true</c>, colour values prefer hex over RGB in the returned model.</param>
+    /// <param name="asNoTracking">If <c>true</c>, the entity is queried without change tracking.</param>
+    /// <param name="deletedQueryType">Controls whether active, deleted, or all threads are searched.</param>
+    /// <returns>The matching <see cref="ChatModel"/>, or <c>null</c> if not found or the user is not a participant.</returns>
     public async Task<ChatModel?> GetChatModelById(string chatThreadId, string dateFormat = "g",
         bool preferHexCode = true, bool asNoTracking = false, DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive)
     {
@@ -89,7 +140,13 @@ public class ChatThreadService
 
     #region Create/Get
 
-    public async Task<(ChatModel? Chat, ParticipantValidationResponse ParticipantsResponse)> 
+    /// <summary>
+    /// Returns the existing default chat thread for the given participants, or creates a new default thread if none exists.
+    /// </summary>
+    /// <param name="chatThreadParams">Parameters controlling thread creation and query behaviour.</param>
+    /// <param name="participantsParams">The participants to include in the thread.</param>
+    /// <returns>A tuple containing the <see cref="ChatModel"/> (or <c>null</c> on failure) and the participant validation result.</returns>
+    public async Task<(ChatModel? Chat, ParticipantValidationResponse ParticipantsResponse)>
         GetOrCreateDefaultChat(ChatThreadParams chatThreadParams, params IEnumerable<ChatParticipant> participantsParams)
     {
         var participants = participantsParams.ToList();
@@ -101,6 +158,13 @@ public class ChatThreadService
             : (chat, new ParticipantValidationResponse());
     }
 
+    /// <summary>
+    /// Returns the chat thread matching <paramref name="threadId"/> if it exists, or creates a new thread if not found.
+    /// </summary>
+    /// <param name="threadId">The ID of the thread to look up.</param>
+    /// <param name="chatThreadParams">Parameters controlling thread creation and query behaviour.</param>
+    /// <param name="participantsParams">The participants to include if a new thread is created.</param>
+    /// <returns>A tuple containing the <see cref="ChatModel"/> (or <c>null</c> on failure) and the participant validation result.</returns>
     public async Task<(ChatModel? Chat, ParticipantValidationResponse ParticipantsResponse)>
         GetOrCreateChat(string threadId, ChatThreadParams chatThreadParams, params IEnumerable<ChatParticipant> participantsParams)
     {
@@ -114,22 +178,41 @@ public class ChatThreadService
     }
     
 
-    public async Task<(ChatModel? Chat, ParticipantValidationResponse ParticipantsResponse)> 
+    /// <summary>
+    /// Creates a new chat thread and returns it as a <see cref="ChatModel"/>. Automatically determines whether
+    /// the thread should be marked as default based on whether a default already exists for the given participants.
+    /// </summary>
+    /// <param name="chatThreadParams">Parameters controlling thread creation.</param>
+    /// <param name="participantsParams">The participants to include in the new thread.</param>
+    /// <returns>A tuple containing the <see cref="ChatModel"/> (or <c>null</c> on failure) and the participant validation result.</returns>
+    public async Task<(ChatModel? Chat, ParticipantValidationResponse ParticipantsResponse)>
         CreateAndGetNewChat(ChatThreadParams chatThreadParams, params IEnumerable<ChatParticipant> participantsParams)
     {
         var participants = participantsParams.ToList();
-        var defaultChat = await _validationService
+        var defaultAlreadyExists = await _validationService
             .CheckForDefaultChat(participants.Select(p => p.UserId));
-        
-        return defaultChat
+
+        return defaultAlreadyExists
             ? await CreateThread(chatThreadParams, participants, false)
             : await CreateThread(chatThreadParams, participants, true);
     }
     
 
-    private async Task<(ChatModel? Chat, ParticipantValidationResponse ParticipantsResponse)> 
+    /// <summary>
+    /// Creates a new <see cref="ChatThread"/> with the given participants within a transaction.
+    /// Validates participants, assigns a default name if not provided, and respects the
+    /// <see cref="MessagingOptions.PreventDuplicateChatThreads"/> setting.
+    /// </summary>
+    /// <param name="chatThreadParams">Parameters controlling thread name, description, and query options.</param>
+    /// <param name="participants">The validated list of participants to add to the thread.</param>
+    /// <param name="isDefault">Whether the new thread should be marked as the default for its participant set.</param>
+    /// <returns>A tuple containing the <see cref="ChatModel"/> (or <c>null</c> on failure) and the participant validation result.</returns>
+    private async Task<(ChatModel? Chat, ParticipantValidationResponse ParticipantsResponse)>
         CreateThread(ChatThreadParams chatThreadParams, List<ChatParticipant> participants, bool isDefault)
     {
+        if(!isDefault && _options.PreventDuplicateChatThreads)
+            return (null, new ParticipantValidationResponse("A default chat already exists for these participants."));
+        
         var isDm = _validationService.IsThreadDirectMessage(participants);
 
         if (string.IsNullOrWhiteSpace(chatThreadParams.Name)) chatThreadParams.Name = null;
@@ -181,7 +264,15 @@ public class ChatThreadService
 
     #region Standard Create/Update/Delete/Restore
 
-    public async Task<ChatThreadValidationResponse> TryCreateChat(ChatThread thread, ChatMetadata? metadata = null, 
+    /// <summary>
+    /// Validates and persists a new chat thread with its participants and optional metadata within a transaction.
+    /// Both participant and thread validation are performed; all accumulated errors are returned in the response.
+    /// </summary>
+    /// <param name="thread">The chat thread entity to create.</param>
+    /// <param name="metadata">Optional metadata (icon, colour, image) to associate with the thread.</param>
+    /// <param name="participantParams">The participants to add to the thread.</param>
+    /// <returns>A <see cref="ChatThreadValidationResponse"/> indicating success or containing validation errors.</returns>
+    public async Task<ChatThreadValidationResponse> TryCreateChat(ChatThread thread, ChatMetadata? metadata = null,
         params IEnumerable<ChatParticipant> participantParams)
     {
         var participants = participantParams.ToList();
@@ -223,10 +314,18 @@ public class ChatThreadService
     }
 
 
+    /// <summary>
+    /// Validates and applies updates to an existing chat thread. The current user must be a participant.
+    /// Immutable properties (default status, group status) are enforced by validation.
+    /// </summary>
+    /// <param name="threadId">The ID of the thread to update.</param>
+    /// <param name="updatedThread">The thread entity containing the updated values.</param>
+    /// <returns>A <see cref="ChatThreadValidationResponse"/> indicating success (with the validated thread) or containing validation errors.</returns>
     public async Task<ChatThreadValidationResponse> TryUpdateChatThread(string threadId, ChatThread updatedThread)
     {
         var thread = await _repos.GetRepository<ChatThread>()
-            .AsQueryable().FirstOrDefaultAsync(t => t.Id == threadId);
+            .AsQueryable().FirstOrDefaultAsync(t => t.Id == threadId 
+                                                    && t.Participants.Any(p => p.UserId == _userInfo.UserId));
         if (thread == null)
             return new ChatThreadValidationResponse("Chat thread not found");
         
@@ -234,8 +333,107 @@ public class ChatThreadService
         if(!response.IsValid) return response;
             
         await _repos.GetRepository<ChatThread>()
-            .UpdateAsync(updatedThread);
+            .UpdateAsync(response.ValidatedChatThread 
+                         ?? throw new InvalidOperationException("Unexpected error occured during thread validation. Thread is null"));
         return new ChatThreadValidationResponse(updatedThread);
+    }
+
+
+    /// <summary>
+    /// Soft-deletes an active chat thread. The current user must be a participant.
+    /// </summary>
+    /// <param name="threadId">The ID of the thread to delete.</param>
+    /// <returns><c>true</c> if the thread was found and soft-deleted; <c>false</c> if not found or the user is not a participant.</returns>
+    public async Task<bool> TryDeleteChatThread(string threadId)
+    {
+        var thread = await _repos.GetRepository<ChatThread>()
+            .AsQueryable().FilterDeleted(DeletedQueryType.OnlyActive)
+            .FirstOrDefaultAsync(t => t.Id == threadId 
+                                      && t.Participants.Any(p => p.UserId == _userInfo.UserId));
+        
+        if (thread == null)
+            return false;
+        
+        await _repos.GetRepository<ChatThread>()
+            .SoftDeleteAsync(thread);
+        return true;
+    }
+
+    /// <summary>
+    /// Restores a soft-deleted chat thread. If the thread is already active, returns <c>true</c> immediately.
+    /// When restoring a default thread and another default already exists for the same participants,
+    /// the <paramref name="mode"/> determines how the conflict is resolved.
+    /// </summary>
+    /// <param name="threadId">The ID of the thread to restore.</param>
+    /// <param name="mode">
+    /// The strategy for resolving default-thread conflicts:
+    /// <see cref="DefaultThreadRestoreMode.Block"/> prevents the restore,
+    /// <see cref="DefaultThreadRestoreMode.DemoteExisting"/> removes default status from the existing thread,
+    /// <see cref="DefaultThreadRestoreMode.DemoteRestored"/> removes default status from the restored thread.
+    /// </param>
+    /// <returns><c>true</c> if the thread was restored or already active; <c>false</c> if not found, the user is not a participant, or the restore was blocked.</returns>
+    public async Task<bool> TryRestoreChatThread(string threadId, DefaultThreadRestoreMode mode = DefaultThreadRestoreMode.DemoteExisting)
+    {
+        var thread = await _repos.GetRepository<ChatThread>()
+            .AsQueryable().FilterDeleted(DeletedQueryType.All)
+            .Include(t => t.Participants)
+            .FirstOrDefaultAsync(t => t.Id == threadId 
+                                      && t.Participants.Any(p => p.UserId == _userInfo.UserId));
+        
+        if (thread == null)
+            return false;
+
+        if (!thread.IsDeleted)
+            return true;
+        
+        var participantIdList = thread.Participants.Select(p => p.UserId).ToList();
+        var existingDefault = await _repos.GetRepository<ChatThread>()
+            .AsQueryable().FilterDeleted(DeletedQueryType.OnlyActive)
+            .FirstOrDefaultAsync(t => t.IsDefaultThread
+                                      && t.Id != thread.Id
+                                      && t.Participants.Count == participantIdList.Count
+                                      && t.Participants.All(p =>
+                                          participantIdList.Contains(p.UserId)));
+
+        var existingModified = false;
+        if (existingDefault != null && thread.IsDefaultThread)
+        {
+            switch (mode)
+            {
+                case DefaultThreadRestoreMode.Block:
+                    return false;
+                case DefaultThreadRestoreMode.DemoteExisting:
+                    existingDefault.IsDefaultThread = false;
+                    existingModified = true;
+                    break;
+                case DefaultThreadRestoreMode.DemoteRestored:
+                    thread.IsDefaultThread = false;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
+            }
+        }
+
+        await _repos.BeginTransactionAsync();
+        try
+        {
+            await _repos.GetRepository<ChatThread>()
+                .RestoreAsync(thread, saveNow: false);
+            
+            if(existingModified && existingDefault != null)
+                await _repos.GetRepository<ChatThread>()
+                    .UpdateAsync(existingDefault, saveNow: false);
+
+            await _repos.SaveChangesAsync();
+            await _repos.CommitTransactionAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _repos.RollbackTransactionAsync();
+            _logger.LogError(ex, "Unable to restore chat thread");
+            return false;
+        }
     }
 
     #endregion
