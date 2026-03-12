@@ -1,5 +1,6 @@
 using JC.Communication.Messaging.Models;
 using JC.Communication.Messaging.Models.DomainModels;
+using JC.Communication.Messaging.Models.Options;
 using JC.Core.Enums;
 using JC.Core.Extensions;
 using JC.Core.Models;
@@ -7,6 +8,7 @@ using JC.Core.Models.Pagination;
 using JC.Core.Services.DataRepositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace JC.Communication.Messaging.Services;
 
@@ -16,6 +18,7 @@ public class ChatThreadService
     private readonly IUserInfo _userInfo;
     private readonly ILogger<ChatThreadService> _logger;
     private readonly MessagingValidationService _validationService;
+    //private readonly MessagingOptions _options;
 
     public ChatThreadService(IRepositoryManager repos,
         IUserInfo userInfo,
@@ -26,6 +29,7 @@ public class ChatThreadService
         _userInfo = userInfo;
         _logger = logger;
         _validationService = validationService;
+        //_options = options.Value;
     }
 
     #region Queries
@@ -62,7 +66,8 @@ public class ChatThreadService
         DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive, params IEnumerable<string> participantUserIds)
     {
         var participantIdList = participantUserIds.ToList();
-        participantIdList.Add(_userInfo.UserId);
+        if(!participantIdList.Contains(_userInfo.UserId))
+            participantIdList.Add(_userInfo.UserId);
 
         var query = QueryThreads(asNoTracking, deletedQueryType);
         var thread = await query.FirstOrDefaultAsync(t => t.IsDefaultThread
@@ -84,33 +89,66 @@ public class ChatThreadService
 
     #region Create/Get
 
-    public async Task<ChatModel?> GetOrCreateDefaultChat(string? name = null, string? description = null, 
-        string dateFormat = "g", bool preferHexCode = true, bool asNoTracking = false, 
-        DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive, params IEnumerable<ChatParticipant> participantsParams)
+    public async Task<(ChatModel? Chat, ParticipantValidationResponse ParticipantsResponse)> 
+        GetOrCreateDefaultChat(ChatThreadParams chatThreadParams, params IEnumerable<ChatParticipant> participantsParams)
     {
         var participants = participantsParams.ToList();
-        var chat = await GetDefaultUserChat(dateFormat, preferHexCode, asNoTracking, deletedQueryType,
+        var chat = await GetDefaultUserChat(chatThreadParams.DateFormat, chatThreadParams.PreferHexCode, chatThreadParams.AsNoTracking, chatThreadParams.DeletedQueryType,
             participants.Select(p => p.UserId));
-        if (chat != null) return chat;
         
-        var isDm = (participants.Count == 2 && participants.Select(p => p.UserId).Contains(_userInfo.UserId)) 
-                      || participants.Count == 1;
+        return chat == null 
+            ? await CreateThread(chatThreadParams, participants, true) 
+            : (chat, new ParticipantValidationResponse());
+    }
+
+    public async Task<(ChatModel? Chat, ParticipantValidationResponse ParticipantsResponse)>
+        GetOrCreateChat(string threadId, ChatThreadParams chatThreadParams, params IEnumerable<ChatParticipant> participantsParams)
+    {
+        var participants = participantsParams.ToList();
+        var chat = await GetChatModelById(threadId, chatThreadParams.DateFormat, chatThreadParams.PreferHexCode, 
+            chatThreadParams.AsNoTracking, chatThreadParams.DeletedQueryType);
+        
+        return chat == null 
+            ? await CreateAndGetNewChat(chatThreadParams, participants) 
+            : (chat, new ParticipantValidationResponse());
+    }
+    
+
+    public async Task<(ChatModel? Chat, ParticipantValidationResponse ParticipantsResponse)> 
+        CreateAndGetNewChat(ChatThreadParams chatThreadParams, params IEnumerable<ChatParticipant> participantsParams)
+    {
+        var participants = participantsParams.ToList();
+        var defaultChat = await _validationService
+            .CheckForDefaultChat(participants.Select(p => p.UserId));
+        
+        return defaultChat
+            ? await CreateThread(chatThreadParams, participants, false)
+            : await CreateThread(chatThreadParams, participants, true);
+    }
+    
+
+    private async Task<(ChatModel? Chat, ParticipantValidationResponse ParticipantsResponse)> 
+        CreateThread(ChatThreadParams chatThreadParams, List<ChatParticipant> participants, bool isDefault)
+    {
+        var isDm = _validationService.IsThreadDirectMessage(participants);
+
+        if (string.IsNullOrWhiteSpace(chatThreadParams.Name)) chatThreadParams.Name = null;
         var thread = new ChatThread
         {
-            Name = name ?? (isDm
+            Name = chatThreadParams.Name ?? (isDm
                 ? ChatThread.DirectMessageName
                 : ChatThread.GroupChatName),
-            Description = description,
-            IsDefaultThread = true,
+            Description = chatThreadParams.Description,
+            IsDefaultThread = isDefault,
             IsGroupThread = !isDm
         };
-
+        
         var response = _validationService.ValidateAndPrepareParticipants(thread.Id, participants);
         if (!response.IsValid)
         {
             _logger.LogDebug("Unable to create default chat thread for user IDs: {Participants}, chat name: {Name}",
                 string.Join("; ", response.ValidatedParticipants), thread.Name);
-            return null;
+            return (null, response);
         }
 
         participants = response.ValidatedParticipants;
@@ -127,15 +165,77 @@ public class ChatThreadService
             await _repos.CommitTransactionAsync();
 
             thread.Participants = participants;
-            return new ChatModel(thread);
+            return (new ChatModel(thread), response);
         }
         catch (Exception ex)
         {
             await _repos.RollbackTransactionAsync();
             _logger.LogError(ex, "Unable to create new default chat thread for user IDs: {Participants}, chat name: {Name}",
                 string.Join("; ", response.ValidatedParticipants), thread.Name);
-            return null;
+            return (null, response);
         }
+    }
+
+    #endregion
+
+
+    #region Standard Create/Update/Delete/Restore
+
+    public async Task<ChatThreadValidationResponse> TryCreateChat(ChatThread thread, ChatMetadata? metadata = null, 
+        params IEnumerable<ChatParticipant> participantParams)
+    {
+        var participants = participantParams.ToList();
+        
+        var participantResponse = _validationService.ValidateAndPrepareParticipants(thread.Id, participants);
+        participants = participantResponse.ValidatedParticipants;
+        
+        var threadResponse = await _validationService.ValidateAndPrepareChatThread(thread, participants, 
+            participantResponse.ErrorMessage);
+
+        if (!participantResponse.IsValid || !threadResponse.IsValid)
+            return threadResponse; //Last response has all errors in its message
+
+        thread = threadResponse.ValidatedChatThread 
+                 ?? throw new InvalidOperationException("Unexpected error occured during thread validation. Thread is null");
+        await _repos.BeginTransactionAsync();
+        try
+        {
+            await _repos.GetRepository<ChatThread>()
+                .AddAsync(thread, saveNow: false);
+            
+            await _repos.GetRepository<ChatParticipant>()
+                .AddRangeAsync(participants, saveNow: false);
+            
+            if(metadata != null)
+                await _repos.GetRepository<ChatMetadata>()
+                    .AddAsync(metadata, saveNow: false);
+            
+            await _repos.SaveChangesAsync();
+            await _repos.CommitTransactionAsync();
+            return new ChatThreadValidationResponse();
+        }
+        catch (Exception ex)
+        {
+            await _repos.RollbackTransactionAsync();
+            _logger.LogError(ex, "Unable to create new chat thread");
+            return new ChatThreadValidationResponse("Unable to create new chat thread");
+        }
+    }
+
+
+    public async Task<ChatThreadValidationResponse> TryUpdateChatThread(string threadId, ChatThread updatedThread)
+    {
+        var thread = await _repos.GetRepository<ChatThread>()
+            .AsQueryable().FirstOrDefaultAsync(t => t.Id == threadId);
+        if (thread == null)
+            return new ChatThreadValidationResponse("Chat thread not found");
+        
+        var response = _validationService.ValidateChatThread(thread, updatedThread);
+        if(!response.IsValid) return response;
+            
+        await _repos.GetRepository<ChatThread>()
+            .UpdateAsync(updatedThread);
+        return new ChatThreadValidationResponse(updatedThread);
     }
 
     #endregion

@@ -1,3 +1,5 @@
+using JC.Communication.Messaging.Models.DomainModels;
+
 namespace JC.Communication.Messaging.Models;
 
 public class MessagingValidationResponse
@@ -17,18 +19,39 @@ public class MessagingValidationResponse
     }
 }
 
-public class ParticipantValidationResponse<T> : MessagingValidationResponse
-    where T : class
+public class ParticipantValidationResponse : MessagingValidationResponse
 {
-    public List<T> ValidatedParticipants { get; } = [];
+    public List<ChatParticipant> ValidatedParticipants { get; } = [];
 
-    public ParticipantValidationResponse(List<T> participant)
-        : base()
+    public ParticipantValidationResponse()
+    {
+    }
+    
+    public ParticipantValidationResponse(List<ChatParticipant> participant)
     {
         ValidatedParticipants = participant;
     }
 
     public ParticipantValidationResponse(string errorMessage)
+        : base(errorMessage)
+    {
+    }
+}
+
+public class ChatThreadValidationResponse : MessagingValidationResponse
+{
+    public ChatThread? ValidatedChatThread { get; } = null;
+    
+    public ChatThreadValidationResponse()
+    {
+    }
+    
+    public ChatThreadValidationResponse(ChatThread chatThread)
+    {
+        ValidatedChatThread = chatThread;
+    }
+    
+    public ChatThreadValidationResponse(string errorMessage)
         : base(errorMessage)
     {
     }

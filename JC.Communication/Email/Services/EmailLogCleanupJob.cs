@@ -33,8 +33,11 @@ public class EmailLogCleanupJob : IBackgroundJob
     
     public async Task ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        if(!_options.RegisterEmailLogCleanupJob)
+        if (!_options.EnableEmailLogCleanupJob)
+        {
+            _logger.LogDebug("Email log cleanup job is disabled.");
             return;
+        }
         
         var emailLogs = await _emailLogs.GetAllAsync(e => e.CreatedUtc.Date < ResolveCutoffDate(),
             x => x.OrderByDescending(e => e.CreatedUtc), cancellationToken);
@@ -53,11 +56,19 @@ public class EmailLogCleanupJob : IBackgroundJob
             await ProcessCleanup(emailLogs, recipLogs, contentLogs, sentLogs);
             return;
         }
-        
-        if(retention >= emailLogs.Count)
+
+        if (retention >= emailLogs.Count)
+        {
+            _logger.LogInformation("Skipping email log cleanup as retention ({0}) is greater than existing logs ({1}).", 
+                retention, emailLogs.Count);
             return;
+        }
+
+        if (_options.EmailLogCleanupChunkingValue > 0)
+            emailLogs = emailLogs.Take(_options.EmailLogCleanupChunkingValue).ToList();
         
-        emailLogs = emailLogs.Skip(retention).ToList();
+        emailLogs = emailLogs.OrderByDescending(e => e.CreatedUtc)
+            .Skip(retention).ToList();
         logIds = emailLogs.Select(e => e.Id).ToList();
         
         recipLogs = recipLogs.Where(r => logIds.Contains(r.EmailLogId)).ToList();
