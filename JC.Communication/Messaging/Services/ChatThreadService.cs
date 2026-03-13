@@ -57,6 +57,29 @@ public class ChatThreadService
         return query.OrderByDescending(t => t.CreatedUtc);
     }
 
+    /// <summary>
+    /// Filters messages in the given <see cref="ChatModel"/> based on the current user's history visibility.
+    /// If the user cannot see history, only messages sent on or after their <see cref="ParticipantModel.JoinedAtUtc"/> are retained.
+    /// </summary>
+    /// <param name="model">The chat model whose messages will be filtered.</param>
+    /// <returns>The same <see cref="ChatModel"/> instance with messages filtered in place.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the current user is not a participant in the chat.</exception>
+    private ChatModel FilterMessageHistory(ChatModel model)
+    {
+        var userParticipant = model.Participants
+            .FirstOrDefault(p => p.UserId == _userInfo.UserId);
+        if(userParticipant == null)
+            throw new InvalidOperationException("User participant not found in chat model.");
+
+        if (userParticipant.CanSeeHistory)
+            return model;
+        
+        model.Messages = model.Messages
+            .Where(m => m.SentAtUtc >= userParticipant.JoinedAtUtc)
+            .ToList();
+        return model;
+    }
+
 
     /// <summary>
     /// Retrieves all chat threads the current user participates in, projected as <see cref="ChatModel"/>s.
@@ -69,7 +92,9 @@ public class ChatThreadService
     public async Task<List<ChatModel>> GetUserChats(string dateFormat = "g", bool preferHexCode = true,
         bool asNoTracking = true, DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive)
         => (await QueryThreads(asNoTracking, deletedQueryType).ToListAsync())
-            .Select(t => new ChatModel(t, dateFormat, preferHexCode)).ToList();
+            .Select(t => new ChatModel(t, dateFormat, preferHexCode))
+            .Select(FilterMessageHistory)
+            .ToList();
 
     /// <summary>
     /// Retrieves a paginated subset of chat threads the current user participates in, projected as <see cref="ChatModel"/>s.
@@ -89,7 +114,10 @@ public class ChatThreadService
         var pagedThreads = await QueryThreads(asNoTracking, deletedQueryType)
             .ToPagedListAsync(pageNumber, pageSize);
 
-        var models = pagedThreads.Select(t => new ChatModel(t, dateFormat, preferHexCode)).ToList();
+        var models = pagedThreads
+            .Select(t => new ChatModel(t, dateFormat, preferHexCode))
+            .Select(FilterMessageHistory)
+            .ToList();
         return new PagedList<ChatModel>(models, pageNumber, pageSize, pagedThreads.TotalCount);
     }
 
@@ -116,7 +144,10 @@ public class ChatThreadService
                                                           && t.Participants.Count == participantIdList.Count
                                                           && t.Participants.All(p =>
                                                               participantIdList.Contains(p.UserId)));
-        return thread == null ? null : new ChatModel(thread, dateFormat, preferHexCode);
+        if (thread == null) return null;
+        
+        var model =  new ChatModel(thread, dateFormat, preferHexCode);
+        return FilterMessageHistory(model);
     }
 
     /// <summary>
@@ -132,8 +163,17 @@ public class ChatThreadService
         bool preferHexCode = true, bool asNoTracking = false, DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive)
     {
         var thread = await QueryThreads(asNoTracking, deletedQueryType).FirstOrDefaultAsync(t => t.Id == chatThreadId);
-        return thread == null ? null : new ChatModel(thread, dateFormat, preferHexCode);
+        if (thread == null) return null;
+        
+        var model = new ChatModel(thread, dateFormat, preferHexCode);
+        return FilterMessageHistory(model);
     }
+    
+    public async Task<bool> VerifyChatExists(string threadId)
+        => await _repos.GetRepository<ChatThread>().AsQueryable()
+            .FilterDeleted(DeletedQueryType.OnlyActive)
+            .AnyAsync(t => t.Id == threadId 
+                           && t.Participants.Any(p => p.UserId == _userInfo.UserId));
     
     
     /// <summary>

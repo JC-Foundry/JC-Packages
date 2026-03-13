@@ -90,8 +90,13 @@ public class ChatParticipantService
 
         var restoreParticipants = await _repos.GetRepository<ChatParticipant>()
             .AsQueryable().FilterDeleted(DeletedQueryType.OnlyDeleted)
-            .Where(p => participants.Any(pt => pt.UserId == p.UserId))
+            .Where(p => participants.Any(pt => pt.UserId == p.UserId) 
+                        && p.ThreadId == threadId)
             .ToListAsync();
+        foreach (var p in restoreParticipants)
+        {
+            p.JoinedAtUtc = DateTime.UtcNow;
+        }
         
         var restoreUserIds = restoreParticipants.Select(r => r.UserId).ToList();
         var addParticipants = participants

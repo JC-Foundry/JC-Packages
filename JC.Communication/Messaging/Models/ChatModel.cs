@@ -13,7 +13,7 @@ public class ChatModel
     
     public bool IsGroupChat { get; }
 
-    public List<MessageModel> Messages { get; } = [];
+    public List<MessageModel> Messages { get; internal set; } = [];
     public List<ParticipantModel> Participants { get; } = [];
     public MetadataModel? ChatMetadata { get; }
 

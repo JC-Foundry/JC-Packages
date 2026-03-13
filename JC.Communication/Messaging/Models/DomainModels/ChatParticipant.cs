@@ -22,8 +22,8 @@ public class ChatParticipant : AuditModel
 
     public bool CanSeeHistory { get; set; } = true;
     
-    [NotMapped]
-    public DateTime JoinedAtUtc => CreatedUtc;
+    [Required]
+    public DateTime JoinedAtUtc { get; set; }
 
     public ChatParticipant()
     {
@@ -33,5 +33,6 @@ public class ChatParticipant : AuditModel
     {
         ThreadId = threadId;
         UserId = userId;
+        JoinedAtUtc = DateTime.UtcNow;
     }
 }
