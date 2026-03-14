@@ -1,3 +1,5 @@
+using JC.Communication.Logging.Models.Messaging;
+using JC.Communication.Logging.Services;
 using JC.Communication.Messaging.Models;
 using JC.Communication.Messaging.Models.DomainModels;
 using JC.Communication.Messaging.Models.Options;
@@ -12,24 +14,40 @@ using Microsoft.Extensions.Options;
 
 namespace JC.Communication.Messaging.Services;
 
+/// <summary>
+/// Central service for chat thread operations including querying, creation, promotion,
+/// activity tracking, and standard CRUD. All queries are scoped to the current user's participation.
+/// </summary>
 public class ChatThreadService
 {
     private readonly IRepositoryManager _repos;
     private readonly IUserInfo _userInfo;
     private readonly ILogger<ChatThreadService> _logger;
     private readonly MessagingValidationService _validationService;
+    private readonly MessagingLogService _logService;
     private readonly MessagingOptions _options;
 
+    /// <summary>
+    /// Creates a new instance of the chat thread service.
+    /// </summary>
+    /// <param name="repos">The repository manager for database operations.</param>
+    /// <param name="userInfo">The current user's identity.</param>
+    /// <param name="logger">The logger instance.</param>
+    /// <param name="validationService">The validation service for thread and participant validation.</param>
+    /// <param name="options">The messaging configuration options.</param>
+    /// <param name="logService">The logging service for thread activity and message read events.</param>
     public ChatThreadService(IRepositoryManager repos,
         IUserInfo userInfo,
         ILogger<ChatThreadService> logger,
         MessagingValidationService validationService,
-        IOptions<MessagingOptions> options)
+        IOptions<MessagingOptions> options,
+        MessagingLogService logService)
     {
         _repos = repos;
         _userInfo = userInfo;
         _logger = logger;
         _validationService = validationService;
+        _logService = logService;
         _options = options.Value;
     }
 
@@ -145,6 +163,9 @@ public class ChatThreadService
                                                           && t.Participants.All(p =>
                                                               participantIdList.Contains(p.UserId)));
         if (thread == null) return null;
+
+        var messages = thread.Messages;
+        await _logService.LogMessageReadsAsync(messages.ToList());
         
         var model =  new ChatModel(thread, dateFormat, preferHexCode);
         return FilterMessageHistory(model);
@@ -165,10 +186,18 @@ public class ChatThreadService
         var thread = await QueryThreads(asNoTracking, deletedQueryType).FirstOrDefaultAsync(t => t.Id == chatThreadId);
         if (thread == null) return null;
         
+        var messages = thread.Messages;
+        await _logService.LogMessageReadsAsync(messages.ToList());
+        
         var model = new ChatModel(thread, dateFormat, preferHexCode);
         return FilterMessageHistory(model);
     }
     
+    /// <summary>
+    /// Verifies that an active chat thread exists and the current user is a participant.
+    /// </summary>
+    /// <param name="threadId">The ID of the thread to verify.</param>
+    /// <returns><c>true</c> if the thread exists and the current user participates; otherwise <c>false</c>.</returns>
     public async Task<bool> VerifyChatExists(string threadId)
         => await _repos.GetRepository<ChatThread>().AsQueryable()
             .FilterDeleted(DeletedQueryType.OnlyActive)
@@ -382,6 +411,28 @@ public class ChatThreadService
         }
     }
 
+    /// <summary>
+    /// Updates the thread's last activity timestamp and logs the activity via the messaging log service.
+    /// Does not call save — the caller is responsible for persisting changes.
+    /// </summary>
+    /// <param name="threadId">The ID of the thread to update.</param>
+    /// <param name="activityType">The type of activity that occurred.</param>
+    /// <param name="activityDetails">Optional details describing the activity (e.g. participant user IDs).</param>
+    internal async Task UpdateLastActivity(string threadId, ThreadActivityType activityType, string? activityDetails = null)
+    {
+        var thread = await _repos.GetRepository<ChatThread>()
+            .AsQueryable().FilterDeleted(DeletedQueryType.OnlyActive)
+            .FirstOrDefaultAsync(t => t.Id == threadId 
+                        && t.Participants.Any(p => p.UserId == _userInfo.UserId));
+        if(thread == null) return;
+        
+        thread.LastActivityUtc = DateTime.UtcNow;
+        await _repos.GetRepository<ChatThread>()
+            .UpdateAsync(thread, saveNow: false);
+        
+        await _logService.LogThreadActivityAsync(threadId, activityType, activityDetails);
+    }
+
     #endregion
     
 
@@ -403,10 +454,14 @@ public class ChatThreadService
         var participantResponse = _validationService.ValidateAndPrepareParticipants(thread.Id, participants);
         participants = participantResponse.ValidatedParticipants;
         
-        var threadResponse = await _validationService.ValidateAndPrepareChatThread(thread, participants, 
+        var metadataResponse = _validationService.ValidateAndPrepareChatMetadata(thread.Id, metadata, 
             participantResponse.ErrorMessage);
+        metadata = metadataResponse.ValidatedChatMetadata;
+        
+        var threadResponse = await _validationService.ValidateAndPrepareChatThread(thread, participants, 
+            metadataResponse.ErrorMessage);
 
-        if (!participantResponse.IsValid || !threadResponse.IsValid)
+        if (!participantResponse.IsValid || !metadataResponse.IsValid || !threadResponse.IsValid)
             return threadResponse; //Last response has all errors in its message
 
         thread = threadResponse.ValidatedChatThread 
@@ -426,7 +481,7 @@ public class ChatThreadService
             
             await _repos.SaveChangesAsync();
             await _repos.CommitTransactionAsync();
-            return new ChatThreadValidationResponse();
+            return threadResponse;
         }
         catch (Exception ex)
         {

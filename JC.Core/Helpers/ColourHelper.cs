@@ -43,17 +43,9 @@ public static class ColourHelper
     // ReSharper disable once InconsistentNaming
     private static (int R, int G, int B) ExtractRGB(string colour)
     {
-        if (string.IsNullOrWhiteSpace(colour))
-            throw new ArgumentException("Colour must not be null or empty.", nameof(colour));
-
-        var hex = colour.StartsWith('#') ? colour[1..] : colour;
-
-        // Expand shorthand (e.g. "fff" → "ffffff")
-        if (hex.Length == 3)
-            hex = $"{hex[0]}{hex[0]}{hex[1]}{hex[1]}{hex[2]}{hex[2]}";
-
-        if (hex.Length != 6)
-            throw new ArgumentException("Colour must be in '#RRGGBB', '#RGB', 'RRGGBB', or 'RGB' format.", nameof(colour));
+        var (isValid, hex) = ValidateAndNormaliseHexColour(colour);
+        if (!isValid) 
+            throw new ArgumentException("Invalid colour format.", nameof(colour));
 
         if (!int.TryParse(hex[..2], System.Globalization.NumberStyles.HexNumber, null, out var r) ||
             !int.TryParse(hex[2..4], System.Globalization.NumberStyles.HexNumber, null, out var g) ||
@@ -61,5 +53,56 @@ public static class ColourHelper
             throw new ArgumentException("Colour contains invalid hexadecimal characters.", nameof(colour));
 
         return (r, g, b);
+    }
+
+    public static (bool IsValid, string Colour) ValidateAndNormaliseHexColour(string colour)
+    {
+        if (string.IsNullOrWhiteSpace(colour))
+            return (false, colour);
+        
+        var hex = colour.StartsWith('#') ? colour[1..] : colour;
+        if (hex.Length == 3)
+            hex = $"{hex[0]}{hex[0]}{hex[1]}{hex[1]}{hex[2]}{hex[2]}";
+
+        return hex.Length != 6 
+            ? (false, colour) 
+            : (true, hex);
+    }
+
+    public static (bool IsValid, string RGB) ValidateAndNormaliseRgbColour(string colour)
+    {
+        if (string.IsNullOrWhiteSpace(colour))
+            return (false, colour);
+
+        if(colour.StartsWith("rgb("))
+            colour = colour[4..];
+        
+        if(colour.StartsWith('('))
+            colour = colour[1..];
+        
+        if(colour.EndsWith(')'))
+            colour = colour[..^1];
+        
+        if(!colour.Contains(','))
+            return (false, colour);
+        
+        var rgb = colour.Split(',');
+        if(rgb.Length != 3)
+            return (false, colour);
+
+        var isValid = true;
+        foreach (var x in rgb)
+        {
+            var success = int.TryParse(x, out var value);
+            if (success && value is >= 0 and <= 255) 
+                continue;
+            
+            isValid = false;
+            break;
+        }
+        
+        colour = string.Join(',', rgb.Select(x => x.Trim()));
+        colour = $"rgb({colour.Trim()})";
+        return (isValid, colour);
     }
 }

@@ -1,3 +1,4 @@
+using JC.Communication.Logging.Models.Messaging;
 using JC.Communication.Messaging.Models;
 using JC.Communication.Messaging.Models.DomainModels;
 using JC.Communication.Messaging.Models.Options;
@@ -11,6 +12,10 @@ using Microsoft.Extensions.Options;
 
 namespace JC.Communication.Messaging.Services;
 
+/// <summary>
+/// Manages chat participant operations including adding, removing, and leaving chat threads.
+/// Handles participant restoration, default-thread demotion, and activity logging within transactions.
+/// </summary>
 public class ChatParticipantService
 {
     private readonly IRepositoryManager _repos;
@@ -18,18 +23,30 @@ public class ChatParticipantService
     private readonly ChatThreadService _threadService;
     private readonly MessagingValidationService _validationService;
     private readonly ILogger<ChatParticipantService> _logger;
+    private readonly MessagingOptions _options;
 
+    /// <summary>
+    /// Creates a new instance of the chat participant service.
+    /// </summary>
+    /// <param name="repos">The repository manager for database operations.</param>
+    /// <param name="userInfo">The current user's identity.</param>
+    /// <param name="threadService">The thread service for thread verification and activity updates.</param>
+    /// <param name="validationService">The validation service for participant validation.</param>
+    /// <param name="logger">The logger instance.</param>
+    /// <param name="options">The messaging configuration options.</param>
     public ChatParticipantService(IRepositoryManager repos,
         IUserInfo userInfo,
         ChatThreadService threadService,
         MessagingValidationService validationService,
-        ILogger<ChatParticipantService> logger)
+        ILogger<ChatParticipantService> logger,
+        IOptions<MessagingOptions> options)
     {
         _repos = repos;
         _userInfo = userInfo;
         _threadService = threadService;
         _validationService = validationService;
         _logger = logger;
+        _options = options.Value;
     }
 
     /// <summary>
@@ -76,6 +93,9 @@ public class ChatParticipantService
         if(thread == null) 
             return new ParticipantValidationResponse("Cannot find chat thread to add participants to.");
         
+        if(!thread.IsGroupChat && _options.ImmutableDirectMessageParticipants)
+            return new ParticipantValidationResponse("Cannot add participants to a direct message.");
+        
         var participants = participantParams.ToList();
         participants.AddRange(thread.Participants.Select(p => new ChatParticipant(threadId, p.UserId)));
         
@@ -102,6 +122,8 @@ public class ChatParticipantService
         var addParticipants = participants
             .Where(p => restoreUserIds.All(id => id != p.UserId))
             .ToList();
+        var participantIds = addParticipants.Select(p => p.UserId).ToList();
+        participantIds.AddRange(restoreUserIds);
         
         await _repos.BeginTransactionAsync();
         try
@@ -113,6 +135,14 @@ public class ChatParticipantService
             if(addParticipants.Count > 0)
                 await _repos.GetRepository<ChatParticipant>()
                     .AddRangeAsync(addParticipants, saveNow: false);
+            
+            if(thread.IsDefaultThread)
+                //Will demote this thread from default chat if new participants have a default chat
+                await DemoteChat(threadId, participantIds);
+            
+            //Update thread activity:
+            await _threadService.UpdateLastActivity(threadId, ThreadActivityType.ParticipantAdded,
+                ActivityDetailsHelper.GetActivityDetails(ThreadActivityType.ParticipantAdded, participantIds));
             
             await _repos.SaveChangesAsync();
             await _repos.CommitTransactionAsync();
@@ -175,6 +205,9 @@ public class ChatParticipantService
         if(thread == null)
             return new ParticipantValidationResponse("Cannot find chat thread to remove participants from.");
 
+        if(!thread.IsGroupChat && _options.ImmutableDirectMessageParticipants)
+            return new ParticipantValidationResponse("Cannot remove participants from a direct message.");
+        
         var participants = participantParams.ToList();
 
         //Guard against removing yourself — use LeaveGroupChat instead
@@ -198,13 +231,61 @@ public class ChatParticipantService
         var remaining = existingParticipants
             .Where(p => toRemove.All(r => r.UserId != p.UserId))
             .ToList();
-
+        
         response = _validationService.ValidateAndPrepareParticipants(threadId, remaining);
         if (!response.IsValid) return response;
+        
+        await _repos.BeginTransactionAsync();
+        try
+        {
+            if (thread.IsDefaultThread)
+                //Will demote this thread from default chat if remaining participants already have a default chat
+                await DemoteChat(threadId, response.ValidatedParticipants.Select(p => p.UserId));
 
-        await _repos.GetRepository<ChatParticipant>()
-            .SoftDeleteRangeAsync(toRemove);
-        return response;
+            //Update thread activity:
+            await _threadService.UpdateLastActivity(threadId, ThreadActivityType.ParticipantRemoved,
+                ActivityDetailsHelper.GetActivityDetails(ThreadActivityType.ParticipantRemoved, 
+                    toRemove.Select(p => p.UserId).ToList()));
+            
+            await _repos.GetRepository<ChatParticipant>()
+                .SoftDeleteRangeAsync(toRemove, saveNow: false);
+            
+            await _repos.SaveChangesAsync();
+            await _repos.CommitTransactionAsync();
+            return response;
+        }
+        catch (Exception ex)
+        {
+            await _repos.RollbackTransactionAsync();
+            _logger.LogError(ex, "Failed to remove participants from chat thread");
+            return new ParticipantValidationResponse("Failed to remove participants from chat thread");
+        }
+        
+    }
+
+
+    /// <summary>
+    /// Demotes the specified thread from default status if any of the given participants already have
+    /// a default chat thread. Does nothing if no conflict exists. Does not call save — the caller
+    /// is responsible for persisting changes.
+    /// </summary>
+    /// <param name="threadId">The ID of the thread to potentially demote.</param>
+    /// <param name="participantIds">The participant user IDs to check for existing default threads.</param>
+    private async Task DemoteChat(string threadId, IEnumerable<string> participantIds)
+    {
+        var list = participantIds.ToList();
+        var hasDefaultChat = await _validationService.CheckForDefaultChat(list);
+        if (!hasDefaultChat) return;
+        
+        var thread = await _repos.GetRepository<ChatThread>()
+            .AsQueryable().FilterDeleted(DeletedQueryType.OnlyActive)
+            .FirstOrDefaultAsync(t => t.Id == threadId 
+                                      && t.Participants.Any(p => list.Contains(p.UserId)));
+        if(thread == null) return;
+        
+        thread.IsDefaultThread = false;
+        await _repos.GetRepository<ChatThread>()
+            .UpdateAsync(thread, saveNow: false);
     }
 
 
