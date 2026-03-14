@@ -11,7 +11,8 @@ A suite of .NET 9 NuGet packages providing shared infrastructure for .NET applic
 | **JC.Identity** | ASP.NET Core Identity integration, multi-tenancy query filters, middleware, user management | [Documentation](Documentation/JC.Identity/) |
 | **JC.MySql** | MySQL database provider extensions using Pomelo.EntityFrameworkCore.MySql | [Database Setup](Documentation/JC.Core/Database-Setup.md) |
 | **JC.SqlServer** | SQL Server database provider extensions using Microsoft.EntityFrameworkCore.SqlServer | [Database Setup](Documentation/JC.Core/Database-Setup.md) |
-| **JC.Communication** | Outbound communication — email sending with multiple providers, in-app notifications with caching and logging, message validation, and database logging | [Documentation](Documentation/JC.Communication/) |
+| **JC.Communication** | Email sending with multiple providers, in-app notifications with caching and logging, real-time messaging with threads/participants/read tracking, and database logging | [Documentation](Documentation/JC.Communication/) |
+| **JC.Communication.Web** | Razor tag helpers for JC.Communication — notification dropdown/badge/toasts, chat thread/list/input/participants, and contact form | [Documentation](Documentation/JC.Communication/) |
 | **JC.Github** | GitHub integration for bug report and issue tracking services | [Documentation](Documentation/JC.Github/) |
 | **JC.BackgroundJobs** | Lightweight hosted-service background jobs and Hangfire recurring/ad-hoc job integration | [Documentation](Documentation/JC.BackgroundJobs/) |
 | **JC.SqlServer.Hangfire** | Hangfire SQL Server storage registration for JC-Packages applications | — |
@@ -38,6 +39,7 @@ JC.Core (foundation — no JC dependencies)
 ├── JC.Identity
 ├── JC.Web
 ├── JC.Communication
+│   └── JC.Communication.Web (depends on JC.Communication + JC.Web)
 ├── JC.Github
 ├── JC.MySql
 └── JC.SqlServer
@@ -47,7 +49,7 @@ JC.BackgroundJobs (standalone — no JC dependencies)
 JC.SqlServer.Hangfire (standalone — no JC dependencies)
 ```
 
-JC.Identity, JC.Web, JC.Communication, JC.Github, JC.MySql, and JC.SqlServer all depend on **JC.Core**. The database providers (JC.MySql / JC.SqlServer) are interchangeable.
+JC.Identity, JC.Web, JC.Communication, JC.Github, JC.MySql, and JC.SqlServer all depend on **JC.Core**. The database providers (JC.MySql / JC.SqlServer) are interchangeable. **JC.Communication.Web** depends on both **JC.Communication** and **JC.Web**.
 
 **JC.BackgroundJobs** and **JC.SqlServer.Hangfire** are standalone — they have no dependency on JC.Core or each other. JC.BackgroundJobs depends only on Hangfire.Core and Microsoft.Extensions.Hosting.Abstractions. JC.SqlServer.Hangfire depends on Hangfire.SqlServer and Hangfire.AspNetCore.
 
@@ -116,10 +118,13 @@ builder.Services.AddCore<AppDbContext>();
 builder.Services.AddEmail<AppDbContext>(builder.Configuration);
 
 // In-app notifications with database logging — optional
-builder.Services.AddNotificationsWithLogging<AppDbContext>();
+builder.Services.AddNotifications<AppDbContext>();
+
+// Real-time messaging with threads, participants, and read tracking — optional
+builder.Services.AddMessaging<AppDbContext>();
 ```
 
-Either feature can be registered independently — you don't need both. See [JC.Communication documentation](Documentation/JC.Communication/) for provider configuration, notification options, logging modes, and usage guides.
+Each feature can be registered independently — you don't need all three. See [JC.Communication documentation](Documentation/JC.Communication/) for provider configuration, notification options, messaging setup, and usage guides.
 
 ### JC.Github
 
@@ -219,7 +224,7 @@ Required when using encrypted cookies (enabled by default in `AddWebDefaults` / 
 }
 ```
 
-Email configuration is required when using `AddEmail`. The keys shown above are for the Microsoft provider (default). Other providers require different keys — see [Email setup](Documentation/JC.Communication/Email-Setup.md) for full configuration. Notifications are configured entirely in code via `NotificationOptions` — see [Notifications setup](Documentation/JC.Communication/Notifications-Setup.md).
+Email configuration is required when using `AddEmail`. The keys shown above are for the Microsoft provider (default). Other providers require different keys — see [Email setup](Documentation/JC.Communication/Email-Setup.md) for full configuration. Notifications are configured entirely in code via `NotificationOptions` — see [Notifications setup](Documentation/JC.Communication/Notifications-Setup.md). Messaging is configured entirely in code via `MessagingOptions` — see [Messaging setup](Documentation/JC.Communication/Messaging-Setup.md).
 
 ### GitHub Integration (JC.Github)
 
@@ -255,7 +260,8 @@ Full documentation for each package is available in the [Documentation](Document
 | JC.Core | [Setup](Documentation/JC.Core/Setup.md) | [Guide](Documentation/JC.Core/Guide.md) | [API](Documentation/JC.Core/API.md) |
 | JC.Web | [Setup](Documentation/JC.Web/Setup.md) | [Guide](Documentation/JC.Web/Guide.md) | [API](Documentation/JC.Web/API.md) |
 | JC.Identity | [Setup](Documentation/JC.Identity/Setup.md) | [Guide](Documentation/JC.Identity/Guide.md) | [API](Documentation/JC.Identity/API.md) |
-| JC.Communication | [Email Setup](Documentation/JC.Communication/Email-Setup.md) · [Notifications Setup](Documentation/JC.Communication/Notifications-Setup.md) | [Email Guide](Documentation/JC.Communication/Email-Guide.md) · [Notifications Guide](Documentation/JC.Communication/Notifications-Guide.md) | [Email API](Documentation/JC.Communication/Email-API.md) · [Notifications API](Documentation/JC.Communication/Notifications-API.md) |
+| JC.Communication | [Email Setup](Documentation/JC.Communication/Email-Setup.md) · [Notifications Setup](Documentation/JC.Communication/Notifications-Setup.md) · [Messaging Setup](Documentation/JC.Communication/Messaging-Setup.md) | [Email Guide](Documentation/JC.Communication/Email-Guide.md) · [Notifications Guide](Documentation/JC.Communication/Notifications-Guide.md) · [Messaging Guide](Documentation/JC.Communication/Messaging-Guide.md) | [Email API](Documentation/JC.Communication/Email-API.md) · [Notifications API](Documentation/JC.Communication/Notifications-API.md) · [Messaging API](Documentation/JC.Communication/Messaging-API.md) |
+| JC.Communication.Web | — | [Guide](Documentation/JC.Communication/Communication.Web-Guide.md) | [API](Documentation/JC.Communication/Communication.Web-API.md) |
 | JC.Github | [Setup](Documentation/JC.Github/Setup.md) | [Guide](Documentation/JC.Github/Guide.md) | [API](Documentation/JC.Github/API.md) |
 | JC.BackgroundJobs | [Setup](Documentation/JC.BackgroundJobs/Setup.md) | [Guide](Documentation/JC.BackgroundJobs/Guide.md) | [API](Documentation/JC.BackgroundJobs/API.md) |
 | JC.MySql / JC.SqlServer | [Database Setup](Documentation/JC.Core/Database-Setup.md) | — | — |
@@ -287,7 +293,7 @@ No additional configuration or dependencies are required beyond the .NET 9 SDK.
 - **Major** and **Minor** are shared across the full package suite
 - A **Major** or **Minor** bump in any package updates **all packages**
 - **Patch** versions are normally **package-specific**
-- **`JC.Core` is the exception**: any patch update to `JC.Core` bumps the patch version of all packages **that depend on JC.Core** (JC.Web, JC.Identity, JC.Github, JC.MySql, JC.SqlServer). Standalone packages (JC.BackgroundJobs, JC.SqlServer.Hangfire) are unaffected
+- **`JC.Core` is the exception**: any patch update to `JC.Core` bumps the patch version of all packages **that depend on JC.Core** (JC.Web, JC.Identity, JC.Communication, JC.Communication.Web, JC.Github, JC.MySql, JC.SqlServer). Standalone packages (JC.BackgroundJobs, JC.SqlServer.Hangfire) are unaffected
 
 ### What this means
 

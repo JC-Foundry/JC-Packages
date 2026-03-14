@@ -1,5 +1,7 @@
 using JC.Communication.Logging.Data.DataMappings.Email;
+using JC.Communication.Logging.Data.DataMappings.Messaging;
 using JC.Communication.Logging.Data.DataMappings.Notifications;
+using JC.Communication.Messaging.Data.DataMappings;
 using JC.Communication.Notifications.Data.DataMappings;
 using Microsoft.EntityFrameworkCore;
 
@@ -37,6 +39,25 @@ public static class DataExtensions
         modelBuilder.ApplyConfiguration(new NotificationMap());
         modelBuilder.ApplyConfiguration(new NotificationStyleMap());
         modelBuilder.ApplyConfiguration(new NotificationLogMap());
+
+        return modelBuilder;
+    }
+
+    /// <summary>
+    /// Applies all JC.Communication messaging entity mappings to the model builder.
+    /// Call this from <c>OnModelCreating</c> in the consuming application's DbContext.
+    /// </summary>
+    /// <param name="modelBuilder">The model builder to configure.</param>
+    /// <returns>The model builder for chaining.</returns>
+    public static ModelBuilder ApplyMessagingMappings(this ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfiguration(new ChatThreadMap());
+        modelBuilder.ApplyConfiguration(new ChatMessageMap());
+        modelBuilder.ApplyConfiguration(new ChatParticipantMap());
+        modelBuilder.ApplyConfiguration(new ChatMetadataMap());
+        modelBuilder.ApplyConfiguration(new ThreadDeletedMap());
+        modelBuilder.ApplyConfiguration(new ThreadActivityLogMap());
+        modelBuilder.ApplyConfiguration(new MessageReadLogMap());
 
         return modelBuilder;
     }

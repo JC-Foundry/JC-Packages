@@ -30,8 +30,11 @@ public class SoftDeleteCleanupJob : IBackgroundJob
 
     public async Task ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        if(!_options.RegisterSoftDeleteCleanupJob)
+        if (!_options.EnableSoftDeleteCleanupJob)
+        {
+            _logger.LogDebug("Soft delete cleanup job is disabled.");
             return;
+        }
         
         var softDeletableTypes = _context.Model.GetEntityTypes()
             .Where(t =>

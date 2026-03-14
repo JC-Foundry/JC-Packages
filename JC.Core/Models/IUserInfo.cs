@@ -1,4 +1,5 @@
 using System.Security.Claims;
+// ReSharper disable InconsistentNaming
 
 namespace JC.Core.Models;
 

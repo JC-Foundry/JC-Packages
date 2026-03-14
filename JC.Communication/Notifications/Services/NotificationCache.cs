@@ -177,7 +177,7 @@ public class NotificationCache
     /// This is a cache-only operation — the caller is responsible for persisting to the database.
     /// </summary>
     /// <param name="userId">The target user. Defaults to the current user.</param>
-    public void RemoveAllNotificationsAsync(string? userId = null)
+    public void RemoveAllNotifications(string? userId = null)
     {
         // Clear the list but keep the cache entry to avoid a DB hydration on next access
         var key = GetCacheKey(userId);

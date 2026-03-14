@@ -196,7 +196,7 @@ public class NotificationManager : INotificationManager
             return false;
         }
 
-        _cache.RemoveAllNotificationsAsync();
+        _cache.RemoveAllNotifications();
         return true;
     }
 }

@@ -452,7 +452,7 @@ Validation errors are returned in `NotificationValidationResponse.ErrorMessage` 
 
 ### How logging works
 
-When database logging is enabled (via `AddNotificationsWithLogging`), read and unread state changes create `NotificationLog` entries. Each log records the notification ID, the user who performed the action, a timestamp, and whether the event was a read or unread action.
+When database logging is enabled (via `AddNotifications`), read and unread state changes create `NotificationLog` entries. Each log records the notification ID, the user who performed the action, a timestamp, and whether the event was a read or unread action.
 
 Both `LogReadAsync` and `LogUnreadAsync` accept an optional `userId` parameter that defaults to the current user (`IUserInfo.UserId`). Pass a different user ID to record who actually performed the action — for example, when an admin reads a notification on behalf of a user but wants the log to reflect their own identity for audit purposes.
 
@@ -506,8 +506,8 @@ public class SignalRNotificationManager(
 }
 ```
 
-Register your implementation in [Setup](Notifications-Setup.md#addnotificationswithlogging-with-custom-inotificationmanager):
+Register your implementation in [Setup](Notifications-Setup.md#addnotifications-with-custom-inotificationmanager):
 
 ```csharp
-builder.Services.AddNotificationsWithLogging<AppDbContext, SignalRNotificationManager>();
+builder.Services.AddNotifications<AppDbContext, SignalRNotificationManager>();
 ```

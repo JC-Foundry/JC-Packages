@@ -25,8 +25,8 @@ See [Versioning Strategy](../../README.md#versioning-strategy) to understand whi
 builder.Services.AddCore<AppDbContext>();
 builder.Services.AddIdentity<AppUser, AppRole, AppDbContext>();
 
-// Register notifications with database logging and default options
-builder.Services.AddNotificationsWithLogging<AppDbContext>();
+// Register notifications with default options
+builder.Services.AddNotifications<AppDbContext>();
 ```
 
 ### DbContext
@@ -34,7 +34,7 @@ builder.Services.AddNotificationsWithLogging<AppDbContext>();
 Your `DbContext` must implement `INotificationDbContext` and apply the notification data mappings:
 
 ```csharp
-public class AppDbContext : DataDbContext, INotificationDbContext
+public class AppDbContext : IdentityDataDbContext, INotificationDbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -52,7 +52,7 @@ public class AppDbContext : DataDbContext, INotificationDbContext
 
 ### Defaults
 
-When called with no configuration callback, `AddNotificationsWithLogging` registers:
+When called with no configuration callback, `AddNotifications` registers:
 
 | Registration | Lifetime | Description |
 |-------------|----------|-------------|
@@ -86,12 +86,12 @@ With no additional configuration:
 
 ## 2. Full configuration
 
-### AddNotificationsWithLogging — with database logging
+### AddNotifications — standard registration
 
-Registers all notification services with database logging enabled. Your DbContext must implement both `IDataDbContext` and `INotificationDbContext`.
+Registers all notification services with database logging support. Your DbContext must implement both `IDataDbContext` and `INotificationDbContext`.
 
 ```csharp
-builder.Services.AddNotificationsWithLogging<AppDbContext>(options =>
+builder.Services.AddNotifications<AppDbContext>(options =>
 {
     options.CacheDurationHours = 24;
     options.LoggingMode = NotificationLoggingMode.All;
@@ -109,12 +109,12 @@ builder.Services.AddNotificationsWithLogging<AppDbContext>(options =>
 
 Throws `InvalidOperationException` if `IUserInfo` is not registered or if `CacheDurationHours` is outside the valid range (1–72).
 
-### AddNotificationsWithLogging with custom INotificationManager
+### AddNotifications with custom INotificationManager
 
 Use the two-type-parameter overload to replace the default `NotificationManager` with a custom implementation:
 
 ```csharp
-builder.Services.AddNotificationsWithLogging<AppDbContext, CustomNotificationManager>(options =>
+builder.Services.AddNotifications<AppDbContext, CustomNotificationManager>(options =>
 {
     options.CacheDurationHours = 24;
     options.LoggingMode = NotificationLoggingMode.All;
@@ -129,32 +129,6 @@ builder.Services.AddNotificationsWithLogging<AppDbContext, CustomNotificationMan
 
 `TNotificationManager` is registered as the scoped `INotificationManager` implementation instead of the built-in `NotificationManager`.
 
-### AddNotifications — without database logging
-
-Registers notification services without database logging. Use this when you don't need persistent read/unread event logs. Does not require `INotificationDbContext` on your DbContext.
-
-```csharp
-builder.Services.AddNotifications(options =>
-{
-    options.CacheDurationHours = 24;
-    options.HardDeleteOnDismiss = false;
-});
-```
-
-`LoggingMode` must be set to `NotificationLoggingMode.None` — any other value throws `InvalidOperationException`. This is enforced because without a database context registered, log entries cannot be persisted.
-
-The no-logging variant does not register `INotificationDbContext` or repository contexts for `Notification`, `NotificationStyle`, or `NotificationLog`.
-
-A custom `INotificationManager` overload is also available:
-
-```csharp
-builder.Services.AddNotifications<CustomNotificationManager>(options =>
-{
-    options.CacheDurationHours = 24;
-    options.HardDeleteOnDismiss = false;
-});
-```
-
 ### NotificationOptions
 
 | Property | Type | Default | Description |
@@ -167,7 +141,7 @@ builder.Services.AddNotifications<CustomNotificationManager>(options =>
 
 | Member | Value | Description |
 |--------|-------|-------------|
-| `None` | `0` | No read/unread events are logged. Required when using `AddNotifications` (without logging). |
+| `None` | `0` | No read/unread events are logged. |
 | `ReadOnly` | `1` | Only read events are logged. |
 | `UnreadOnly` | `2` | Only unread events are logged. |
 | `All` | `3` | Both read and unread events are logged. |
