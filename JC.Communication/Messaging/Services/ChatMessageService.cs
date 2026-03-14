@@ -81,13 +81,14 @@ public class ChatMessageService
     /// </summary>
     /// <param name="threadId">The ID of the thread to send the message in.</param>
     /// <param name="message">The message content to send.</param>
+    /// <param name="replyToId">The ID of the message to reply to.</param>
     /// <returns>A <see cref="ChatMessageValidationResponse"/> indicating success (with the created message) or containing validation errors.</returns>
-    public async Task<ChatMessageValidationResponse> TrySendMessage(string threadId, string message)
+    public async Task<ChatMessageValidationResponse> TrySendMessage(string threadId, string message, string? replyToId)
     {
         var threadExists = await _threadService.VerifyChatExists(threadId);
         if(!threadExists) return new ChatMessageValidationResponse("Chat thread does not exist");
 
-        var msg = new ChatMessage(threadId, message);
+        var msg = new ChatMessage(threadId, message, replyToId);
         var response = _validationService.ValidateChatMessage(msg);
         if(!response.IsValid) return response;
         

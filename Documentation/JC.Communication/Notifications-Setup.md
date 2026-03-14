@@ -34,7 +34,7 @@ builder.Services.AddNotifications<AppDbContext>();
 Your `DbContext` must implement `INotificationDbContext` and apply the notification data mappings:
 
 ```csharp
-public class AppDbContext : DataDbContext, INotificationDbContext
+public class AppDbContext : IdentityDataDbContext, INotificationDbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 

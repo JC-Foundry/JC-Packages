@@ -46,6 +46,9 @@ public class ChatThread : AuditModel
 
     /// <summary>Gets or sets the optional visual metadata for this thread.</summary>
     public ChatMetadata? ChatMetadata { get; set; }
+    
+    /// <summary>Gets or sets the user deletions for this thread.</summary>
+    public ICollection<ThreadDeleted> UserThreadDeletions { get; set; }
 
     /// <summary>
     /// Determines whether this thread is a group chat. Uses the loaded <see cref="Participants"/>

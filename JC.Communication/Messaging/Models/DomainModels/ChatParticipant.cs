@@ -43,15 +43,20 @@ public class ChatParticipant : AuditModel
     {
     }
 
+    public ChatParticipant(string userId)
+    {
+        UserId = userId;
+        JoinedAtUtc = DateTime.UtcNow;
+    }
+
     /// <summary>
     /// Creates a new participant for the specified thread.
     /// </summary>
     /// <param name="threadId">The ID of the thread to join.</param>
     /// <param name="userId">The user ID of the participant.</param>
     public ChatParticipant(string threadId, string userId)
+        : this(userId)
     {
         ThreadId = threadId;
-        UserId = userId;
-        JoinedAtUtc = DateTime.UtcNow;
     }
 }

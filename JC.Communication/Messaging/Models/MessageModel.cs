@@ -12,6 +12,9 @@ public class MessageModel
 
     /// <summary>Gets the ID of the thread this message belongs to.</summary>
     public string ThreadId { get; }
+    
+    /// <summary>Gets the ID of the message this message is replying to.</summary>
+    public string? ReplyToMessageId { get; }
 
     /// <summary>Gets the message content.</summary>
     public string Message { get; }
@@ -30,6 +33,7 @@ public class MessageModel
     {
         MessageId = message.Id;
         ThreadId = message.ThreadId;
+        ReplyToMessageId = message.ReplyToMessageId;
         Message = message.Message;
         SenderUserId = message.SenderUserId;
         SentAtUtc = message.SentAtUtc;

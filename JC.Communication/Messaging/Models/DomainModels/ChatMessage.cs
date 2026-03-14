@@ -24,6 +24,14 @@ public class ChatMessage : AuditModel
     [ForeignKey(nameof(ThreadId))]
     public ChatThread Thread { get; set; }
 
+    /// <summary>Gets or sets the ID of the message this message is replying to.</summary>
+    [MaxLength(36)]
+    public string? ReplyToMessageId { get; set; }
+    
+    /// <summary>Gets or sets the navigation property to the message this message is replying to.</summary>
+    [ForeignKey(nameof(ReplyToMessageId))]
+    public ChatMessage? ReplyToMessage { get; set; }
+    
     /// <summary>Gets or sets the message content.</summary>
     [Required]
     [MaxLength(8192)]
@@ -51,9 +59,11 @@ public class ChatMessage : AuditModel
     /// </summary>
     /// <param name="threadId">The ID of the thread to send the message in.</param>
     /// <param name="message">The message content.</param>
-    public ChatMessage(string threadId, string message)
+    /// <param name="replyToMessageId">The ID of the message to reply to.</param>
+    public ChatMessage(string threadId, string message, string? replyToMessageId = null)
     {
         ThreadId = threadId;
         Message = message;
+        ReplyToMessageId = replyToMessageId;
     }
 }

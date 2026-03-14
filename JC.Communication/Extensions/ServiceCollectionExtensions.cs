@@ -3,8 +3,13 @@ using JC.Communication.Email.Models.Options;
 using JC.Communication.Email.Services;
 using JC.Communication.Logging.Data;
 using JC.Communication.Logging.Models.Email;
+using JC.Communication.Logging.Models.Messaging;
 using JC.Communication.Logging.Models.Notifications;
 using JC.Communication.Logging.Services;
+using JC.Communication.Messaging.Data;
+using JC.Communication.Messaging.Models.DomainModels;
+using JC.Communication.Messaging.Models.Options;
+using JC.Communication.Messaging.Services;
 using JC.Communication.Notifications.Data;
 using JC.Communication.Notifications.Models;
 using JC.Communication.Notifications.Models.Options;
@@ -347,6 +352,79 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<NotificationCache>();
         services.TryAddScoped<NotificationSender>();
         services.TryAddScoped<INotificationManager, TNotificationManager>();
+
+        return services;
+    }
+
+    #endregion
+
+
+    #region Messaging
+
+    /// <summary>
+    /// Registers messaging services with database support.
+    /// Configures the <see cref="IMessagingDbContext"/> and repository contexts for all messaging entities.
+    /// Requires <see cref="IUserInfo"/> to be registered in the service collection (typically via JC.Identity).
+    /// </summary>
+    /// <typeparam name="TContext">The application's DbContext type, which must implement
+    /// <see cref="IDataDbContext"/> and <see cref="IMessagingDbContext"/>.</typeparam>
+    /// <param name="services">The service collection.</param>
+    /// <param name="configure">Optional action to configure <see cref="MessagingOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if <see cref="IUserInfo"/> is not registered.</exception>
+    public static IServiceCollection AddMessaging<TContext>(
+        this IServiceCollection services,
+        Action<MessagingOptions>? configure = null)
+        where TContext : DbContext, IDataDbContext, IMessagingDbContext
+    {
+        // Options
+        services.AddOptions<MessagingOptions>()
+            .Configure(opts => configure?.Invoke(opts));
+
+        // Guard: IUserInfo must be registered (typically by JC.Identity)
+        if (services.All(s => s.ServiceType != typeof(IUserInfo)))
+            throw new InvalidOperationException(
+                $"{nameof(IUserInfo)} is not registered. " +
+                "Ensure JC.Identity services are registered before calling AddMessaging.");
+
+        // Db context
+        services.TryAddScoped<IMessagingDbContext>(sp => sp.GetRequiredService<TContext>());
+
+        // Repository contexts for messaging entities
+        services.RegisterRepositoryContexts(
+            typeof(ChatThread),
+            typeof(ChatMessage),
+            typeof(ChatParticipant),
+            typeof(ChatMetadata),
+            typeof(ThreadDeleted),
+            typeof(ThreadActivityLog),
+            typeof(MessageReadLog));
+
+        // Services
+        services.TryAddScoped<MessagingValidationService>();
+        services.TryAddScoped<MessagingLogService>();
+        services.TryAddScoped<ChatThreadService>();
+        services.TryAddScoped<ChatMessageService>();
+        services.TryAddScoped<ChatParticipantService>();
+        services.TryAddScoped<ChatMetadataService>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Configures <see cref="MessagingBackgroundJobOptions"/> for messaging background jobs
+    /// such as <see cref="ActivityLogCleanupJob"/> and <see cref="ReadLogCleanupJob"/>.
+    /// Only needs to be called if overriding the default options — jobs will use
+    /// defaults automatically if this is not called.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configure">Action to configure <see cref="MessagingBackgroundJobOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection ConfigureMessagingBackgroundJobs(this IServiceCollection services,
+        Action<MessagingBackgroundJobOptions> configure)
+    {
+        services.AddOptions<MessagingBackgroundJobOptions>()
+            .Configure(opts => configure?.Invoke(opts));
 
         return services;
     }

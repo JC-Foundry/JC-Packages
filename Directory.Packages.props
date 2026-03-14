@@ -4,7 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Internal/shared JC packages -->
-    <PackageVersion Include="JC.Core" Version="3.5.0" />
+    <PackageVersion Include="JC.Core" Version="3.6.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.11" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.11" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.11" />

@@ -88,44 +88,40 @@ public class MessagingLogService
     }
 
     /// <summary>
-    /// Logs message read events for the current user. Accepts a list of messages (typically all messages
-    /// in a thread) and only creates log entries for messages that the user has not already read.
-    /// Does nothing if <see cref="MessagingOptions.LogChatReads"/> is <c>false</c>.
+    /// Logs that the current user has read up to the most recent message in a thread.
+    /// Only the latest message is tracked — this avoids log churn from cleanup jobs
+    /// that would otherwise cause old per-message read logs to be recreated on every thread load.
+    /// Does nothing if <see cref="MessagingOptions.LogChatReads"/> is <c>false</c> or <paramref name="message"/> is <c>null</c>.
+    /// Skips logging if a read log already exists for a different message (i.e. the user has already read past messages).
     /// </summary>
-    /// <param name="messages">The messages to mark as read.</param>
+    /// <param name="message">The most recent message in the thread, or <c>null</c> if the thread has no messages.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
-    public async Task LogMessageReadsAsync(List<ChatMessage> messages,
+    public async Task LogMessageReadAsync(ChatMessage? message,
         CancellationToken cancellationToken = default)
     {
-        if (!_options.LogChatReads || messages.Count == 0)
+        if (!_options.LogChatReads || message == null)
             return;
 
         var userId = _userInfo.UserId;
-        var messageIds = messages.Select(m => m.Id).ToList();
-
         var alreadyRead = await _repos.GetRepository<MessageReadLog>()
             .AsQueryable()
-            .Where(r => r.UserId == userId && messageIds.Contains(r.MessageId))
-            .Select(r => r.MessageId)
-            .ToListAsync(cancellationToken);
+            .FirstOrDefaultAsync(r => r.UserId == userId && r.MessageId == message.Id, 
+                cancellationToken);
 
-        var newLogs = messageIds
-            .Where(id => !alreadyRead.Contains(id))
-            .Select(id => new MessageReadLog
-            {
-                MessageId = id,
-                UserId = userId,
-                ReadAtUtc = DateTime.UtcNow
-            })
-            .ToList();
-
-        if (newLogs.Count == 0)
+        if(alreadyRead != null)
             return;
+
+        var log = new MessageReadLog
+        {
+            UserId = userId,
+            MessageId = message.Id,
+            ReadAtUtc = DateTime.UtcNow
+        };
 
         try
         {
             await _repos.GetRepository<MessageReadLog>()
-                .AddRangeAsync(newLogs, cancellationToken: cancellationToken);
+                .AddAsync(log, cancellationToken: cancellationToken);
         }
         catch (Exception ex)
         {

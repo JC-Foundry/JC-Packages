@@ -71,7 +71,8 @@ public class ChatThreadService
         query = query.Include(t => t.Messages)
             .Include(t => t.Participants)
             .Include(t => t.ChatMetadata)
-            .Where(t => t.Participants.Any(p => p.UserId == _userInfo.UserId));
+            .Where(t => t.Participants.Any(p => !p.IsDeleted && p.UserId == _userInfo.UserId) 
+                        && !t.UserThreadDeletions.Any(d => !d.IsDeleted && d.UserId == _userInfo.UserId));
         return query.OrderByDescending(t => t.CreatedUtc);
     }
 
@@ -143,6 +144,7 @@ public class ChatThreadService
     /// <summary>
     /// Finds the default chat thread between the current user and the specified participants.
     /// The current user is automatically included if not already present in the participant list.
+    /// Logs a read event for the most recent message in the thread.
     /// </summary>
     /// <param name="dateFormat">The format string used to display dates.</param>
     /// <param name="preferHexCode">If <c>true</c>, colour values prefer hex over RGB in the returned model.</param>
@@ -165,7 +167,7 @@ public class ChatThreadService
         if (thread == null) return null;
 
         var messages = thread.Messages;
-        await _logService.LogMessageReadsAsync(messages.ToList());
+        await _logService.LogMessageReadAsync(messages.MaxBy(m => m.CreatedUtc));
         
         var model =  new ChatModel(thread, dateFormat, preferHexCode);
         return FilterMessageHistory(model);
@@ -173,6 +175,7 @@ public class ChatThreadService
 
     /// <summary>
     /// Retrieves a single chat thread by its ID, provided the current user is a participant.
+    /// Logs a read event for the most recent message in the thread.
     /// </summary>
     /// <param name="chatThreadId">The unique identifier of the chat thread.</param>
     /// <param name="dateFormat">The format string used to display dates.</param>
@@ -187,7 +190,7 @@ public class ChatThreadService
         if (thread == null) return null;
         
         var messages = thread.Messages;
-        await _logService.LogMessageReadsAsync(messages.ToList());
+        await _logService.LogMessageReadAsync(messages.MaxBy(m => m.CreatedUtc));
         
         var model = new ChatModel(thread, dateFormat, preferHexCode);
         return FilterMessageHistory(model);
@@ -202,7 +205,7 @@ public class ChatThreadService
         => await _repos.GetRepository<ChatThread>().AsQueryable()
             .FilterDeleted(DeletedQueryType.OnlyActive)
             .AnyAsync(t => t.Id == threadId 
-                           && t.Participants.Any(p => p.UserId == _userInfo.UserId));
+                           && t.Participants.Any(p => !p.IsDeleted && p.UserId == _userInfo.UserId));
     
     
     /// <summary>
@@ -368,7 +371,7 @@ public class ChatThreadService
             .AsQueryable().FilterDeleted(DeletedQueryType.OnlyActive)
             .Include(t => t.Participants)
             .FirstOrDefaultAsync(t => t.Id == threadId 
-                                      && t.Participants.Any(p => p.UserId == _userInfo.UserId));
+                                      && t.Participants.Any(p => !p.IsDeleted && p.UserId == _userInfo.UserId));
         
         if (thread == null)
             return false;
@@ -423,7 +426,7 @@ public class ChatThreadService
         var thread = await _repos.GetRepository<ChatThread>()
             .AsQueryable().FilterDeleted(DeletedQueryType.OnlyActive)
             .FirstOrDefaultAsync(t => t.Id == threadId 
-                        && t.Participants.Any(p => p.UserId == _userInfo.UserId));
+                        && t.Participants.Any(p => !p.IsDeleted && p.UserId == _userInfo.UserId));
         if(thread == null) return;
         
         thread.LastActivityUtc = DateTime.UtcNow;
@@ -503,7 +506,7 @@ public class ChatThreadService
     {
         var thread = await _repos.GetRepository<ChatThread>()
             .AsQueryable().FirstOrDefaultAsync(t => t.Id == threadId 
-                                                    && t.Participants.Any(p => p.UserId == _userInfo.UserId));
+                                                    && t.Participants.Any(p => !p.IsDeleted && p.UserId == _userInfo.UserId));
         if (thread == null)
             return new ChatThreadValidationResponse("Chat thread not found");
         
@@ -522,19 +525,46 @@ public class ChatThreadService
     /// </summary>
     /// <param name="threadId">The ID of the thread to delete.</param>
     /// <returns><c>true</c> if the thread was found and soft-deleted; <c>false</c> if not found or the user is not a participant.</returns>
-    public async Task<bool> TryDeleteChatThread(string threadId)
+    public async Task<bool> TryDeleteChatThreadForAll(string threadId)
     {
         var thread = await _repos.GetRepository<ChatThread>()
             .AsQueryable().FilterDeleted(DeletedQueryType.OnlyActive)
-            .FirstOrDefaultAsync(t => t.Id == threadId 
-                                      && t.Participants.Any(p => p.UserId == _userInfo.UserId));
-        
+            .Include(t => t.Participants)
+            .FirstOrDefaultAsync(t => t.Id == threadId
+                                      && t.Participants.Any(p => !p.IsDeleted && p.UserId == _userInfo.UserId));
+
         if (thread == null)
             return false;
-        
-        await _repos.GetRepository<ChatThread>()
-            .SoftDeleteAsync(thread);
-        return true;
+
+        var userDeletions = await GetThreadDeletions(threadId, DeletedQueryType.OnlyActive);
+        var threadDeletions = thread.Participants
+            .Where(p => !userDeletions.Select(d => d.UserId).Contains(p.UserId))
+            .Select(p => new ThreadDeleted
+            {
+                ThreadId = threadId,
+                UserId = p.UserId
+            })
+            .ToList();
+
+        await _repos.BeginTransactionAsync();
+        try
+        {
+            await _repos.GetRepository<ChatThread>()
+                .SoftDeleteAsync(thread, saveNow: false);
+
+            await _repos.GetRepository<ThreadDeleted>()
+                .AddAsync(threadDeletions, saveNow: false);
+
+            await _repos.SaveChangesAsync();
+            await _repos.CommitTransactionAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await _repos.RollbackTransactionAsync();
+            _logger.LogError(ex, "Unable to delete thread for all users");
+            return false;
+        }
     }
 
     /// <summary>
@@ -550,13 +580,13 @@ public class ChatThreadService
     /// <see cref="DefaultThreadRestoreMode.DemoteRestored"/> removes default status from the restored thread.
     /// </param>
     /// <returns><c>true</c> if the thread was restored or already active; <c>false</c> if not found, the user is not a participant, or the restore was blocked.</returns>
-    public async Task<bool> TryRestoreChatThread(string threadId, DefaultThreadRestoreMode mode = DefaultThreadRestoreMode.DemoteExisting)
+    public async Task<bool> TryRestoreChatThreadForAll(string threadId, DefaultThreadRestoreMode mode = DefaultThreadRestoreMode.DemoteExisting)
     {
         var thread = await _repos.GetRepository<ChatThread>()
             .AsQueryable().FilterDeleted(DeletedQueryType.All)
             .Include(t => t.Participants)
             .FirstOrDefaultAsync(t => t.Id == threadId 
-                                      && t.Participants.Any(p => p.UserId == _userInfo.UserId));
+                                      && t.Participants.Any(p => !p.IsDeleted && p.UserId == _userInfo.UserId));
         
         if (thread == null)
             return false;
@@ -586,6 +616,11 @@ public class ChatThreadService
             }
         }
 
+        var participantUserIds = thread.Participants.Select(p => p.UserId).ToList();
+        var userDeletions = (await GetThreadDeletions(threadId, DeletedQueryType.OnlyActive))
+            .Where(d => participantIdList.Contains(d.UserId))
+            .ToList();
+        
         await _repos.BeginTransactionAsync();
         try
         {
@@ -596,6 +631,10 @@ public class ChatThreadService
                 await _repos.GetRepository<ChatThread>()
                     .UpdateAsync(existingDefault, saveNow: false);
 
+            if (userDeletions.Count > 0)
+                await _repos.GetRepository<ThreadDeleted>()
+                    .SoftDeleteRangeAsync(userDeletions, saveNow: false);
+            
             await _repos.SaveChangesAsync();
             await _repos.CommitTransactionAsync();
             return true;
@@ -606,6 +645,54 @@ public class ChatThreadService
             _logger.LogError(ex, "Unable to restore chat thread");
             return false;
         }
+    }
+
+    #endregion
+
+
+
+    #region Per User Delete/Restore
+
+    private async Task<List<ThreadDeleted>> GetThreadDeletions(string threadId, DeletedQueryType deletedQueryType)
+        => await _repos.GetRepository<ThreadDeleted>().AsQueryable().FilterDeleted(deletedQueryType)
+            .Where(d => d.ThreadId == threadId)
+            .ToListAsync();
+
+    private async Task<ThreadDeleted?> GetUserThreadDelete(string threadId, string userId,
+        DeletedQueryType deletedQueryType)
+        => await _repos.GetRepository<ThreadDeleted>().AsQueryable().FilterDeleted(deletedQueryType)
+            .FirstOrDefaultAsync(d => d.ThreadId == threadId && d.UserId == userId);
+    
+    public async Task<bool> TryDeleteThreadForUser(string threadId)
+    {
+        var threadExists = await VerifyChatExists(threadId);
+        if (!threadExists) return false;
+
+        var threadDelete = await GetUserThreadDelete(threadId, _userInfo.UserId, DeletedQueryType.OnlyActive);
+        if (threadDelete != null) return true;
+        
+        threadDelete = new ThreadDeleted
+        {
+            ThreadId = threadId,
+            UserId = _userInfo.UserId
+        };
+
+        await _repos.GetRepository<ThreadDeleted>()
+            .AddAsync(threadDelete);
+        return true;
+    }
+
+    public async Task<bool> TryRestoreThreadForUser(string threadId)
+    {
+        var threadExists = await VerifyChatExists(threadId);
+        if (!threadExists) return false;
+
+        var threadDelete = await GetUserThreadDelete(threadId, _userInfo.UserId, DeletedQueryType.All);
+        if (threadDelete == null || threadDelete.IsDeleted) return true;
+
+        await _repos.GetRepository<ThreadDeleted>()
+            .SoftDeleteAsync(threadDelete);
+        return true;
     }
 
     #endregion

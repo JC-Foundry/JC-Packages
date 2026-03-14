@@ -1,3 +1,4 @@
+using JC.Communication.Logging.Models.Messaging;
 using JC.Communication.Messaging.Models.DomainModels;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +13,9 @@ public interface IMessagingDbContext
 {
     /// <summary>Gets or sets the chat threads table.</summary>
     DbSet<ChatThread> ChatThreads { get; set; }
+    
+    /// <summary>Gets or sets the chat threads deleted table.</summary>
+    DbSet<ThreadDeleted> DeletedThreads { get; set; }
 
     /// <summary>Gets or sets the chat messages table.</summary>
     DbSet<ChatMessage> ChatMessages { get; set; }
@@ -21,4 +25,8 @@ public interface IMessagingDbContext
 
     /// <summary>Gets or sets the chat metadata table.</summary>
     DbSet<ChatMetadata> ChatMetadata { get; set; }
+    
+    DbSet<ThreadActivityLog> ThreadActivityLogs { get; set; }
+    
+    DbSet<MessageReadLog> MessageReadLogs { get; set; }
 }
