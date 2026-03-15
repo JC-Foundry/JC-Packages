@@ -4,6 +4,7 @@
 
 - [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
 - An existing ASP.NET Core project
+- **JC.Core** — JC.BackgroundJobs depends on JC.Core (`IBackgroundJob` is defined there)
 - See [Installation](../../README.md#installation) for how to add JC-Packages to your project
 - For Hangfire jobs: a configured Hangfire storage provider (e.g. `JC.SqlServer.Hangfire`)
 

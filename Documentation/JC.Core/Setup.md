@@ -283,14 +283,14 @@ Configures `CoreBackgroundJobOptions` for the built-in cleanup jobs. Only call t
 builder.Services.ConfigureCoreBackgroundJobs(options =>
 {
     // Audit cleanup
-    options.RegisterAuditCleanupJob = true;
+    options.EnableAuditCleanupJob = true;
     options.AuditRetentionMonths = 6;
     options.MinimumRetentionRecords = 30;
     options.RetentionRecordsPerTable = true;
-    options.CleanupChunkingValue = 500;
+    options.AuditCleanupChunkingValue = 500;
 
     // Soft-delete cleanup
-    options.RegisterSoftDeleteCleanupJob = false;
+    options.EnableSoftDeleteCleanupJob = false;
     options.SoftDeleteRetentionMonths = 24;
     options.SetSoftDeleteRetentionBlacklist("product", "order"); // Entity names to exclude (case-insensitive)
 });
@@ -300,18 +300,18 @@ builder.Services.ConfigureCoreBackgroundJobs(options =>
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `RegisterAuditCleanupJob` | `bool` | `true` | Enables the audit cleanup job |
+| `EnableAuditCleanupJob` | `bool` | `true` | Enables the audit cleanup job |
 | `AuditRetentionMonths` | `ushort` | `6` | Audit entries older than this are eligible for cleanup |
 | `MinimumRetentionRecords` | `ushort` | `30` | Minimum number of audit entries to keep regardless of age |
 | `RetentionRecordsPerTable` | `bool` | `true` | When `true`, minimum retention is applied per table; when `false`, globally |
-| `CleanupChunkingValue` | `ushort` | `500` | Maximum records to delete per execution. `0` disables chunking |
-| `RegisterSoftDeleteCleanupJob` | `bool` | `false` | Enables the soft-delete cleanup job (off by default) |
+| `AuditCleanupChunkingValue` | `ushort` | `500` | Maximum records to delete per execution. `0` disables chunking |
+| `EnableSoftDeleteCleanupJob` | `bool` | `false` | Enables the soft-delete cleanup job (off by default) |
 | `SoftDeleteRetentionMonths` | `ushort` | `24` | Soft-deleted entities older than this are hard-deleted |
 | `SoftDeleteRetentionBlacklist` | `List<string>` | `[]` | Entity type names excluded from soft-delete cleanup (case-insensitive). Set via `SetSoftDeleteRetentionBlacklist()` |
 
 #### AuditCleanupJob
 
-Deletes audit entries older than `AuditRetentionMonths`, respecting `MinimumRetentionRecords` (globally or per table depending on `RetentionRecordsPerTable`). Processes in chunks when `CleanupChunkingValue` is set.
+Deletes audit entries older than `AuditRetentionMonths`, respecting `MinimumRetentionRecords` (globally or per table depending on `RetentionRecordsPerTable`). Processes in chunks when `AuditCleanupChunkingValue` is set.
 
 #### SoftDeleteCleanupJob
 

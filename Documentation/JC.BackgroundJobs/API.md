@@ -56,6 +56,44 @@ Static factory method that creates an `AdHocJobRegistration` for the specified j
 
 ---
 
+## BackgroundJobOptionsFor\<TJob\>
+
+**Namespace:** `JC.BackgroundJobs.Models`
+
+Typed wrapper around `BackgroundJobOptions` so that each job type gets its own options instance in DI. Registered as a singleton when `AddBackgroundJob<TJob>()` is called.
+
+```csharp
+public class BackgroundJobOptionsFor<TJob>(BackgroundJobOptions options)
+    where TJob : class, IBackgroundJob
+```
+
+### Properties
+
+| Property | Type | Access | Description |
+|----------|------|--------|-------------|
+| `Value` | `BackgroundJobOptions` | get; | The underlying `BackgroundJobOptions` instance. |
+
+---
+
+## HangfireJobOptionsFor\<TJob\>
+
+**Namespace:** `JC.BackgroundJobs.Models`
+
+Typed wrapper around `HangfireJobOptions` so that each job type gets its own options instance in DI. Registered as a singleton when `AddHangfireJob<TJob>()` is called.
+
+```csharp
+public class HangfireJobOptionsFor<TJob>(HangfireJobOptions options)
+    where TJob : class, IBackgroundJob
+```
+
+### Properties
+
+| Property | Type | Access | Description |
+|----------|------|--------|-------------|
+| `Value` | `HangfireJobOptions` | get; | The underlying `HangfireJobOptions` instance. |
+
+---
+
 # Enums
 
 ## JobErrorBehavior

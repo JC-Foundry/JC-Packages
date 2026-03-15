@@ -604,16 +604,16 @@ Correctly accounts for whether this year's birthday has already passed.
 
 ```csharp
 "A long product description that goes on and on".Truncate(20);
-// "A long product de..."
+// "A long product descr..."  (20 chars + suffix)
 
 "Short".Truncate(20);
 // "Short" (unchanged — within limit)
 
 "Hello World".Truncate(8, suffix: "…");
-// "Hello W…"
+// "Hello Wo…"  (8 chars + suffix)
 ```
 
-The suffix is counted in the total length. If `maxLength` is shorter than the suffix itself, the suffix is trimmed to fit.
+The suffix is appended after `maxLength` characters, so the total returned length is `maxLength + suffix.Length`.
 
 ### Slug
 

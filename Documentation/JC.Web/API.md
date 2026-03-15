@@ -1460,6 +1460,8 @@ Tag helper that renders Bootstrap-compatible pagination from an `IPagination<T>`
 | `PreviousText` | `string` | `"&laquo;"` | get; set; | Text for the "previous" link. HTML attribute: `previous-text`. |
 | `NextText` | `string` | `"&raquo;"` | get; set; | Text for the "next" link. HTML attribute: `next-text`. |
 | `ShowFirstLast` | `bool` | `true` | get; set; | Whether to show first/last page links. HTML attribute: `show-first-last`. |
+| `FirstText` | `string` | `"First"` | get; set; | Text for the "first page" link. HTML attribute: `first-text`. |
+| `LastText` | `string` | `"Last"` | get; set; | Text for the "last page" link. HTML attribute: `last-text`. |
 | `ContainerClass` | `string?` | `null` | get; set; | Additional CSS classes for the nav container. HTML attribute: `container-class`. |
 
 ---

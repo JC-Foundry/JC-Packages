@@ -692,7 +692,7 @@ Deletes audit entries older than the configured retention period. Respects minim
 
 The job queries all `AuditEntry` records with an `AuditDate` before the cutoff (`DateTime.UtcNow` minus `AuditRetentionMonths`), ordered by `AuditDate` descending. If `CleanupChunkingValue` is greater than zero, the result set is truncated to that size. If `MinimumRetentionRecords` is set, the job ensures that many entries are retained — either per table (when `RetentionRecordsPerTable` is `true`, grouping by `TableName`) or globally. Entries beyond the retention minimum are hard-deleted via `IRepositoryContext<AuditEntry>.DeleteRangeAsync`.
 
-Controlled by `CoreBackgroundJobOptions.RegisterAuditCleanupJob` — if `false`, `ExecuteAsync` returns immediately. See [Setup](Setup.md#configurecorebackgroundjobs--background-job-options) for configuration.
+Controlled by `CoreBackgroundJobOptions.EnableAuditCleanupJob` — if `false`, `ExecuteAsync` returns immediately. See [Setup](Setup.md#configurecorebackgroundjobs--background-job-options) for configuration.
 
 ---
 
@@ -708,7 +708,7 @@ On execution, the job inspects `DbContext.Model.GetEntityTypes()` and identifies
 
 For `AuditModel` entities, the cleanup filters by `IsDeleted == true` and `DeletedUtc < cutoff` directly in the database query. For non-`AuditModel` entities, it builds an EF-translatable expression tree to filter by `IsDeleted == true` in the database — note that this path does not filter by date, so all soft-deleted records are removed regardless of when they were deleted. Matching entities are removed via `DbSet<T>.RemoveRange` and persisted with `SaveChangesAsync`.
 
-Controlled by `CoreBackgroundJobOptions.RegisterSoftDeleteCleanupJob` — if `false`, `ExecuteAsync` returns immediately. Errors for individual entity types are logged and do not halt processing of remaining types. See [Setup](Setup.md#configurecorebackgroundjobs--background-job-options) for configuration.
+Controlled by `CoreBackgroundJobOptions.EnableSoftDeleteCleanupJob` — if `false`, `ExecuteAsync` returns immediately. Errors for individual entity types are logged and do not halt processing of remaining types. See [Setup](Setup.md#configurecorebackgroundjobs--background-job-options) for configuration.
 
 ---
 
@@ -944,7 +944,7 @@ Static extension methods for common string operations.
 | `maxLength` | `int` | — | The number of characters to keep from the original string before appending the suffix. The total returned length is `maxLength + suffix.Length`. |
 | `suffix` | `string` | `"..."` | The suffix to append when truncation occurs. |
 
-Returns the original string unchanged if it is shorter than or equal to `maxLength`. If `maxLength` is less than or equal to the suffix length, returns the suffix truncated to `maxLength`. Otherwise, returns the first `maxLength` characters followed by the suffix.
+Returns the original string unchanged if it is shorter than or equal to `maxLength`. Otherwise, returns the first `maxLength` characters followed by the suffix.
 
 ---
 

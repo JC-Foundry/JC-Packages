@@ -168,14 +168,14 @@ When you configure a webhook in your GitHub repository settings, GitHub sends PO
 | GitHub event | Actions handled | Behaviour |
 |-------------|----------------|-----------|
 | `ping` | — | Returns `200 OK` (GitHub connection test) |
-| `issues` | `opened`, `closed`, `reopened`, `edited` | Creates or updates `ReportedIssue` records |
+| `issues` | all | Creates or updates `ReportedIssue` records uniformly regardless of the specific action |
 | `issue_comment` | `created`, `edited`, `deleted` | Creates, updates, or soft-deletes `IssueComment` records |
 
 Events with an `Issue` field that aren't `issues` or `issue_comment` are logged at debug level and ignored. Events without an `Issue` field (e.g. `push`, `star`) return `400 BadRequest` — configure your GitHub webhook to send only the events listed above.
 
 ### Issue sync behaviour
 
-When a webhook arrives for an `issues` event:
+When a webhook arrives for an `issues` event, the handler processes it uniformly regardless of the specific action (e.g. `opened`, `closed`, `reopened`, `edited`, `labeled`, etc.):
 
 - **New issue** (no matching `ExternalId` in the database): a new `ReportedIssue` is created with `ReportSent = true`, `ExternalId` set to the GitHub issue number, and `Closed` reflecting the current state.
 - **Existing issue** (matching `ExternalId` found): the `Description` and `Closed` status are updated to match GitHub.
