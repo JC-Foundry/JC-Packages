@@ -73,7 +73,7 @@ public static class HtmlHelper
         var builder = Tag("a")
             .AddClass("page-link")
             .AddAttribute("href", href)
-            .SetContent(text);
+            .SetRawContent(text);
 
         if (!string.IsNullOrWhiteSpace(buttonClass))
             builder.AddClass(buttonClass);

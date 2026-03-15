@@ -38,6 +38,14 @@ public class PaginationTagHelper : TagHelper
     [HtmlAttributeName("next-text")]
     public string NextText { get; set; } = "&raquo;";
 
+    /// <summary>Gets or sets the text for the "first page" link. Defaults to <c>First</c>.</summary>
+    [HtmlAttributeName("first-text")]
+    public string FirstText { get; set; } = "First";
+
+    /// <summary>Gets or sets the text for the "last page" link. Defaults to <c>Last</c>.</summary>
+    [HtmlAttributeName("last-text")]
+    public string LastText { get; set; } = "Last";
+
     /// <summary>Gets or sets whether to show first/last page links. Defaults to <c>true</c>.</summary>
     [HtmlAttributeName("show-first-last")]
     public bool ShowFirstLast { get; set; } = true;
@@ -67,7 +75,7 @@ public class PaginationTagHelper : TagHelper
 
         // First page
         if (ShowFirstLast)
-            sb.Append(BuildPageItem("&laquo;&laquo;", 1, isDisabled: Model.IsFirstPage));
+            sb.Append(BuildPageItem(FirstText, 1, isDisabled: Model.IsFirstPage));
 
         // Previous
         sb.Append(BuildPageItem(PreviousText, Model.PageNumber - 1, isDisabled: !Model.HasPreviousPage));
@@ -89,7 +97,7 @@ public class PaginationTagHelper : TagHelper
 
         // Last page
         if (ShowFirstLast)
-            sb.Append(BuildPageItem("&raquo;&raquo;", Model.TotalPages, isDisabled: Model.IsLastPage));
+            sb.Append(BuildPageItem(LastText, Model.TotalPages, isDisabled: Model.IsLastPage));
 
         sb.Append("</ul>");
 

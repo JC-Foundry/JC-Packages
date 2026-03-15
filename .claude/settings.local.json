@@ -13,7 +13,8 @@
       "Bash(tree -L 3 /d/Temp/JC-Packages/JC.Github 2>/dev/null || find /d/Temp/JC-Packages/JC.Github -type f -name \"*.cs\" | grep -v \"bin\\\\|obj\" | head -30)",
       "Bash(find /i/JC-Packages/JC-Packages/JC.Communication/Logging/Data -type f -name \"*.cs\" 2>/dev/null | grep -i messaging)",
       "Bash(find \"I:\\\\\\\\JC-Packages\\\\\\\\JC-Packages\\\\\\\\JC.Communication\\\\\\\\Messaging\\\\\\\\Data\\\\\\\\DataMappings\" -name \"*.cs\" 2>/dev/null | head -20)",
-      "Bash(find \"I:\\\\\\\\JC-Packages\\\\\\\\JC-Packages\\\\\\\\JC.Communication\\\\\\\\Logging\\\\\\\\Data\\\\\\\\DataMappings\\\\\\\\Messaging\" -name \"*.cs\" 2>/dev/null | head -20)"
+      "Bash(find \"I:\\\\\\\\JC-Packages\\\\\\\\JC-Packages\\\\\\\\JC.Communication\\\\\\\\Logging\\\\\\\\Data\\\\\\\\DataMappings\\\\\\\\Messaging\" -name \"*.cs\" 2>/dev/null | head -20)",
+      "Bash(cd \"I:/JC-Packages/JC-Packages\" && for pkg in nupkgs/*.nupkg; do echo \"Pushing $pkg...\" && dotnet nuget push \"$pkg\" --source NAS --skip-duplicate; done)"
     ]
   }
 }
