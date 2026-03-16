@@ -30,7 +30,8 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IRepositoryManager, RepositoryManager>();
         
         services.RegisterRepositoryContexts(
-            typeof(AuditModel));
+            typeof(AuditModel),
+            typeof(AuditEntry));
 
         return services;
     }

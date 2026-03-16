@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.Communication</PackageId>
-        <Version>3.6.0</Version>
+        <Version>3.6.1</Version>
         <Description>Outbound application communication layer — email-first abstraction with provider-based delivery (Microsoft 365 / Exchange Online SMTP relay), strongly typed message and recipient models, send result tracking, and optional logging. Designed for future expansion into SMS, in-app notifications, and templated messaging.</Description>
     </PropertyGroup>
 
