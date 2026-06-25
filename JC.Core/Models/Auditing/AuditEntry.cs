@@ -25,6 +25,12 @@ public class AuditEntry
     /// <summary>Gets or sets the name of the database table affected by the action.</summary>
     public string? TableName { get; set; }
 
+    /// <summary>
+    /// Gets or sets the JSON-serialised primary key of the audited entity, keyed by property name
+    /// (e.g. <c>{"Id":"abc"}</c> or, for composite keys, <c>{"ThreadId":"abc","UserId":"xyz"}</c>).
+    /// </summary>
+    public string? EntityKey { get; set; }
+
     /// <summary>Gets or sets the JSON-serialised entity data associated with the action.</summary>
     public string? ActionData { get; set; }
 }

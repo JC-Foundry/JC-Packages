@@ -53,17 +53,21 @@ public static class EnumExtensions
             // - Not at start of word
             // - Previous char was lowercase, OR
             // - Next char is lowercase (handles "XMLParser" -> "XML Parser")
+            var newWord = false;
             if (isUpper && !isFirst)
             {
                 var prevIsLower = i > 0 && char.IsLower(name[i - 1]);
                 var nextIsLower = i + 1 < name.Length && char.IsLower(name[i + 1]);
 
                 if (prevIsLower || nextIsLower)
+                {
                     result.Append(' ');
+                    newWord = true;
+                }
             }
 
             // Capitalise the first letter of each word, lowercase the rest
-            result.Append(isFirst ? char.ToUpper(current) : char.ToLower(current));
+            result.Append(isFirst || newWord ? char.ToUpper(current) : char.ToLower(current));
         }
 
         return result.ToString();

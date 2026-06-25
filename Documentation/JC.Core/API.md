@@ -109,7 +109,7 @@ Sets `IsDeleted` to `false`, `RestoredById` to the provided user ID, and `Restor
 
 **Namespace:** `JC.Core.Models.Auditing`
 
-Entity representing a single audit trail record capturing who performed what action, on which table, and when. Persisted automatically by `DataDbContext.SaveChangesAsync` via the change tracker.
+Entity representing a single audit trail record capturing who performed what action, on which table, against which entity, and when. Persisted automatically by `DataDbContext.SaveChangesAsync` via the change tracker.
 
 ### Properties
 
@@ -121,6 +121,7 @@ Entity representing a single audit trail record capturing who performed what act
 | `UserId` | `string?` | `null` | get; set; | Identifier of the user who performed the action. |
 | `UserName` | `string?` | `null` | get; set; | Display name of the user who performed the action. |
 | `TableName` | `string?` | `null` | get; set; | The database table name affected by the action. |
+| `EntityKey` | `string?` | `null` | get; set; | JSON-serialised primary key of the audited entity, keyed by property name (e.g. `{"Id":"abc"}` or, for composite keys, `{"ThreadId":"abc","UserId":"xyz"}`). `null` for keyless entities or if serialisation fails. |
 | `ActionData` | `string?` | `null` | get; set; | JSON-serialised entity data. For creates, contains all non-null property values. For updates, contains a `From`/`To` diff of modified properties. |
 
 ---
