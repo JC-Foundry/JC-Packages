@@ -69,7 +69,7 @@ public class IdentityDataDbContext<TUser, TRole> : IdentityDbContext<TUser, TRol
             entity.Property(e => e.UserId).HasMaxLength(256);
             entity.Property(e => e.UserName).HasMaxLength(256);
             entity.Property(e => e.TableName).HasMaxLength(256);
-            entity.Property(e => e.EntityKey).HasMaxLength(1024);
+            entity.Property(e => e.EntityKey).HasMaxLength(512);
             entity.Property(e => e.Action).IsRequired();
             entity.Property(e => e.AuditDate).IsRequired();
             entity.HasIndex(e => e.UserId);
