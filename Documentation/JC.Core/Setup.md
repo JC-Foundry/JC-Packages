@@ -172,7 +172,7 @@ public class AppDbContext : DataDbContext
 | Index | `AuditDate` |
 | Index | `TableName, EntityKey` (composite — for looking up a single entity's history) |
 | Max length | `UserName` (max 256 characters) |
-| Max length | `EntityKey` (max 1024 characters — accommodates long or composite consumer keys) |
+| Max length | `EntityKey` (max 512 characters — accommodates long or composite consumer keys) |
 | Required properties | `Action`, `AuditDate` |
 
 ### AuditModel — auditable entities
