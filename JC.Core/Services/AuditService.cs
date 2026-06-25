@@ -78,8 +78,9 @@ internal class AuditService
             }
 
             var tableName = entry.Metadata.GetTableName() ?? entry.Entity.GetType().Name;
+            var entityKey = SerializeKey(entry);
             var data = SerializeChanges(entry, action.Value);
-            await LogAsync(action.Value, tableName, data);
+            await LogAsync(action.Value, tableName, entityKey, data);
         }
 
         return pendingCreates;
@@ -95,17 +96,19 @@ internal class AuditService
         foreach (var entry in pendingCreates)
         {
             var tableName = entry.Metadata.GetTableName() ?? entry.Entity.GetType().Name;
+            var entityKey = SerializeKey(entry);
             var data = SerializeChanges(entry, AuditAction.Create);
-            await LogAsync(AuditAction.Create, tableName, data);
+            await LogAsync(AuditAction.Create, tableName, entityKey, data);
         }
     }
 
-    private async Task LogAsync(AuditAction action, string tableName, string? data)
+    private async Task LogAsync(AuditAction action, string tableName, string? entityKey, string? data)
     {
         var entry = new AuditEntry
         {
             Action = action,
             TableName = tableName,
+            EntityKey = entityKey,
             UserId = _userId,
             UserName = _userName,
             ActionData = data,
@@ -144,6 +147,31 @@ internal class AuditService
         }
 
         return AuditAction.Update;
+    }
+
+    /// <summary>
+    /// Serialises the entity's primary (or composite) key as a JSON object keyed by property name.
+    /// Key properties are ordered by the key definition so the output is stable across saves.
+    /// Returns <c>null</c> for keyless entities or if serialisation fails.
+    /// </summary>
+    private static string? SerializeKey(EntityEntry entry)
+    {
+        try
+        {
+            var key = entry.Metadata.FindPrimaryKey();
+            if (key is null)
+                return null;
+
+            var keyValues = new Dictionary<string, object?>();
+            foreach (var prop in key.Properties)
+                keyValues[prop.Name] = entry.Property(prop.Name).CurrentValue;
+
+            return keyValues.Count > 0 ? JsonSerializer.Serialize(keyValues) : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string? SerializeChanges(EntityEntry entry, AuditAction action)
