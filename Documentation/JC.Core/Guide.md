@@ -456,6 +456,7 @@ Each `AuditEntry` records:
 | `UserId` | The user who performed the action |
 | `UserName` | The user's display name |
 | `TableName` | The database table affected |
+| `EntityKey` | JSON-serialised primary key of the affected entity |
 | `ActionData` | JSON-serialised change data |
 
 ### Reading ActionData
@@ -473,6 +474,33 @@ For **Update**, **SoftDelete**, **Delete**, and **Restore** actions, `ActionData
 ```
 
 **Nuance:** If JSON serialisation fails for an entity (e.g. circular references), `ActionData` is set to `null` rather than throwing. The audit entry is still created — you just won't have the change data.
+
+### Reading EntityKey
+
+`EntityKey` records the primary key of the entity the action was performed against, as a JSON object keyed by property name. This lets you trace the full history of a single entity rather than a whole table.
+
+For a single-key entity:
+
+```json
+{"Id": "3f9c1b7a-..."}
+```
+
+For a composite-key entity (e.g. a join table):
+
+```json
+{"ThreadId": "abc", "UserId": "xyz"}
+```
+
+The format is uniform — single keys are wrapped in the same JSON object as composite keys, and properties are ordered by the key definition so the value is stable across saves. Because `EntityKey` is only meaningful within a table, query it alongside `TableName` (the two are covered by a composite index):
+
+```csharp
+var history = await context.AuditEntries
+    .Where(a => a.TableName == "Products" && a.EntityKey == "{\"Id\":\"42\"}")
+    .OrderByDescending(a => a.AuditDate)
+    .ToListAsync();
+```
+
+**Nuance:** For **Create** actions the key is captured *after* the save completes, so database-generated keys (e.g. identity columns) are populated. As with `ActionData`, if key serialisation fails or the entity is keyless, `EntityKey` is set to `null` rather than throwing.
 
 ### Two-phase audit for creates
 
