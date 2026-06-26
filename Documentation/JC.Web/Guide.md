@@ -429,6 +429,8 @@ Renders a floating feedback widget with a toggle button, type dropdown, and desc
 | `icon` | `"🐞"` | Icon on the floating button |
 | `title` | `"Send Feedback"` | Form title text |
 | `colour` | `"danger"` | Bootstrap contextual colour suffix (`border-{colour}`, `text-{colour}`, `btn-{colour}`) |
+| `mask-request-path` | `false` | Whether to mask the request path in the submitted metadata |
+| `mask-query` | `true` | Whether to mask the request query string in the submitted metadata |
 
 The widget submits a JSON POST:
 
@@ -436,11 +438,11 @@ The widget submits a JSON POST:
 {
     "type": "bug",
     "description": "The save button doesn't work",
-    "metadata": "{\"RequestId\":\"abc\",\"Timestamp\":\"...\",\"Browser\":\"Chrome\",...}"
+    "metadata": "{\"RequestId\":\"abc\",\"Timestamp\":\"...\",\"RequestPath\":\"GET /orders/42\",\"Browser\":\"Chrome\",...}"
 }
 ```
 
-The `metadata` field contains the `RequestMetadata.ToLogEntry()` JSON (with sensitive fields masked). An anti-forgery token is included in the `RequestVerificationToken` header if available.
+The `metadata` field contains the `RequestMetadata.ToLogEntry()` JSON. By default the request **path is included** (so you can see which page the report came from) while the query string and the other sensitive fields (client IP, origin, referer, city) are masked. Set `mask-request-path="true"` to also mask the path, or `mask-query="false"` to include the query string. An anti-forgery token is included in the `RequestVerificationToken` header if available.
 
 **Nuance:** Requires Bootstrap 5 for styling. The widget uses `d-print-none` to hide itself in print views.
 

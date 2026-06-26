@@ -62,14 +62,51 @@ issue.Created;     // DateTime.UtcNow at time of creation
 issue.ReportSent;  // true if GitHub API call succeeded
 issue.ExternalId;  // GitHub issue number (e.g. 42), or null if not synced
 issue.Closed;      // false — newly created issues are always open
-issue.UserId;      // creatorId parameter, or null if not provided
-issue.UserDisplay; // creatorName parameter, or null if not provided
-issue.Image;       // byte[] — not populated by RecordIssue (always null)
+issue.UserId;         // creatorId parameter, or null if not provided
+issue.UserDisplay;    // creatorName parameter, or null if not provided
+issue.ClientMetadata; // clientMetadata parameter, or null if not provided
+issue.Image;          // byte[] — not populated by RecordIssue (always null)
 ```
 
 **Nuance:** `creatorId` and `creatorName` are stored locally only — they are not sent to GitHub. The GitHub issue is created under the identity of the personal access token configured in `Github:ApiKey`.
 
+**Nuance:** The optional `clientMetadata` parameter is also stored locally only (on `ReportedIssue.ClientMetadata`) and is not sent to GitHub. It is intended for the serialised request metadata produced by JC.Web's `RequestMetadata.ToLogEntry()` — for example, the JSON submitted by the `<bug-reporter>` tag helper — so you can correlate a report with the client environment it came from.
+
+```csharp
+// Capturing client metadata from a JC.Web bug-reporter submission
+var issue = await bugReportService.RecordIssue(
+    description: model.Description,
+    issueType: IssueType.Bug,
+    creatorId: userInfo.UserId,
+    creatorName: userInfo.DisplayName,
+    clientMetadata: model.Metadata   // RequestMetadata.ToLogEntry() JSON from the widget
+);
+```
+
 **Nuance:** The `Image` property exists on `ReportedIssue` for storing screenshots as a byte array, but `RecordIssue` does not populate it. If you need screenshot support, set it on the entity manually before or after calling `RecordIssue`.
+
+### Updating an issue body
+
+Use `UpdateIssueBody` to edit an existing report's description and push the change back to GitHub, keeping the local record and the GitHub issue in sync:
+
+```csharp
+public class IssueEditService(BugReportService bugReportService, IRepositoryContext<ReportedIssue> issues)
+{
+    public async Task<bool> EditDescriptionAsync(string issueId, string newDescription)
+    {
+        var issue = await issues.GetByIdAsync(issueId);
+        if (issue is null) return false;
+
+        // Returns true if the GitHub issue body was patched successfully.
+        var syncedToGithub = await bugReportService.UpdateIssueBody(issue, newDescription);
+        return syncedToGithub;
+    }
+}
+```
+
+`UpdateIssueBody` patches the GitHub issue body via `PATCH /repos/{owner}/{repo}/issues/{number}` (title and other fields are left untouched), then updates the local `Description`.
+
+**Nuance:** The method returns `false` without making any change when `newBody` is null/empty, the issue was never synced to GitHub (`ReportSent == false`), or `ExternalId` is `null`. When the issue *is* eligible, the local `Description` is always updated and persisted — even if the GitHub call fails. The return value reflects only whether the GitHub sync succeeded, so a `false` after an eligible update means the local record changed but GitHub did not.
 
 ## Querying reports and comments
 
@@ -232,7 +269,17 @@ public class CustomGithubService(GitHelper gitHelper)
 }
 ```
 
-`RecordIssue` creates a GitHub issue via `POST /repos/{owner}/{repo}/issues` and returns the new issue number.
+`RecordIssue` creates a GitHub issue via `POST /repos/{owner}/{repo}/issues` and returns the new issue number. `UpdateIssueBody` edits an existing issue's body via `PATCH /repos/{owner}/{repo}/issues/{number}`:
+
+```csharp
+public class CustomGithubService(GitHelper gitHelper)
+{
+    public Task EditIssueBodyAsync(string owner, string repo, int issueNumber, string body)
+        => gitHelper.UpdateIssueBody(owner, repo, issueNumber, body);
+}
+```
+
+`UpdateIssueBody` patches only the issue body — the title and other fields are left unchanged.
 
 **Nuance:** Unlike `BugReportService`, `GitHelper.RecordIssue` does not catch exceptions. If the GitHub API call fails, the exception propagates to the caller. Use `BugReportService` when you want graceful failure handling with local persistence, and `GitHelper` when you want direct API access with full control over error handling.
 

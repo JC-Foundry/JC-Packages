@@ -28,6 +28,7 @@ Entity representing a locally persisted issue report, optionally synced with Git
 | `Created` | `DateTime` | — | get; set; | UTC timestamp of local creation. |
 | `UserId` | `string?` | `null` | get; set; | Local-only creator identifier. |
 | `UserDisplay` | `string?` | `null` | get; set; | Local-only creator display name. |
+| `ClientMetadata` | `string?` | `null` | get; set; | Optional serialised client metadata (e.g. JC.Web's `RequestMetadata.ToLogEntry()` JSON). Stored locally only — not sent to GitHub. |
 
 ---
 
@@ -162,7 +163,7 @@ Manages local persistence and GitHub synchronisation of issue reports. Reads `Gi
 
 ### Methods
 
-#### RecordIssue(string description, IssueType issueType, string? creatorId = null, string? creatorName = null)
+#### RecordIssue(string description, IssueType issueType, string? creatorId = null, string? creatorName = null, string? clientMetadata = null)
 
 **Returns:** `Task<ReportedIssue>`
 
@@ -172,12 +173,30 @@ Manages local persistence and GitHub synchronisation of issue reports. Reads `Gi
 | `issueType` | `IssueType` | — | Whether this is a `Bug` or `Suggestion`. Determines the GitHub issue title (`"New Bug"` or `"New Suggestion"`). |
 | `creatorId` | `string?` | `null` | Local-only user identifier. Stored on the `ReportedIssue` but not sent to GitHub. |
 | `creatorName` | `string?` | `null` | Local-only display name. Stored on the `ReportedIssue` but not sent to GitHub. |
+| `clientMetadata` | `string?` | `null` | Serialised client metadata string (intended for JC.Web's `RequestMetadata.ToLogEntry()` output). Stored on `ReportedIssue.ClientMetadata` but not sent to GitHub. |
 
-Creates a new `ReportedIssue` entity with `Created` set to `DateTime.UtcNow` and `ReportSent` initially `false`. Attempts to create a corresponding GitHub issue via `GitHelper.RecordIssue` using the configured owner and repo. The GitHub issue title is set to `"New "` followed by the `issueType` name.
+Creates a new `ReportedIssue` entity with `Created` set to `DateTime.UtcNow`, `ReportSent` initially `false`, and `ClientMetadata` set to the supplied `clientMetadata`. Attempts to create a corresponding GitHub issue via `GitHelper.RecordIssue` using the configured owner and repo. The GitHub issue title is set to `"New "` followed by the `issueType` name.
 
 If the GitHub API call succeeds, `ReportSent` is set to `true` and `ExternalId` is populated with the returned issue number. If it fails, the exception is logged but not thrown — `ReportSent` remains `false` and `ExternalId` remains `null`.
 
 The entity is always persisted to the database via `IRepositoryContext<ReportedIssue>.AddAsync` regardless of GitHub sync outcome.
+
+---
+
+#### UpdateIssueBody(ReportedIssue issue, string newBody)
+
+**Returns:** `Task<bool>`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `issue` | `ReportedIssue` | — | The existing issue to update. Must have been synced to GitHub (`ReportSent == true` and a non-null `ExternalId`) for the GitHub update to be attempted. |
+| `newBody` | `string` | — | The new description/body content. |
+
+Keeps a local issue and its GitHub counterpart in sync. Returns `false` immediately without making any changes if `newBody` is null/empty, the issue was never sent to GitHub (`ReportSent == false`), or `ExternalId` is `null`.
+
+Otherwise, attempts to patch the GitHub issue body via `GitHelper.UpdateIssueBody` using the configured owner and repo. If the GitHub call succeeds the method returns `true`; if it throws, the exception is logged but not rethrown and the method returns `false`.
+
+In both the success and GitHub-failure cases the local record's `Description` is updated to `newBody` and persisted via `IRepositoryContext<ReportedIssue>.UpdateAsync` — the return value reflects only whether the GitHub sync succeeded.
 
 ---
 
@@ -241,6 +260,19 @@ Creates a `FlurlClient` configured with `Authorization`, `X-GitHub-Api-Version` 
 | `desc` | `string` | — | The body content for the new issue. |
 
 Sends a `POST` request to `/repos/{owner}/{repo}/issues` with the title and body as JSON. Deserialises the response as `NewIssueResponse` and returns the `Number` property (the GitHub issue number). Does not catch exceptions — failures propagate directly to the caller.
+
+#### UpdateIssueBody(string owner, string repo, int issueNumber, string body)
+
+**Returns:** `Task`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `owner` | `string` | — | The GitHub username or organisation that owns the repository. |
+| `repo` | `string` | — | The repository name. |
+| `issueNumber` | `int` | — | The number of the issue to update. |
+| `body` | `string` | — | The new body content for the issue. |
+
+Sends a `PATCH` request to `/repos/{owner}/{repo}/issues/{issueNumber}` with the new body as JSON. Updates only the issue body — the title and other fields are left unchanged. Does not catch exceptions — failures propagate directly to the caller.
 
 ---
 
