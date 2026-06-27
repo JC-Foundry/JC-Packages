@@ -140,15 +140,15 @@ For the `IUserInfo` interface definition (properties and `IsInRole` method), see
 | `SYSTEM_USER_ID` | `string` | `"System__ID"` | User ID assigned for unauthenticated requests. |
 | `SYSTEM_USER_NAME` | `string` | `"System"` | Username assigned for unauthenticated requests. |
 | `SYSTEM_USER_EMAIL` | `string` | `"<SYSTEM@EMAIL>"` | Email assigned for unauthenticated requests. |
-| `UNKNOWN_USER_ID` | `string` | `"Unknown__ID"` | Default user ID before middleware populates the instance. |
-| `UNKNOWN_USER_NAME` | `string` | `"Unknown"` | Default username before middleware populates the instance. |
-| `UNKNOWN_USER_EMAIL` | `string` | `"<UNKNOWN@EMAIL>"` | Default email before middleware populates the instance. |
+| `UNKNOWN_USER_ID` | `string` | `"Unknown__ID"` | User ID assigned when an identity is present but not authenticated. |
+| `UNKNOWN_USER_NAME` | `string` | `"Unknown"` | Username assigned when an identity is present but not authenticated. |
+| `UNKNOWN_USER_EMAIL` | `string` | `"<UNKNOWN@EMAIL>"` | Email assigned when an identity is present but not authenticated. |
 
 ### Constructors
 
 #### UserInfo()
 
-Parameterless constructor. All properties default to unknown/empty values. Populated later by `UserInfoMiddleware`.
+Parameterless constructor. `UserId`, `Username`, and `Email` default to the system identity (`SYSTEM_USER_ID`, `SYSTEM_USER_NAME`, `SYSTEM_USER_EMAIL`); all other properties default to empty values. Populated later by `UserInfoMiddleware`.
 
 ---
 

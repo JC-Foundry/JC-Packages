@@ -102,7 +102,7 @@ if (userInfo.IsInRole(SystemRoles.Admin))
 
 The "no identity present" case occurs when no authentication middleware has run. The "not authenticated" case is the typical anonymous request — authentication middleware has run but the user hasn't logged in. Both cases ensure audit trails and any code reading `IUserInfo` always have a user identity.
 
-**Nuance:** Before the middleware runs (e.g. code executing before `UseUserInfo()`), properties have their initial defaults: `UserId = "Unknown__ID"`, `Username = "Unknown"`, `Email = "<UNKNOWN@EMAIL>"`.
+**Nuance:** Before the middleware runs (e.g. code executing before `UseUserInfo()`), properties have their initial defaults of the system identity: `UserId = "System__ID"`, `Username = "System"`, `Email = "<SYSTEM@EMAIL>"`.
 
 ## Custom IUserInfo
 

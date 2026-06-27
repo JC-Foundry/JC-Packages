@@ -10,13 +10,13 @@ namespace JC.Identity.Models;
 public class UserInfo : IUserInfo
 {
     /// <inheritdoc />
-    public string UserId { get; set; } = IUserInfo.UNKNOWN_USER_ID;
+    public string UserId { get; set; } = IUserInfo.SYSTEM_USER_ID;
 
     /// <inheritdoc />
-    public string Username { get; set; } = IUserInfo.UNKNOWN_USER_NAME;
+    public string Username { get; set; } = IUserInfo.SYSTEM_USER_NAME;
 
     /// <inheritdoc />
-    public string Email { get; set; } = IUserInfo.UNKNOWN_USER_EMAIL;
+    public string Email { get; set; } = IUserInfo.SYSTEM_USER_EMAIL;
 
     /// <inheritdoc />
     public bool EmailConfirmed { get; set; }
