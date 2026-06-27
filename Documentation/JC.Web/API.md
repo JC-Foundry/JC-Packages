@@ -1495,6 +1495,8 @@ Child tag helper for `BreadcrumbTagHelper`. Defines a single breadcrumb item. Mu
 
 Tag helper that renders a floating bug reporter widget with a toggle button, a report form (type + description), and JavaScript to submit reports via POST. Targets the `<bug-reporter>` element (self-closing). Automatically includes `RequestMetadata` as context in the submission payload, and sends an anti-forgery token when available. Assumes Bootstrap 5 is available. Throws `InvalidOperationException` if `Endpoint` is not set.
 
+The metadata is serialised via `RequestMetadata.ToLogEntry(maskPath: MaskRequestPath, maskQuery: MaskQuery)`. All other sensitive fields (client IP, origin, referer, city) keep their default masking — only the request path and query string masking are configurable here, and by default the path is **shown** while the query string is **masked**.
+
 ### Properties
 
 | Property | Type | Default | Access | Description |
@@ -1503,6 +1505,8 @@ Tag helper that renders a floating bug reporter widget with a toggle button, a r
 | `Icon` | `string` | bug emoji | get; set; | The icon on the floating button. HTML attribute: `icon`. |
 | `Title` | `string` | `"Send Feedback"` | get; set; | The title text for the report form. HTML attribute: `title`. |
 | `Colour` | `string` | `"danger"` | get; set; | Bootstrap contextual suffix for card border, title, and submit button. HTML attribute: `colour`. |
+| `MaskRequestPath` | `bool` | `false` | get; set; | Whether to mask the request path in the submitted metadata. No `[HtmlAttributeName]`, so it binds via the default convention as `mask-request-path`. |
+| `MaskQuery` | `bool` | `true` | get; set; | Whether to mask the request query string in the submitted metadata. No `[HtmlAttributeName]`, so it binds via the default convention as `mask-query`. |
 | `ViewContext` | `ViewContext` | — | get; set; | Automatically injected by the framework. Not bound to an HTML attribute. |
 
 ---

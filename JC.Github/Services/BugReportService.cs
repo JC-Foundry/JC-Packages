@@ -39,7 +39,7 @@ public class BugReportService
             ? throw new InvalidOperationException("GithubOptions.GithubRepoName is not configured.")
             : opts.GithubRepoName;
     }
-    
+
     /// <summary>
     /// Records a new issue, attempts to create a corresponding GitHub issue, and persists it to the database.
     /// GitHub failures are logged but do not prevent the local record from being saved.
@@ -48,8 +48,10 @@ public class BugReportService
     /// <param name="issueType">The type of issue (bug or suggestion).</param>
     /// <param name="creatorId">Optional identifier of the reporting user.</param>
     /// <param name="creatorName">Optional display name of the reporting user.</param>
+    /// <param name="clientMetadata">Serialised string of client metadata (used with JC.Web)</param>
     /// <returns>The persisted <see cref="ReportedIssue"/> entity.</returns>
-    public async Task<ReportedIssue> RecordIssue(string description, IssueType issueType, string? creatorId = null, string? creatorName = null)
+    public async Task<ReportedIssue> RecordIssue(string description, IssueType issueType, string? creatorId = null, 
+        string? creatorName = null, string? clientMetadata = null)
     {
         var ri = new ReportedIssue
         {
@@ -58,7 +60,8 @@ public class BugReportService
             Created = DateTime.UtcNow,
             ReportSent = false,
             UserId = creatorId,
-            UserDisplay = creatorName
+            UserDisplay = creatorName,
+            ClientMetadata = clientMetadata
         };
 
         try
@@ -75,5 +78,37 @@ public class BugReportService
         
         await _reportedIssues.AddAsync(ri);
         return ri;
+    }
+
+    /// <summary>
+    /// Updates the body of an existing issue on GitHub and persists the new description locally,
+    /// keeping the local record and GitHub issue in sync. GitHub failures are logged but do not
+    /// prevent the local record from being updated.
+    /// </summary>
+    /// <param name="issue">The issue to update. Must have an <see cref="ReportedIssue.ExternalId"/> to sync to GitHub.</param>
+    /// <param name="newBody">The new description/body content.</param>
+    /// <returns><c>true</c> if the GitHub issue was successfully updated; otherwise <c>false</c>.</returns>
+    public async Task<bool> UpdateIssueBody(ReportedIssue issue, string newBody)
+    {
+        if(string.IsNullOrEmpty(newBody) 
+           || !issue.ReportSent
+           || issue.ExternalId == null)
+            return false;
+        
+        var sent = false;
+        try
+        {
+            await _gitHelper.UpdateIssueBody(_owner, _repo, issue.ExternalId.Value, newBody);
+            sent = true;
+            _logger.LogInformation("GitHub issue #{IssueNumber} body updated in {Owner}/{Repo}", issue.ExternalId.Value, _owner, _repo);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating issue body in Github.");
+        }
+        
+        issue.Description = newBody;
+        await _reportedIssues.UpdateAsync(issue);
+        return sent;
     }
 }

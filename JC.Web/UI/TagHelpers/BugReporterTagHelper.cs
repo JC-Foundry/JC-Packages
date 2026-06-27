@@ -51,6 +51,9 @@ public class BugReporterTagHelper : TagHelper
     /// </summary>
     [HtmlAttributeName("colour")]
     public string Colour { get; set; } = "danger";
+    
+    public bool MaskRequestPath { get; set; } = false;
+    public bool MaskQuery { get; set; } = true;
 
     /// <summary>
     /// The ViewContext, automatically injected by the framework.
@@ -69,7 +72,7 @@ public class BugReporterTagHelper : TagHelper
 
         var httpContext = ViewContext.HttpContext;
         var metadata = httpContext.GetRequestMetadata();
-        var metadataLog = metadata?.ToLogEntry() ?? string.Empty;
+        var metadataLog = metadata?.ToLogEntry(maskPath: MaskRequestPath, maskQuery: MaskQuery) ?? string.Empty;
 
         // Get anti-forgery token if available
         var antiforgery = httpContext.RequestServices.GetService<IAntiforgery>();

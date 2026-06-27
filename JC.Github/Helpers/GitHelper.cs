@@ -30,10 +30,26 @@ public class GitHelper(GithubOptions options, string apiKey)
         var response = await _baseUrl.Request("repos", owner, repo, "issues")
             .PostJsonAsync(new
             {
-                title = title, 
+                title = title,
                 body=desc
             })
             .ReceiveJson<NewIssueResponse>();
         return response.Number;
+    }
+
+    /// <summary>
+    /// Updates the body of an existing issue in the specified GitHub repository.
+    /// </summary>
+    /// <param name="owner">The username or organisation name of the repository owner.</param>
+    /// <param name="repo">The name of the repository containing the issue.</param>
+    /// <param name="issueNumber">The number of the issue to update.</param>
+    /// <param name="body">The new body content for the issue.</param>
+    public async Task UpdateIssueBody(string owner, string repo, int issueNumber, string body)
+    {
+        await _baseUrl.Request("repos", owner, repo, "issues", issueNumber)
+            .PatchJsonAsync(new
+            {
+                body
+            });
     }
 }

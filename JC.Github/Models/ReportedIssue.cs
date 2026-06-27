@@ -46,4 +46,6 @@ public class ReportedIssue
 
     /// <summary>Gets or sets the display name of the user who reported the issue.</summary>
     public string? UserDisplay { get; set; }
+    
+    public string? ClientMetadata { get; set; }
 }
