@@ -103,7 +103,10 @@ public class NotificationCache
     public async Task AddNotificationAsync(Notification notification)
     {
         var notifications = await GetNotificationsAsync(notification.UserId);
-        notifications.Insert(0, notification);
+        // Cold-cache hydration pulls from the DB, which already contains the just-persisted
+        // notification — skip the insert in that case to avoid a duplicate entry.
+        if (notifications.All(n => n.Id != notification.Id))
+            notifications.Insert(0, notification);
         SetCache(GetCacheKey(notification.UserId), notifications);
     }
 
