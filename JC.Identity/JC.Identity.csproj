@@ -2,13 +2,13 @@
 
     <PropertyGroup>
         <PackageId>JC.Identity</PackageId>
-        <Version>3.6.3</Version>
+        <Version>3.6.4</Version>
         <Description>Identity library providing ASP.NET Core Identity integration, context-bound multi-tenancy query filters, middleware, and user management helpers.</Description>
     </PropertyGroup>
 
     <ItemGroup>
       <FrameworkReference Include="Microsoft.AspNetCore.App" />
-      <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" VersionOverride="9.0.11" />
+      <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" VersionOverride="9.0.17" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(UseLocalProjectReferences)' == 'true'">

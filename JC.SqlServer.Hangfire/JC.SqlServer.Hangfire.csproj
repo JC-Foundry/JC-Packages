@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.SqlServer.Hangfire</PackageId>
-        <Version>3.6.1</Version>
+        <Version>3.6.2</Version>
         <Description>Hangfire SQL Server storage registration for JC-Packages applications.</Description>
     </PropertyGroup>
 

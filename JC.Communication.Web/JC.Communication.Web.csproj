@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.Communication.Web</PackageId>
-        <Version>3.6.3</Version>
+        <Version>3.6.4</Version>
         <TargetFramework>net9.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>

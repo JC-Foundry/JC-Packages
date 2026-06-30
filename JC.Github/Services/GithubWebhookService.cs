@@ -74,7 +74,7 @@ public class GithubWebhookService(
         }
     }
 
-    private async Task HandleCommentEventAsync(string action, WebhookIssue webhookIssue, WebhookComment comment)
+    private async Task HandleCommentEventAsync(string? action, WebhookIssue webhookIssue, WebhookComment comment)
     {
         var existing = await issueComments
             .GetAll(c => c.CommentId == comment.Id)

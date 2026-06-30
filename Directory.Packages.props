@@ -4,11 +4,11 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Internal/shared JC packages -->
-    <PackageVersion Include="JC.Core" Version="3.6.2" />
-    <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.4" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.11" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.11" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.13" />
+    <PackageVersion Include="JC.Core" Version="3.6.3" />
+    <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.17" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.17" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.17" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.17" />
   </ItemGroup>
 </Project>

@@ -2,13 +2,13 @@
 
     <PropertyGroup>
         <PackageId>JC.Web</PackageId>
-        <Version>3.6.5</Version>
+        <Version>3.6.6</Version>
         <Description>ASP.NET Core web hardening and helpers — security headers middleware, cookie management with optional Data Protection encryption, client profiling (user agent parsing, bot filtering, geolocation), UI tag helpers, dropdown builders, and QR code generation.</Description>
     </PropertyGroup>
 
     <ItemGroup>
       <FrameworkReference Include="Microsoft.AspNetCore.App" />
-      <PackageReference Include="QRCoder" VersionOverride="1.7.0" />
+      <PackageReference Include="QRCoder" VersionOverride="1.8.0" />
       <PackageReference Include="UAParser" VersionOverride="3.1.47" />
     </ItemGroup>
 
