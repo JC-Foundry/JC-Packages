@@ -1,8 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <PackageId>JC.Github</PackageId>
-        <Version>3.6.3</Version>
+        <Version>3.6.4</Version>
         <Description>GitHub integration for JC.Core providing bug report and issue tracking services.</Description>
     </PropertyGroup>
 
