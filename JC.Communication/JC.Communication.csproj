@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.Communication</PackageId>
-        <Version>3.6.3</Version>
+        <Version>3.6.4</Version>
         <Description>Outbound application communication layer — email-first abstraction with provider-based delivery (Microsoft 365 / Exchange Online SMTP relay), strongly typed message and recipient models, send result tracking, and optional logging. Designed for future expansion into SMS, in-app notifications, and templated messaging.</Description>
     </PropertyGroup>
 
@@ -15,8 +15,8 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="MailKit" VersionOverride="4.12.1" />
-      <PackageReference Include="Microsoft.Identity.Client" VersionOverride="4.68.0" />
+      <PackageReference Include="MailKit" VersionOverride="4.17.0" />
+      <PackageReference Include="Microsoft.Identity.Client" VersionOverride="4.85.2" />
     </ItemGroup>
 
     <ItemGroup>

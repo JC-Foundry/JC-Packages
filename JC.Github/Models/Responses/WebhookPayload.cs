@@ -7,9 +7,9 @@ namespace JC.Github.Models.Responses;
 /// </summary>
 public class WebhookPayload
 {
-    /// <summary>Gets or sets the action that triggered the event (e.g. "opened", "closed", "created").</summary>
+    /// <summary>Gets or sets the action that triggered the event (e.g. "opened", "closed", "created"). Null for events that carry no action, such as <c>push</c>.</summary>
     [JsonPropertyName("action")]
-    public required string Action { get; set; }
+    public string? Action { get; set; }
 
     /// <summary>Gets or sets the issue associated with this event. Null for non-issue events such as <c>ping</c>.</summary>
     [JsonPropertyName("issue")]

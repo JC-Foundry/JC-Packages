@@ -56,10 +56,12 @@ internal static class GithubWebhookEndpoint
         // Deserialise payload
         var payload = JsonSerializer.Deserialize<WebhookPayload>(body);
 
+        // Events without an issue object (e.g. push) are valid but not handled here —
+        // acknowledge with 200 so GitHub doesn't flag the delivery as failed.
         if (payload?.Issue is null)
         {
-            logger.LogWarning("GitHub webhook payload missing or has no issue object for event type '{EventType}'", eventType);
-            return Results.BadRequest();
+            logger.LogDebug("Ignoring GitHub webhook event '{EventType}' with no issue object", eventType);
+            return Results.Ok();
         }
 
         // Ignore pull request events — issue_comment fires for PR comments too
