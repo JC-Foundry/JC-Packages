@@ -25,7 +25,8 @@ public static class ApplicationBuilderExtensions
         if (!options.EnableWebhooks) return app;
 
         app.MapPost(options.WebhookPath, (Delegate)GithubWebhookEndpoint.HandleAsync)
-            .ExcludeFromDescription();
+            .ExcludeFromDescription()
+            .AllowAnonymous();
 
         return app;
     }
