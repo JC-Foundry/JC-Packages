@@ -1,6 +1,6 @@
 # JC.Communication: Email — Guide
 
-Covers sending emails, constructing messages, handling results, validation behaviour, and logging. See [Email setup](Email-Setup.md) for registration and configuration.
+Covers sending emails, constructing messages, composing branded HTML bodies, handling results, validation behaviour, and logging. See [Email setup](Email-Setup.md) for registration and configuration.
 
 ## Sending emails
 
@@ -150,6 +150,97 @@ var message = new EmailMessage("noreply@example.com", "Body text", subject: null
     new EmailRecipient("user@example.com"));
 
 // message.Subject == "NO SUBJECT"
+```
+
+## Composing branded email bodies
+
+`EmailBodyBuilder` produces a matching plain-text body and HTML body from one set of section calls, so the two never drift. The HTML is wrapped in a branded, email-client-safe shell — a gradient header carrying your brand name and an optional caption, then the body. All text you pass is HTML-encoded inside the builder, so call sites can pass raw user input without escaping it themselves.
+
+### Building a body
+
+Inject `DefaultEmailBranding` to get the branding configured in [setup](Email-Setup.md#email-branding), create a builder, chain sections, and call `Build`:
+
+```csharp
+public class WelcomeMailer(IEmailService emailService, DefaultEmailBranding branding)
+{
+    public async Task<EmailSendResult> SendWelcomeAsync(string email, string name, string confirmUrl)
+    {
+        var (html, plain) = EmailBodyBuilder.Create(branding.Get(), caption: "Welcome")
+            .Paragraph($"Hi {name}, thanks for joining.")
+            .Paragraph("Confirm your email address to activate your account.")
+            .Button("Confirm my account", confirmUrl)
+            .Footer("If you didn't create an account, you can safely ignore this email.")
+            .Build();
+
+        var message = new EmailMessage(
+            "noreply@example.com",
+            htmlBody: html,
+            plainBody: plain,
+            subject: "Welcome",
+            new EmailRecipient(email, name));
+
+        return await emailService.SendAsync(message);
+    }
+}
+```
+
+**`Build` returns `(string Html, string Plain)` — in that order.** This matches the `EmailMessage(from, htmlBody, plainBody, ...)` constructor argument order, so the two bodies pass straight through. Deconstructing into `(html, plain)` as above keeps them aligned.
+
+`DefaultEmailBranding.Get()` returns a fresh copy each call, so mutating it for one email never affects the shared branding.
+
+### Sections
+
+Each section method appends to both bodies and returns the builder for chaining:
+
+| Method | HTML | Plain text |
+|--------|------|-----------|
+| `Paragraph(text, emphasis = false)` | A `<p>` block; with `emphasis: true`, a bold muted label. Blank lines split paragraphs, single newlines become `<br>` | The text, normalised |
+| `Quote(text)` | A styled `<blockquote>` | A dash-fenced block |
+| `Button(text, url)` | A gradient CTA button, with a plain fallback link beneath | `text: url` |
+| `Divider()` | An `<hr>` | A dashed rule |
+| `SignOff(text)` | A spaced closing `<p>` | The text |
+| `Reference(code)` | A small muted reference line | `Reference: {code}` |
+| `Footer(text)` | A small muted footer note | The text |
+
+### Branding without configured defaults
+
+If you only need a brand name and are happy with the default palette, pass a name string instead of an `EmailBranding`:
+
+```csharp
+var (html, plain) = EmailBodyBuilder.Create("My Application", caption: "Support")
+    .Paragraph("Thanks for getting in touch.")
+    .Build();
+```
+
+To override individual colours, construct an `EmailBranding` and set palette properties on it — see [Email branding](Email-Setup.md#email-branding).
+
+### Account emails
+
+`AccountEmail` ships ready-made bodies for the ASP.NET Identity account flows, composed via `EmailBodyBuilder` so every confirmation and reset mail shares your branded shell. Each method takes the Identity-generated callback URL and returns `(Html, Plain)`:
+
+```csharp
+public class IdentityMailer(IEmailService emailService, DefaultEmailBranding branding)
+{
+    public Task<EmailSendResult> SendConfirmationAsync(string email, string callbackUrl)
+    {
+        var (html, plain) = AccountEmail.ConfirmAccount(branding.Get(), callbackUrl);
+
+        var message = new EmailMessage(
+            "noreply@example.com",
+            htmlBody: html,
+            plainBody: plain,
+            subject: "Confirm your account",
+            new EmailRecipient(email));
+
+        return emailService.SendAsync(message);
+    }
+}
+```
+
+Available flows: `ConfirmAccount`, `ResetPassword`, and `ConfirmEmailChange`. Each has an `EmailBranding` overload (shown above) and a brand-name-string overload that uses the default palette:
+
+```csharp
+var (html, plain) = AccountEmail.ResetPassword("My Application", callbackUrl);
 ```
 
 ## Handling results

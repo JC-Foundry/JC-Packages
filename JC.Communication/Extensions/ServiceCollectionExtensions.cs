@@ -1,3 +1,4 @@
+using JC.Communication.Email.Helpers;
 using JC.Communication.Email.Models;
 using JC.Communication.Email.Models.Options;
 using JC.Communication.Email.Services;
@@ -135,6 +136,8 @@ public static class ServiceCollectionExtensions
     {
         // Logging (always required as it is injected)
         services.TryAddScoped<EmailLogService>();
+        
+        services.TryAddSingleton<DefaultEmailBranding>(_ => new DefaultEmailBranding(options.DefaultBranding));
         
         switch (options.Provider)
         {

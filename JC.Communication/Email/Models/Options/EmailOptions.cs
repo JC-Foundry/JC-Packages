@@ -24,6 +24,8 @@ public class EmailOptions
     /// Timeout in milliseconds for email send operations. Defaults to 30,000ms (30 seconds).
     /// </summary>
     public int TimeoutMs { get; set; } = 30_000;
+    
+    public EmailBranding DefaultBranding { get; set; } = new("JC Foundry");
 
 
     //Console Options:

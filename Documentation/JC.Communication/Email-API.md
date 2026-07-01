@@ -329,6 +329,50 @@ Creates a failed send result with an explicit timestamp. Sets `Succeeded` to `fa
 
 ---
 
+## EmailBranding
+
+**Namespace:** `JC.Communication.Email.Models`
+
+Brand name and colour palette for the email body builder. Consumed by `EmailBodyBuilder` and `AccountEmail` to render the branded HTML shell. Configured application-wide via `EmailOptions.DefaultBranding` and resolved at runtime through `DefaultEmailBranding`.
+
+### Properties
+
+| Property | Type | Default | Access | Description |
+|----------|------|---------|--------|-------------|
+| `BrandName` | `string` | — | get; set; | The brand/application name shown in the header bar and the first line of the plain-text body. Trimmed by the constructor. |
+| `BrandStart` | `string` | `"#0d6efd"` | get; set; | Gradient start colour for the header bar and CTA buttons. |
+| `BrandEnd` | `string` | `"#0dcaf0"` | get; set; | Gradient end colour for the header bar and CTA buttons. |
+| `HeaderCaption` | `string` | `"#eaf6f9"` | get; set; | Colour of the caption text shown under the brand name. |
+| `PageBg` | `string` | `"#f0f2f5"` | get; set; | Outer page background colour. |
+| `CardBg` | `string` | `"#ffffff"` | get; set; | Email card background colour. |
+| `TextColour` | `string` | `"#1f2933"` | get; set; | Main body text colour. |
+| `SubtleColour` | `string` | `"#52606d"` | get; set; | Colour for emphasis paragraphs and quote text. |
+| `MutedColour` | `string` | `"#7b8794"` | get; set; | Colour for footer, reference, and fallback-link text. |
+| `RuleColour` | `string` | `"#d9dee3"` | get; set; | Divider line colour. |
+| `QuoteBg` | `string` | `"#f5f7fa"` | get; set; | Blockquote background colour. |
+| `QuoteBorder` | `string` | `"#c8d0d8"` | get; set; | Blockquote left-border colour. |
+| `PlainRule` | `string` | `"----------------------------------------"` | get; set; | Divider and quote fence used in the plain-text body. |
+
+### Constructors
+
+#### EmailBranding(string brandName)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `brandName` | `string` | — | The brand/application name. Trimmed and assigned to `BrandName`. |
+
+Creates a branding instance with the given name and the default palette. Override individual palette colours via object initialiser.
+
+#### EmailBranding(EmailBranding branding)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `branding` | `EmailBranding` | — | The instance to copy. |
+
+Copy constructor. Copies `BrandName` and every palette property from `branding` into a new instance.
+
+---
+
 # Enums
 
 ## EmailProvider
@@ -437,6 +481,176 @@ Persists an email send attempt to the database within a transaction. Returns imm
 When `ExcludeContent` is configured, creates an `EmailLog` (via `EmailMessage.ToSafeLog`), associated `EmailRecipientLog` entries, and an `EmailSentLog`. When `FullLog` is configured, additionally creates an `EmailContentLog` (via `EmailMessage.ToFullLog`).
 
 All entities are added with `saveNow: false` and saved in a single `SaveChangesAsync` call within a transaction. If the transaction fails, the error is logged to the application logger and the transaction is rolled back. The exception is not thrown — a failed log write does not affect the email send result.
+
+---
+
+# Helpers
+
+## EmailBodyBuilder
+
+**Namespace:** `JC.Communication.Email.Helpers`
+
+Builds matching plain-text and HTML email bodies from one set of section calls. Sections are declared once and rendered to both formats, so the two never drift. The HTML is wrapped in a branded, table-based, inline-styled shell for maximum email-client compatibility. All caller text is HTML-encoded internally, so call sites cannot leak unescaped input. Instances are created via the static `Create` factory methods, not a public constructor.
+
+### Methods
+
+#### Create(EmailBranding brandingStyle, string? caption = null)
+
+**Returns:** `EmailBodyBuilder`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `brandingStyle` | `EmailBranding` | — | The brand name and colour palette applied to the rendered shell. |
+| `caption` | `string?` | `null` | Optional per-email subtitle shown under the brand name in the header. |
+
+Static factory. Creates a builder using the supplied branding.
+
+#### Create(string brandName, string? caption = null)
+
+**Returns:** `EmailBodyBuilder`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `brandName` | `string` | — | The brand name. A new `EmailBranding` with the default palette is used. |
+| `caption` | `string?` | `null` | Optional per-email subtitle shown under the brand name in the header. |
+
+Static factory. Creates a builder with a new `EmailBranding(brandName)` and the default palette.
+
+#### Paragraph(string text, bool emphasis = false)
+
+**Returns:** `EmailBodyBuilder`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `text` | `string` | — | Paragraph text. Blank lines split into separate paragraphs; single newlines become line breaks. |
+| `emphasis` | `bool` | `false` | When `true`, renders as a bold, muted label. |
+
+Appends a body paragraph to both bodies. Returns the builder for chaining.
+
+#### Quote(string text)
+
+**Returns:** `EmailBodyBuilder`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `text` | `string` | — | The quoted text. |
+
+Appends a quoted block — a styled `<blockquote>` in HTML, a dash-fenced block in plain text.
+
+#### Button(string text, string url)
+
+**Returns:** `EmailBodyBuilder`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `text` | `string` | — | The button label. |
+| `url` | `string` | — | The link target. |
+
+Appends a call-to-action button — a gradient button with a plain-text fallback link beneath in HTML, and `text: url` in plain text.
+
+#### Divider()
+
+**Returns:** `EmailBodyBuilder`
+
+Appends a horizontal rule — an `<hr>` in HTML, a dashed line in plain text.
+
+#### SignOff(string text)
+
+**Returns:** `EmailBodyBuilder`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `text` | `string` | — | The closing line. |
+
+Appends a spaced closing line.
+
+#### Reference(string code)
+
+**Returns:** `EmailBodyBuilder`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `code` | `string` | — | The reference code. |
+
+Appends a short, muted reference line rendered as `Reference: {code}`.
+
+#### Footer(string text)
+
+**Returns:** `EmailBodyBuilder`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `text` | `string` | — | The footer note. |
+
+Appends a small, muted footer note.
+
+#### Build()
+
+**Returns:** `(string Html, string Plain)`
+
+Renders the accumulated sections into matching HTML and plain-text bodies. The HTML is wrapped in the branded shell (a gradient header with the brand name and optional caption, then the body); the plain text is led by the brand name and optional caption. The return order — `Html` then `Plain` — matches the `EmailMessage(from, htmlBody, plainBody, ...)` constructor argument order.
+
+---
+
+## AccountEmail
+
+**Namespace:** `JC.Communication.Email.Helpers`
+
+Static helper providing ready-made plain and HTML bodies for the ASP.NET Identity account flows, composed via `EmailBodyBuilder` so each shares the branded shell. Every method returns `(string Html, string Plain)` and has two overloads: one taking an `EmailBranding`, and one taking a brand-name string that uses the default palette.
+
+### Methods
+
+#### ConfirmAccount(EmailBranding branding, string callbackUrl)
+#### ConfirmAccount(string brandName, string callbackUrl)
+
+**Returns:** `(string Html, string Plain)`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `branding` / `brandName` | `EmailBranding` / `string` | — | Branding for the rendered shell, or a brand name that uses the default palette. |
+| `callbackUrl` | `string` | — | The Identity-generated confirmation link. |
+
+Builds the account email-confirmation body (caption "Confirm your account") with a confirmation button and footer.
+
+#### ResetPassword(EmailBranding branding, string callbackUrl)
+#### ResetPassword(string brandName, string callbackUrl)
+
+**Returns:** `(string Html, string Plain)`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `branding` / `brandName` | `EmailBranding` / `string` | — | Branding for the rendered shell, or a brand name that uses the default palette. |
+| `callbackUrl` | `string` | — | The Identity-generated password-reset link. |
+
+Builds the password-reset body (caption "Reset your password") with a reset button and footer.
+
+#### ConfirmEmailChange(EmailBranding branding, string callbackUrl)
+#### ConfirmEmailChange(string brandName, string callbackUrl)
+
+**Returns:** `(string Html, string Plain)`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `branding` / `brandName` | `EmailBranding` / `string` | — | Branding for the rendered shell, or a brand name that uses the default palette. |
+| `callbackUrl` | `string` | — | The Identity-generated email-change confirmation link, sent to the new address. |
+
+Builds the email-change confirmation body (caption "Confirm your new email") with a confirmation button and footer.
+
+---
+
+## DefaultEmailBranding
+
+**Namespace:** `JC.Communication.Email.Helpers`
+
+Injectable singleton wrapping the application's configured `EmailBranding` (from `EmailOptions.DefaultBranding`). Registered automatically by both `AddEmail` overloads. Inject it to obtain the configured branding for `EmailBodyBuilder` and `AccountEmail`.
+
+### Methods
+
+#### Get()
+
+**Returns:** `EmailBranding`
+
+Returns a fresh copy of the configured branding on each call (via the `EmailBranding` copy constructor), so callers can mutate the result for a single email without affecting the shared instance.
 
 ---
 

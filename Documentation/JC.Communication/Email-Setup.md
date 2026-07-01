@@ -87,6 +87,7 @@ When called with no configure callback, `AddEmail<TContext>` registers:
 | `IRepositoryContext<EmailRecipientLog>` | Scoped | Repository for recipient log entries |
 | `IRepositoryContext<EmailContentLog>` | Scoped | Repository for content log entries |
 | `IRepositoryContext<EmailSentLog>` | Scoped | Repository for send result log entries |
+| `DefaultEmailBranding` | Singleton | Supplies the configured `EmailBranding` to the email body builder and account-email helpers |
 
 Default option values:
 
@@ -101,6 +102,7 @@ Default option values:
 | `SslProtocol` | `SslProtocols.None` | SSL/TLS protocol version — `None` lets the OS negotiate |
 | `LogLevel` | `LogLevel.Information` | Console provider only — the log level used when outputting email content |
 | `UsernameRequired` | `true` | SMTP relay only — whether a username is required for authentication |
+| `DefaultBranding` | `EmailBranding("JC Foundry")` | Brand name and colour palette used by the email body builder and account-email helpers |
 
 Startup validation checks for missing configuration values and invalid options. If required config keys are absent or the host/port are invalid, the application fails at startup with a descriptive error rather than at runtime.
 
@@ -331,6 +333,35 @@ builder.Services.AddEmail(builder.Configuration, options =>
 
 Both successful and failed send attempts are logged, including validation failures.
 
+### Email branding
+
+`EmailBodyBuilder` and the `AccountEmail` helpers render a branded, email-client-safe HTML shell (a gradient header carrying the brand name, then the body). The brand name and colour palette come from `EmailOptions.DefaultBranding`, which is registered as an injectable `DefaultEmailBranding` singleton for use by the body builder and account-email helpers.
+
+If you do not set `DefaultBranding`, it defaults to `new EmailBranding("JC Foundry")` — the neutral palette shown below with the name "JC Foundry". Set it to brand your outbound email:
+
+```csharp
+builder.Services.AddEmail<AppDbContext>(builder.Configuration, options =>
+{
+    options.DefaultBranding = new EmailBranding("My Application")
+    {
+        BrandStart    = "#0d6efd", // gradient start — header bar and CTA buttons
+        BrandEnd      = "#0dcaf0", // gradient end
+        HeaderCaption = "#eaf6f9", // caption text under the brand name
+        PageBg        = "#f0f2f5", // outer page background
+        CardBg        = "#ffffff", // email card background
+        TextColour    = "#1f2933", // body text
+        SubtleColour  = "#52606d", // emphasis text and quote text
+        MutedColour   = "#7b8794", // footer, reference, and fallback-link text
+        RuleColour    = "#d9dee3", // divider line
+        QuoteBg       = "#f5f7fa", // blockquote background
+        QuoteBorder   = "#c8d0d8", // blockquote left border
+        PlainRule     = "----------------------------------------" // plain-text divider
+    };
+});
+```
+
+Only the brand name (set via the `EmailBranding` constructor) is required — every palette property has the default shown above. See [Composing branded email bodies](Email-Guide.md#composing-branded-email-bodies) for how the builder and account-email helpers consume this, and the [EmailBranding API entry](Email-API.md#emailbranding) for the full property reference.
+
 ### EmailOptions
 
 | Property | Type | Default | Applies to | Description |
@@ -344,6 +375,7 @@ Both successful and failed send attempts are logged, including validation failur
 | `SslProtocol` | `SslProtocols` | `None` | Microsoft, SmtpRelay, DirectSmtp | SSL/TLS protocol version. `None` lets the OS negotiate the highest supported version |
 | `LogLevel` | `LogLevel` | `Information` | Console | The log level used when outputting email content to the application logger |
 | `UsernameRequired` | `bool` | `true` | SmtpRelay | Whether a username is required for SMTP authentication |
+| `DefaultBranding` | `EmailBranding` | `EmailBranding("JC Foundry")` | Email body builder | Brand name and colour palette applied by `EmailBodyBuilder` and `AccountEmail`. Registered as an injectable `DefaultEmailBranding` singleton |
 
 ## 3. Apply migrations
 
