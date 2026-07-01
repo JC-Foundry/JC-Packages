@@ -256,6 +256,73 @@ Defines the custom claim type constants used by the JC.Identity claims pipeline.
 
 ---
 
+## IdentityHelper
+
+**Namespace:** `JC.Identity.Helpers`
+
+Builds the authenticator URI and formatted shared key used when setting up TOTP-based two-factor authentication (for example, to render an authenticator-app QR code and its manual-entry fallback). Not registered in DI — construct directly, supplying a `UrlEncoder`. It does not manage the authenticator secret itself; obtain the unformatted key from ASP.NET Core Identity's `UserManager`.
+
+### Constructors
+
+#### IdentityHelper(UrlEncoder urlEncoder)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `urlEncoder` | `UrlEncoder` | — | Used to URL-encode the email when building the authenticator URI. |
+
+Uses the default authenticator URI format `otpauth://totp/{0}:{1}?secret={2}&issuer={0}`, where `{0}` is the issuer/app name, `{1}` is the URL-encoded email, and `{2}` is the unformatted key.
+
+---
+
+#### IdentityHelper(UrlEncoder urlEncoder, string authenticatorUriFormat)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `urlEncoder` | `UrlEncoder` | — | Used to URL-encode the email when building the authenticator URI. |
+| `authenticatorUriFormat` | `string` | — | A custom composite format string overriding the default. Uses the same placeholder positions: `{0}` = issuer/app name, `{1}` = URL-encoded email, `{2}` = unformatted key. |
+
+### Methods
+
+#### Generate2faQrCodeUri(string name, string email, string unformattedKey)
+
+**Returns:** `string`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | `string` | — | The issuer/app name. Inserted at `{0}` — both the label prefix and the `issuer` parameter. |
+| `email` | `string` | — | The account email. URL-encoded via the supplied `UrlEncoder` and inserted at `{1}`. |
+| `unformattedKey` | `string` | — | The raw authenticator secret. Inserted verbatim at `{2}`. |
+
+Formats the authenticator URI from the configured format string using `CultureInfo.InvariantCulture`. Only the email is URL-encoded; `name` and `unformattedKey` are inserted as-is.
+
+---
+
+#### Format2faKey(string unformattedKey)
+
+**Returns:** `string`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `unformattedKey` | `string` | — | The raw authenticator secret to format for display. |
+
+Groups the key into space-separated blocks of four characters and lowercases the result, producing the human-readable shared key shown as a manual-entry fallback beneath the QR code.
+
+---
+
+#### Generate2faKey(string name, string email, string secret)
+
+**Returns:** `(string AuthenticatorUri, string FormattedKey)`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | `string` | — | The issuer/app name. |
+| `email` | `string` | — | The account email. |
+| `secret` | `string` | — | The raw authenticator secret. |
+
+Convenience method that returns both the authenticator URI (via `Generate2faQrCodeUri`) and the formatted shared key (via `Format2faKey`) in a single call.
+
+---
+
 ## SystemRoles
 
 **Namespace:** `JC.Identity.Authentication`
