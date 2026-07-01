@@ -1,6 +1,6 @@
 # JC.Identity — Guide
 
-Covers user information access, custom claims, role management, middleware behaviour, multi-tenancy with tenant query filters, tenant settings, and extending the user model. See [Setup](Setup.md) for registration.
+Covers user information access, custom claims, role management, middleware behaviour, two-factor authentication setup, multi-tenancy with tenant query filters, tenant settings, and extending the user model. See [Setup](Setup.md) for registration.
 
 ## Accessing user information
 
@@ -279,6 +279,64 @@ app.UseUserInfo();       // Must come after UseAuthentication
 app.UseAuthorization();
 app.UseIdentityMiddleware(); // Must come after UseUserInfo
 ```
+
+## Two-factor authentication
+
+When `EnforceTwoFactor` is enabled (see [middleware behaviour](#enforcement-order)), users without 2FA configured are redirected to your two-factor setup route. `IdentityHelper` builds the two pieces that setup page needs: the `otpauth://` URI to encode as a QR code, and a human-readable shared key shown as a manual-entry fallback.
+
+`IdentityHelper` is not registered in DI — construct it directly, passing a `UrlEncoder` (inject one, or use `UrlEncoder.Default`):
+
+```csharp
+using System.Text.Encodings.Web;
+using JC.Identity.Helpers;
+
+public class EnableAuthenticatorModel(UserManager<AppUser> userManager, UrlEncoder urlEncoder) : PageModel
+{
+    public string SharedKey { get; private set; } = "";
+    public string AuthenticatorUri { get; private set; } = "";
+
+    public async Task OnGetAsync()
+    {
+        var user = await userManager.GetUserAsync(User);
+
+        var unformattedKey = await userManager.GetAuthenticatorKeyAsync(user!);
+        if (string.IsNullOrEmpty(unformattedKey))
+        {
+            await userManager.ResetAuthenticatorKeyAsync(user!);
+            unformattedKey = await userManager.GetAuthenticatorKeyAsync(user!);
+        }
+
+        var helper = new IdentityHelper(urlEncoder);
+        (AuthenticatorUri, SharedKey) = helper.Generate2faKey("MyApp", user!.Email!, unformattedKey!);
+    }
+}
+```
+
+- `AuthenticatorUri` is an `otpauth://totp/...` URI — render it as a QR code (e.g. with a client-side QR library) for the user to scan into their authenticator app.
+- `SharedKey` is the same secret grouped into space-separated blocks of four and lowercased, shown as a manual-entry fallback for users who can't scan.
+
+The first argument (`"MyApp"`) is the issuer. It appears both as the account-label prefix and as the `issuer` parameter in the URI, and is what the authenticator app displays as the account name.
+
+### Generating the pieces individually
+
+`Generate2faKey` is a convenience wrapper that returns both values at once. If you only need one, call the underlying methods directly:
+
+```csharp
+var helper = new IdentityHelper(urlEncoder);
+
+var uri = helper.Generate2faQrCodeUri("MyApp", user.Email!, unformattedKey);
+var display = helper.Format2faKey(unformattedKey);
+```
+
+### Customising the URI format
+
+The default authenticator URI format is `otpauth://totp/{0}:{1}?secret={2}&issuer={0}`. To change it (e.g. to add extra TOTP parameters), pass a format string to the second constructor overload. The placeholders are `{0}` = issuer/app name, `{1}` = URL-encoded email, `{2}` = unformatted key:
+
+```csharp
+var helper = new IdentityHelper(urlEncoder, "otpauth://totp/{0}:{1}?secret={2}&issuer={0}&digits=6&period=30");
+```
+
+**Nuance:** `IdentityHelper` only builds the URI and formatted key — it does not generate, reset, or verify the authenticator secret itself. Use ASP.NET Core Identity's `UserManager` (`GetAuthenticatorKeyAsync`, `ResetAuthenticatorKeyAsync`, `VerifyTwoFactorTokenAsync`) for the secret lifecycle, and pass the unformatted key into the helper.
 
 ## Multi-tenancy
 
