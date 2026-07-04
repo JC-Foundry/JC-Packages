@@ -1167,11 +1167,13 @@ Logs that the current user has read up to the most recent message in a thread. O
 
 ---
 
-### ActivityLogCleanupJob
+### ActivityLogCleanupJob\<TContext\>
 
 **Namespace:** `JC.Communication.Messaging.Services`
 
-Background job that cleans up old `ThreadActivityLog` records based on the configured retention settings. Implements `IBackgroundJob`.
+**Constraint:** `TContext : DbContext`
+
+Background job that cleans up old `ThreadActivityLog` records in `TContext`'s database based on the configured retention settings. Implements `IBackgroundJob`. A non-generic `ActivityLogCleanupJob` is also provided that targets your default context; use the generic form (e.g. `ActivityLogCleanupJob<AppDbContext>`) to target a specific managed context.
 
 #### Methods
 
@@ -1187,11 +1189,13 @@ Executes the activity log cleanup. Does nothing if `EnableActivityLogCleanupJob`
 
 ---
 
-### ReadLogCleanupJob
+### ReadLogCleanupJob\<TContext\>
 
 **Namespace:** `JC.Communication.Messaging.Services`
 
-Background job that cleans up old `MessageReadLog` records based on the configured retention settings. Implements `IBackgroundJob`.
+**Constraint:** `TContext : DbContext`
+
+Background job that cleans up old `MessageReadLog` records in `TContext`'s database based on the configured retention settings. Implements `IBackgroundJob`. A non-generic `ReadLogCleanupJob` is also provided that targets your default context; use the generic form (e.g. `ReadLogCleanupJob<AppDbContext>`) to target a specific managed context.
 
 #### Methods
 

@@ -62,9 +62,6 @@ When called with no configuration callback, `AddNotifications` registers:
 | `NotificationSender` | Scoped | High-level service for sending notifications |
 | `INotificationManager` → `NotificationManager` | Scoped | Orchestrates state changes (read, unread, dismiss) with logging and cache sync |
 | `INotificationDbContext` → `TContext` | Scoped | Your DbContext as the notification data context |
-| `IRepositoryContext<Notification>` | Scoped | Repository for notification entities |
-| `IRepositoryContext<NotificationStyle>` | Scoped | Repository for notification style entities |
-| `IRepositoryContext<NotificationLog>` | Scoped | Repository for notification log entities |
 
 Default option values:
 
@@ -180,6 +177,35 @@ public class AppDbContext : DataDbContext, INotificationDbContext
     public DbSet<NotificationLog> NotificationLogs { get; set; }
 }
 ```
+
+### ConfigureNotificationBackgroundJobs — cleanup job options
+
+Configures `NotificationBackgroundJobOptions` for the `NotificationLogCleanupJob<TContext>`. Only needs to be called if overriding the defaults — the job uses default values automatically if this is not called.
+
+```csharp
+builder.Services.ConfigureNotificationBackgroundJobs(options =>
+{
+    options.EnableNotificationLogCleanupJob = true;
+    options.NotificationLogRetentionMonths = 6;
+    options.MinimumRetentionRecords = 30;
+    options.NotificationLogCleanupChunkingValue = 500;
+});
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `configure` | `Action<NotificationBackgroundJobOptions>` | — | Action to configure notification background job options |
+
+#### NotificationBackgroundJobOptions
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `EnableNotificationLogCleanupJob` | `bool` | `true` | Whether the notification log cleanup job runs |
+| `NotificationLogRetentionMonths` | `ushort` | `6` | Notification logs older than this many months are eligible for deletion |
+| `MinimumRetentionRecords` | `ushort` | `30` | Minimum number of notification logs to always retain, regardless of age |
+| `NotificationLogCleanupChunkingValue` | `ushort` | `500` | Maximum number of notification logs deleted per job execution |
+
+`NotificationLogCleanupJob<TContext>` deletes `NotificationLog` records older than `NotificationLogRetentionMonths`. It is not self-executing — register it with [JC.BackgroundJobs](../JC.BackgroundJobs/Setup.md), using the non-generic `NotificationLogCleanupJob` for your default context or a closed generic form (e.g. `NotificationLogCleanupJob<AppDbContext>`) for a managed context.
 
 ## 3. Apply migrations
 

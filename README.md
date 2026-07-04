@@ -6,7 +6,7 @@ A suite of .NET 9 NuGet packages providing shared infrastructure for .NET applic
 
 | Package | Description | Docs |
 |---------|-------------|------|
-| **JC.Core** | Repository pattern, automatic audit trail on SaveChanges, soft-delete, pagination, and utility helpers | [Documentation](Documentation/JC.Core/) |
+| **JC.Core** | Repository pattern with multi-DbContext support, automatic audit trail on SaveChanges, soft-delete, pagination, and utility helpers | [Documentation](Documentation/JC.Core/) |
 | **JC.Web** | Security headers, cookie management, client profiling, rate limiting, bug reporter tag helper, UI helpers | [Documentation](Documentation/JC.Web/) |
 | **JC.Identity** | ASP.NET Core Identity integration, multi-tenancy query filters, middleware, user management | [Documentation](Documentation/JC.Identity/) |
 | **JC.MySql** | MySQL database provider extensions using Pomelo.EntityFrameworkCore.MySql | [Database Setup](Documentation/JC.Core/Database-Setup.md) |
@@ -58,10 +58,9 @@ JC.Identity, JC.Web, JC.Communication, JC.Github, JC.BackgroundJobs, JC.MySql, a
 
 ```csharp
 builder.Services.AddCore<AppDbContext>();
-builder.Services.RegisterRepositoryContexts(typeof(Product), typeof(Order));
 ```
 
-See [JC.Core documentation](Documentation/JC.Core/) for full setup, audit trail configuration, and API reference.
+Repositories are accessed through `IRepositoryManager` — inject it and call `GetRepository<T>()` for any entity type. See [JC.Core documentation](Documentation/JC.Core/) for full setup, multi-DbContext support, audit trail configuration, and API reference.
 
 ### Database Providers
 
@@ -317,6 +316,10 @@ In short:
 - **Major/Minor = suite compatibility**
 - **Patch = package-specific**
 - **`JC.Core` patch = patch bump for all JC.Core dependents**
+
+### Release notes
+
+Release notes are published under [Documentation/Release-Notes](Documentation/Release-Notes/) for **major** versions only — they are the only releases that introduce breaking changes and therefore need migration guidance. Minor (feature) and patch (fix) releases are backward-compatible, so they ship no release notes; newly added features are documented in each package's documentation.
 
 ## License
 

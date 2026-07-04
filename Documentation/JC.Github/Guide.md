@@ -90,11 +90,13 @@ var issue = await bugReportService.RecordIssue(
 Use `UpdateIssueBody` to edit an existing report's description and push the change back to GitHub, keeping the local record and the GitHub issue in sync:
 
 ```csharp
-public class IssueEditService(BugReportService bugReportService, IRepositoryContext<ReportedIssue> issues)
+public class IssueEditService(BugReportService bugReportService, IRepositoryManager repositories)
 {
+    private readonly IRepositoryContext<ReportedIssue> _issues = repositories.GetRepository<ReportedIssue>();
+
     public async Task<bool> EditDescriptionAsync(string issueId, string newDescription)
     {
-        var issue = await issues.GetByIdAsync(issueId);
+        var issue = await _issues.GetByIdAsync(issueId);
         if (issue is null) return false;
 
         // Returns true if the GitHub issue body was patched successfully.
@@ -112,30 +114,32 @@ public class IssueEditService(BugReportService bugReportService, IRepositoryCont
 
 ### Listing reported issues
 
-Use `IRepositoryContext<ReportedIssue>` to query your local issue records:
+Use `IRepositoryManager.GetRepository<ReportedIssue>()` to query your local issue records:
 
 ```csharp
-public class IssueListService(IRepositoryContext<ReportedIssue> issues)
+public class IssueListService(IRepositoryManager repositories)
 {
+    private readonly IRepositoryContext<ReportedIssue> _issues = repositories.GetRepository<ReportedIssue>();
+
     public async Task<List<ReportedIssue>> GetOpenIssuesAsync()
     {
-        return await issues.GetAllAsync(i => !i.Closed);
+        return await _issues.GetAllAsync(i => !i.Closed);
     }
 
     public async Task<List<ReportedIssue>> GetUnsentIssuesAsync()
     {
         // Issues that failed to sync with GitHub
-        return await issues.GetAllAsync(i => !i.ReportSent);
+        return await _issues.GetAllAsync(i => !i.ReportSent);
     }
 
     public async Task<List<ReportedIssue>> GetByUserAsync(string userId)
     {
-        return await issues.GetAllAsync(i => i.UserId == userId);
+        return await _issues.GetAllAsync(i => i.UserId == userId);
     }
 
     public async Task<ReportedIssue?> GetByGithubNumberAsync(int issueNumber)
     {
-        return await issues.AsQueryable()
+        return await _issues.AsQueryable()
             .FirstOrDefaultAsync(i => i.ExternalId == issueNumber);
     }
 }
@@ -158,11 +162,13 @@ public async Task<IPagination<ReportedIssue>> GetPagedIssuesAsync(int page, int 
 ### Querying comments for an issue
 
 ```csharp
-public class CommentService(IRepositoryContext<IssueComment> comments)
+public class CommentService(IRepositoryManager repositories)
 {
+    private readonly IRepositoryContext<IssueComment> _comments = repositories.GetRepository<IssueComment>();
+
     public async Task<List<IssueComment>> GetCommentsAsync(int issueNumber)
     {
-        return await comments.GetAllAsync(
+        return await _comments.GetAllAsync(
             c => c.IssueNumber == issueNumber && !c.Deleted,
             q => q.OrderBy(c => c.CreatedAt)
         );
@@ -170,7 +176,7 @@ public class CommentService(IRepositoryContext<IssueComment> comments)
 
     public async Task<List<IssueComment>> GetAllCommentsIncludingDeletedAsync(int issueNumber)
     {
-        return await comments.GetAllAsync(c => c.IssueNumber == issueNumber);
+        return await _comments.GetAllAsync(c => c.IssueNumber == issueNumber);
     }
 }
 ```

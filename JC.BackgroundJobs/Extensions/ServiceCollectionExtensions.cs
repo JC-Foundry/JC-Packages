@@ -83,7 +83,7 @@ public static class ServiceCollectionExtensions
         var options = new HangfireJobOptions();
         configure(options);
 
-        var jobId = options.JobId ?? typeof(TJob).Name;
+        var jobId = options.JobId ?? JobNaming.GetName(typeof(TJob));
         ValidateHangfireJobOptions(jobId, options);
 
         services.AddSingleton(new HangfireJobOptionsFor<TJob>(options));

@@ -237,7 +237,7 @@ builder.Services.AddHangfireJob<ReportGenerationJob>(options =>
 |----------|------|---------|-------------|
 | `Cron` | `string` | `"* * * * *"` | Cron expression for the recurring schedule. Standard five-field cron syntax |
 | `Queue` | `string` | `"default"` | The Hangfire queue this job is assigned to. The Hangfire server must be configured to process this queue |
-| `JobId` | `string?` | `null` (falls back to type name) | Unique identifier for the recurring job in Hangfire. Defaults to the job class name (e.g. `"ReportGenerationJob"`) |
+| `JobId` | `string?` | `null` (falls back to type name) | Unique identifier for the recurring job in Hangfire. Defaults to the job type name, with generic type arguments included for closed generic jobs (e.g. `"ReportGenerationJob"`, or `"AuditCleanupJob(AppDbContext)"`) |
 | `TimeZone` | `TimeZoneInfo` | `TimeZoneInfo.Utc` | Time zone used for cron evaluation |
 | `MisfireHandling` | `MisfireHandlingMode` | `Relaxed` | How missed executions are handled. `Relaxed` executes once when the server comes back; `Strict` attempts to catch up on every missed execution |
 | `ExecutionTimeout` | `TimeSpan?` | `null` | Maximum execution time for a single run. When exceeded, the job's cancellation token is triggered. `null` means no timeout |

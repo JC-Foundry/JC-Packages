@@ -19,7 +19,7 @@ public static class ServiceCollectionExtensions
     /// Registers all JC.Core services including <see cref="AuditService"/>,
     /// the data context, repository manager, and default repository contexts.
     /// </summary>
-    /// <typeparam name="TContext">The DbContext type implementing <see cref="IDataDbContext"/>.</typeparam>
+    /// <typeparam name="TContext">The DbContext type implementing <see cref="IDataDbContext"/>. This is your application's default database context</typeparam>
     /// <param name="services">The service collection to register services into.</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddCore<TContext>(this IServiceCollection services)
@@ -28,24 +28,10 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<IDataDbContext>(sp => sp.GetRequiredService<TContext>());
         services.TryAddScoped<DbContext>(sp => sp.GetRequiredService<TContext>());
         services.TryAddScoped<IRepositoryManager, RepositoryManager>();
-        
-        services.RegisterRepositoryContexts(
-            typeof(AuditModel),
-            typeof(AuditEntry));
 
         return services;
     }
-
-    /// <summary>
-    /// Registers a single <see cref="IRepositoryContext{T}"/> / <see cref="RepositoryContext{T}"/> pair for the specified entity type.
-    /// </summary>
-    /// <typeparam name="T">The entity type to register a repository context for.</typeparam>
-    /// <param name="services">The service collection to register into.</param>
-    /// <returns>The service collection for chaining.</returns>
-    public static IServiceCollection RegisterRepositoryContext<T>(this IServiceCollection services)
-        where T : class
-        => services.RegisterRepositoryContexts(typeof(T));
-
+    
     /// <summary>
     /// Configures <see cref="CoreBackgroundJobOptions"/> for core background jobs
     /// such as <see cref="AuditCleanupJob"/> and <see cref="SoftDeleteCleanupJob"/>.
@@ -63,6 +49,19 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+    
+    
+
+    /// <summary>
+    /// Registers a single <see cref="IRepositoryContext{T}"/> / <see cref="RepositoryContext{T}"/> pair for the specified entity type.
+    /// </summary>
+    /// <typeparam name="T">The entity type to register a repository context for.</typeparam>
+    /// <param name="services">The service collection to register into.</param>
+    /// <returns>The service collection for chaining.</returns>
+    [Obsolete("Use IRepositoryManager. All RepositoryContexts are constructed via IRepositoryManager. DI registered RepositoryContexts will resolve to default database context", true)]
+    public static IServiceCollection RegisterRepositoryContext<T>(this IServiceCollection services)
+        where T : class
+        => services.RegisterRepositoryContexts(typeof(T));
 
     /// <summary>
     /// Registers <see cref="IRepositoryContext{T}"/> / <see cref="RepositoryContext{T}"/> pairs for multiple entity types via reflection.
@@ -71,6 +70,7 @@ public static class ServiceCollectionExtensions
     /// <param name="types">The entity types to register repository contexts for. Each must be a class.</param>
     /// <returns>The service collection for chaining.</returns>
     /// <exception cref="ArgumentException">Thrown if any of the provided types is not a class.</exception>
+    [Obsolete("Use IRepositoryManager. All RepositoryContexts are constructed via IRepositoryManager. DI registered RepositoryContexts will resolve to default database context", true)]
     public static IServiceCollection RegisterRepositoryContexts(this IServiceCollection services, params Type[] types)
     {
         foreach (var type in types)

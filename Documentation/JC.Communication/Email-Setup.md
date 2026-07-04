@@ -83,10 +83,6 @@ When called with no configure callback, `AddEmail<TContext>` registers:
 | `IEmailService` → `MicrosoftEmailService` | Scoped | Email sending via Microsoft 365 OAuth SMTP relay |
 | `EmailLogService` | Scoped | Persists email send attempts to the database |
 | `IEmailDbContext` → `TContext` | Scoped | Your DbContext as the email data context |
-| `IRepositoryContext<EmailLog>` | Scoped | Repository for email log entries |
-| `IRepositoryContext<EmailRecipientLog>` | Scoped | Repository for recipient log entries |
-| `IRepositoryContext<EmailContentLog>` | Scoped | Repository for content log entries |
-| `IRepositoryContext<EmailSentLog>` | Scoped | Repository for send result log entries |
 | `DefaultEmailBranding` | Singleton | Supplies the configured `EmailBranding` to the email body builder and account-email helpers |
 
 Default option values:
@@ -376,6 +372,35 @@ Only the brand name (set via the `EmailBranding` constructor) is required — ev
 | `LogLevel` | `LogLevel` | `Information` | Console | The log level used when outputting email content to the application logger |
 | `UsernameRequired` | `bool` | `true` | SmtpRelay | Whether a username is required for SMTP authentication |
 | `DefaultBranding` | `EmailBranding` | `EmailBranding("JC Foundry")` | Email body builder | Brand name and colour palette applied by `EmailBodyBuilder` and `AccountEmail`. Registered as an injectable `DefaultEmailBranding` singleton |
+
+### ConfigureEmailBackgroundJobs — cleanup job options
+
+Configures `EmailBackgroundJobOptions` for the `EmailLogCleanupJob<TContext>`. Only needs to be called if overriding the defaults — the job uses default values automatically if this is not called.
+
+```csharp
+builder.Services.ConfigureEmailBackgroundJobs(options =>
+{
+    options.EnableEmailLogCleanupJob = true;
+    options.EmailLogRetentionMonths = 6;
+    options.MinimumRetentionRecords = 10;
+    options.EmailLogCleanupChunkingValue = 500;
+});
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `configure` | `Action<EmailBackgroundJobOptions>` | — | Action to configure email background job options |
+
+#### EmailBackgroundJobOptions
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `EnableEmailLogCleanupJob` | `bool` | `true` | Whether the email log cleanup job runs |
+| `EmailLogRetentionMonths` | `ushort` | `6` | Email logs older than this many months are eligible for deletion |
+| `MinimumRetentionRecords` | `ushort` | `10` | Minimum number of email logs to always retain, regardless of age |
+| `EmailLogCleanupChunkingValue` | `ushort` | `500` | Maximum number of email logs deleted per job execution |
+
+`EmailLogCleanupJob<TContext>` deletes `EmailLog` records older than `EmailLogRetentionMonths` together with their related `EmailRecipientLog`, `EmailContentLog`, and `EmailSentLog` records, in a single transaction. It is not self-executing — register it with [JC.BackgroundJobs](../JC.BackgroundJobs/Setup.md), using the non-generic `EmailLogCleanupJob` for your default context or a closed generic form (e.g. `EmailLogCleanupJob<AppDbContext>`) for a managed context.
 
 ## 3. Apply migrations
 

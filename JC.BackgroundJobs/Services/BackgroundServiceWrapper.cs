@@ -20,7 +20,7 @@ internal sealed class BackgroundServiceWrapper<TJob>(
     where TJob : class, IBackgroundJob
 {
     private readonly BackgroundJobOptions _options = jobOptions.Value;
-    private readonly string _jobName = typeof(TJob).Name;
+    private readonly string _jobName = JobNaming.GetName(typeof(TJob));
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

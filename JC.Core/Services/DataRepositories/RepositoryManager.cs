@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace JC.Core.Services.DataRepositories;
 
@@ -13,6 +14,7 @@ public class RepositoryManager : IRepositoryManager, IDisposable, IAsyncDisposab
     private readonly DbContext _context;
     private readonly IServiceProvider _serviceProvider;
     private readonly ConcurrentDictionary<Type, object> _repositories = new();
+    private readonly ConcurrentDictionary<Type, RepositoryManager> _boundManagers = new();
     private IDbContextTransaction? _currentTransaction;
 
     public RepositoryManager(DbContext context, IServiceProvider serviceProvider)
@@ -24,10 +26,16 @@ public class RepositoryManager : IRepositoryManager, IDisposable, IAsyncDisposab
     public IRepositoryContext<T> GetRepository<T>() where T : class
     {
         var type = typeof(T);
-
+        
         return (IRepositoryContext<T>)_repositories.GetOrAdd(type, _ =>
-            _serviceProvider.GetRequiredService<IRepositoryContext<T>>());
+            new RepositoryContext<T>(_context, _serviceProvider, 
+                _serviceProvider.GetRequiredService<ILogger<RepositoryContext<T>>>()));
     }
+
+    public IRepositoryManager For<T>() where T : DbContext
+        => _boundManagers.GetOrAdd(typeof(T),
+            _ => new RepositoryManager(_serviceProvider.GetRequiredService<T>(), _serviceProvider));
+
 
     public async Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
     {
@@ -65,6 +73,10 @@ public class RepositoryManager : IRepositoryManager, IDisposable, IAsyncDisposab
     {
         _currentTransaction?.Dispose();
         _currentTransaction = null;
+
+        foreach (var manager in _boundManagers.Values)
+            manager.Dispose();
+        _boundManagers.Clear();
     }
 
     public async ValueTask DisposeAsync()
@@ -74,5 +86,9 @@ public class RepositoryManager : IRepositoryManager, IDisposable, IAsyncDisposab
             await _currentTransaction.DisposeAsync();
             _currentTransaction = null;
         }
+
+        foreach (var manager in _boundManagers.Values)
+            await manager.DisposeAsync();
+        _boundManagers.Clear();
     }
 }

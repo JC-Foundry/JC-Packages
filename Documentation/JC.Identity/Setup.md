@@ -98,7 +98,6 @@ When called with no configuration callbacks, `AddIdentity` sets:
 | `IUserInfo` → `UserInfo` | Scoped | Current user identity, populated per-request by `UserInfoMiddleware` |
 | `IUserClaimsPrincipalFactory<TUser>` → `DefaultClaimsPrincipalFactory` | Scoped | Extends the default claims with 12 custom claims from `BaseUser` |
 | `IOptions<IdentityMiddlewareOptions>` | Singleton | Middleware configuration |
-| `IRepositoryContext<Tenant>` | Scoped | Repository for multi-tenancy tenants |
 
 `UseIdentity` registers middleware in this order:
 1. `UseAuthentication()` — ASP.NET Core authentication
@@ -227,7 +226,6 @@ builder.Services.AddIdentityBase<AppUser, AppRole, CustomUserInfo>(
 - `IUserInfo` (scoped)
 - `DefaultClaimsPrincipalFactory` as `IUserClaimsPrincipalFactory<TUser>`
 - `IdentityMiddlewareOptions`
-- `Tenant` repository context
 
 ### Middleware — individual registration
 

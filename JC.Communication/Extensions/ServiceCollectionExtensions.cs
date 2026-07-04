@@ -92,13 +92,6 @@ public static class ServiceCollectionExtensions
         // Db context
         services.TryAddScoped<IEmailDbContext>(sp => sp.GetRequiredService<TContext>());
 
-        // Repository contexts for log entities
-        services.RegisterRepositoryContexts(
-            typeof(EmailLog),
-            typeof(EmailRecipientLog),
-            typeof(EmailContentLog),
-            typeof(EmailSentLog));
-
         services.AddEmailBase(configuration, options);
         return services;
     }
@@ -317,12 +310,6 @@ public static class ServiceCollectionExtensions
         // Db context
         services.TryAddScoped<INotificationDbContext>(sp => sp.GetRequiredService<TContext>());
 
-        // Repository contexts for notification entities
-        services.RegisterRepositoryContexts(
-            typeof(Notification),
-            typeof(NotificationStyle),
-            typeof(NotificationLog));
-
         services.AddNotificationsBase<TNotificationManager>();
         return services;
     }
@@ -355,6 +342,24 @@ public static class ServiceCollectionExtensions
         services.TryAddScoped<NotificationCache>();
         services.TryAddScoped<NotificationSender>();
         services.TryAddScoped<INotificationManager, TNotificationManager>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Configures <see cref="NotificationBackgroundJobOptions"/> for notification background jobs
+    /// such as <see cref="NotificationLogCleanupJob{TContext}"/>.
+    /// Only needs to be called if overriding the default options — jobs will use
+    /// defaults automatically if this is not called.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configure">Action to configure <see cref="NotificationBackgroundJobOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection ConfigureNotificationBackgroundJobs(this IServiceCollection services,
+        Action<NotificationBackgroundJobOptions> configure)
+    {
+        services.AddOptions<NotificationBackgroundJobOptions>()
+            .Configure(opts => configure?.Invoke(opts));
 
         return services;
     }
@@ -392,16 +397,6 @@ public static class ServiceCollectionExtensions
 
         // Db context
         services.TryAddScoped<IMessagingDbContext>(sp => sp.GetRequiredService<TContext>());
-
-        // Repository contexts for messaging entities
-        services.RegisterRepositoryContexts(
-            typeof(ChatThread),
-            typeof(ChatMessage),
-            typeof(ChatParticipant),
-            typeof(ChatMetadata),
-            typeof(ThreadDeleted),
-            typeof(ThreadActivityLog),
-            typeof(MessageReadLog));
 
         // Services
         services.TryAddScoped<MessagingValidationService>();

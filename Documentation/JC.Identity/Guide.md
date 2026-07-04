@@ -373,13 +373,15 @@ System administrators can bypass tenant filters using `AllTenants`:
 
 ```csharp
 public class AdminProjectService(
-    IRepositoryContext<Project> projects,
+    IRepositoryManager repositories,
     IUserInfo userInfo)
 {
+    private readonly IRepositoryContext<Project> _projects = repositories.GetRepository<Project>();
+
     public async Task<List<Project>> GetAllProjectsAcrossTenantsAsync()
     {
         // SystemAdmin users see all tenants; others see only their own
-        return await projects.AsQueryable()
+        return await _projects.AsQueryable()
             .AllTenants(userInfo)
             .OrderBy(p => p.Name)
             .ToListAsync();
@@ -396,8 +398,10 @@ public class AdminProjectService(
 The `Tenant` entity extends `AuditModel`, so it has full audit trail support and works with the repository pattern:
 
 ```csharp
-public class TenantService(IRepositoryContext<Tenant> tenants)
+public class TenantService(IRepositoryManager repositories)
 {
+    private readonly IRepositoryContext<Tenant> _tenants = repositories.GetRepository<Tenant>();
+
     public async Task<Tenant> CreateAsync(string name, string? domain = null)
     {
         var tenant = new Tenant
@@ -407,17 +411,17 @@ public class TenantService(IRepositoryContext<Tenant> tenants)
             Description = $"Tenant for {name}"
         };
 
-        return await tenants.AddAsync(tenant);
+        return await _tenants.AddAsync(tenant);
     }
 
     public async Task<List<Tenant>> GetAllAsync()
     {
-        return await tenants.GetAllAsync(t => !t.IsDeleted);
+        return await _tenants.GetAllAsync(t => !t.IsDeleted);
     }
 
     public async Task<Tenant?> GetByDomainAsync(string domain)
     {
-        return await tenants.AsQueryable()
+        return await _tenants.AsQueryable()
             .FilterDeleted(DeletedQueryType.OnlyActive)
             .FirstOrDefaultAsync(t => t.Domain == domain);
     }
