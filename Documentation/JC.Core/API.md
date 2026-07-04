@@ -291,7 +291,7 @@ Enum specifying how soft-deleted records should be filtered in queries.
 
 **Namespace:** `JC.Core.Services.DataRepositories`
 
-Generic repository providing full CRUD, soft-delete, and restore operations for entity type `T`. Automatically populates creation fields for entities extending `BaseCreateModel` (both `AuditModel` and `LogModel`), full lifecycle fields for `AuditModel` entities, and falls back to reflection-based `IsDeleted` property detection for non-`AuditModel` entities. Inject via `IRepositoryContext<T>`.
+Generic repository providing full CRUD, soft-delete, and restore operations for entity type `T`. Automatically populates creation fields for entities extending `BaseCreateModel` (both `AuditModel` and `LogModel`), full lifecycle fields for `AuditModel` entities, and falls back to reflection-based `IsDeleted` property detection for non-`AuditModel` entities. Obtained via `IRepositoryManager.GetRepository<T>()`, or `IRepositoryManager.For<TContext>().GetRepository<T>()` for a managed context.
 
 **Constraint:** `T : class`
 
@@ -621,7 +621,7 @@ Permanently removes a collection of entities from the database using `RemoveRang
 
 **Namespace:** `JC.Core.Services.DataRepositories`
 
-Unit of work implementation providing thread-safe repository caching and transaction management. Repositories are cached in a `ConcurrentDictionary` and resolved from DI on first access. Implements `IDisposable` and `IAsyncDisposable` for transaction cleanup. Inject via `IRepositoryManager`.
+Unit of work implementation providing thread-safe repository caching and transaction management. Repositories are created on first access and cached in a `ConcurrentDictionary`. Manager instances bound to other contexts via `For<T>()` are cached the same way. Implements `IDisposable` and `IAsyncDisposable` for transaction and bound-manager cleanup. Inject via `IRepositoryManager`.
 
 ### Methods
 
@@ -631,7 +631,17 @@ Unit of work implementation providing thread-safe repository caching and transac
 
 **Constraint:** `T : class`
 
-Retrieves (or creates and caches) the repository context for the specified entity type. On first call for a given `T`, resolves `IRepositoryContext<T>` from the service provider. Subsequent calls return the cached instance.
+Retrieves (or creates and caches) the repository context for the specified entity type, bound to this manager's `DbContext`. On first call for a given `T`, a `RepositoryContext<T>` is created; subsequent calls return the cached instance. Works for any class — no prior registration of the entity type is required.
+
+---
+
+#### For\<T\>()
+
+**Returns:** `IRepositoryManager`
+
+**Constraint:** `T : DbContext`
+
+Returns a repository manager bound to the specified `DbContext` type, resolved from the service provider. Repositories obtained from the returned manager (via `GetRepository<T>()`) and its transactions operate against that context. The bound manager is cached per context type for the lifetime of the scope, so repeated calls for the same context return the same instance. Use this to read and write additional (managed) contexts; the parameterless members continue to target the default context registered with `AddCore`.
 
 ---
 
@@ -643,7 +653,7 @@ Retrieves (or creates and caches) the repository context for the specified entit
 |-----------|------|---------|-------------|
 | `cancellationToken` | `CancellationToken` | `default` | A token to cancel the operation. |
 
-Begins a new database transaction on the underlying `DbContext`. Stores a reference to the transaction for use by `CommitTransactionAsync` and `RollbackTransactionAsync`.
+Begins a database transaction on the underlying `DbContext` and stores a reference to it for use by `CommitTransactionAsync` and `RollbackTransactionAsync`. If a transaction has already been started on this manager, the existing transaction is returned rather than a new one being created.
 
 ---
 
@@ -683,29 +693,33 @@ Persists all pending changes to the database without committing or rolling back 
 
 ---
 
-## AuditCleanupJob
+## AuditCleanupJob\<TContext\>
 
 **Namespace:** `JC.Core.Services`
 
 **Implements:** `IBackgroundJob`
 
-Deletes audit entries older than the configured retention period. Respects minimum retention records (globally or per table) and processes deletions in configurable chunks.
+**Constraint:** `TContext : DbContext`
 
-The job queries all `AuditEntry` records with an `AuditDate` before the cutoff (`DateTime.UtcNow` minus `AuditRetentionMonths`), ordered by `AuditDate` descending. If `CleanupChunkingValue` is greater than zero, the result set is truncated to that size. If `MinimumRetentionRecords` is set, the job ensures that many entries are retained — either per table (when `RetentionRecordsPerTable` is `true`, grouping by `TableName`) or globally. Entries beyond the retention minimum are hard-deleted via `IRepositoryContext<AuditEntry>.DeleteRangeAsync`.
+Deletes audit entries in `TContext`'s database older than the configured retention period. Respects minimum retention records (globally or per table) and processes deletions in configurable chunks. A non-generic `AuditCleanupJob` is also provided that targets your default context; use the generic form (e.g. `AuditCleanupJob<AppDbContext>`) to target a specific managed context.
+
+The job resolves the `AuditEntry` repository for `TContext` via `IRepositoryManager.For<TContext>()`, then queries all `AuditEntry` records with an `AuditDate` before the cutoff (`DateTime.UtcNow` minus `AuditRetentionMonths`), ordered by `AuditDate` descending. If `AuditCleanupChunkingValue` is greater than zero, the result set is truncated to that size. If `MinimumRetentionRecords` is set, the job ensures that many entries are retained — either per table (when `RetentionRecordsPerTable` is `true`, grouping by `TableName`) or globally. Entries beyond the retention minimum are hard-deleted via `IRepositoryContext<AuditEntry>.DeleteRangeAsync`.
 
 Controlled by `CoreBackgroundJobOptions.EnableAuditCleanupJob` — if `false`, `ExecuteAsync` returns immediately. See [Setup](Setup.md#configurecorebackgroundjobs--background-job-options) for configuration.
 
 ---
 
-## SoftDeleteCleanupJob
+## SoftDeleteCleanupJob\<TContext\>
 
 **Namespace:** `JC.Core.Services`
 
 **Implements:** `IBackgroundJob`
 
-Hard-deletes soft-deleted entities that have exceeded the configured retention period. Automatically discovers all soft-deletable entity types registered in the `DbContext` model.
+**Constraint:** `TContext : DbContext`
 
-On execution, the job inspects `DbContext.Model.GetEntityTypes()` and identifies types that either extend `AuditModel` (which has `IsDeleted` built in) or have their own `bool IsDeleted` property (detected via reflection). For each qualifying type not in the `SoftDeleteRetentionBlacklist`, it invokes a generic cleanup method via reflection (`MakeGenericMethod`).
+Hard-deletes soft-deleted entities in `TContext` that have exceeded the configured retention period. Automatically discovers all soft-deletable entity types in the context model. A non-generic `SoftDeleteCleanupJob` (extending `SoftDeleteCleanupJob<DbContext>`) is also provided; it targets the default context registered with `AddCore`.
+
+On execution, the job inspects `TContext.Model.GetEntityTypes()` and identifies types that either extend `AuditModel` (which has `IsDeleted` built in) or have their own `bool IsDeleted` property (detected via reflection). For each qualifying type not in the `SoftDeleteRetentionBlacklist`, it invokes a generic cleanup method via reflection (`MakeGenericMethod`).
 
 For `AuditModel` entities, the cleanup filters by `IsDeleted == true` and `DeletedUtc < cutoff` directly in the database query. For non-`AuditModel` entities, it builds an EF-translatable expression tree to filter by `IsDeleted == true` in the database — note that this path does not filter by date, so all soft-deleted records are removed regardless of when they were deleted. Matching entities are removed via `DbSet<T>.RemoveRange` and persisted with `SaveChangesAsync`.
 

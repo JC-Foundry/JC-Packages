@@ -1,35 +1,37 @@
 # JC.Core — Guide
 
-Covers repository pattern usage, soft-delete and restore, pagination, audit trail behaviour, entity model hierarchy, background jobs, transactions, and utility helpers. See [Setup](Setup.md) for registration.
+Covers repository pattern usage, multiple DbContexts, soft-delete and restore, pagination, audit trail behaviour, entity model hierarchy, background jobs, transactions, and utility helpers. See [Setup](Setup.md) for registration.
 
 ## Repository pattern
 
 ### Basic CRUD
 
-Inject `IRepositoryContext<T>` for typed repository access:
+Inject `IRepositoryManager` and obtain a typed repository with `GetRepository<T>()`:
 
 ```csharp
-public class ProductService(IRepositoryContext<Product> products)
+public class ProductService(IRepositoryManager repositories)
 {
+    private readonly IRepositoryContext<Product> _products = repositories.GetRepository<Product>();
+
     public async Task<Product> CreateAsync(string name, decimal price)
     {
         var product = new Product { Name = name, Price = price };
-        return await products.AddAsync(product);
+        return await _products.AddAsync(product);
     }
 
     public async Task<Product?> GetAsync(int id)
     {
-        return await products.GetByIdAsync(id);
+        return await _products.GetByIdAsync(id);
     }
 
     public async Task<List<Product>> GetAllActiveAsync()
     {
-        return await products.GetAllAsync(p => !p.IsDeleted);
+        return await _products.GetAllAsync(p => !p.IsDeleted);
     }
 
     public async Task UpdateAsync(Product product)
     {
-        await products.UpdateAsync(product);
+        await _products.UpdateAsync(product);
     }
 }
 ```
@@ -186,7 +188,7 @@ This is useful for background services, data migrations, or any operation where 
 
 ### Accessing repositories
 
-`IRepositoryManager` acts as a unit of work, providing access to all registered repositories:
+`IRepositoryManager` acts as a unit of work, providing access to a repository for any entity type:
 
 ```csharp
 public class OrderService(IRepositoryManager repositoryManager)
@@ -209,9 +211,9 @@ public class OrderService(IRepositoryManager repositoryManager)
 }
 ```
 
-`GetRepository<T>()` resolves the `IRepositoryContext<T>` from DI on first access and caches it internally using a `ConcurrentDictionary`. Subsequent calls for the same entity type return the cached instance.
+`GetRepository<T>()` creates the `IRepositoryContext<T>` on first access and caches it internally using a `ConcurrentDictionary`. Subsequent calls for the same entity type return the cached instance.
 
-**Nuance:** You must register a repository context for every entity type you use — whether injecting `IRepositoryContext<T>` directly or accessing it via `GetRepository<T>()`. An unregistered type will throw at runtime. See [Setup](Setup.md) for `RegisterRepositoryContexts`.
+**Nuance:** `GetRepository<T>()` works for any class — there is no registration step for individual entity types. The repository is bound to your default context (the one registered with `AddCore`). To read or write a different context, use `For<TContext>()` — see [Multiple DbContexts](#multiple-dbcontexts).
 
 ### Transactions
 
@@ -249,7 +251,63 @@ public class TransferService(IRepositoryManager repositoryManager)
 
 `CommitTransactionAsync` calls `SaveChangesAsync` internally before committing, so you don't need to save manually. `RollbackTransactionAsync` discards all pending changes.
 
-**Nuance:** Only one transaction can be active at a time per `IRepositoryManager` instance. Calling `BeginTransactionAsync` while a transaction is already open does not throw — it starts a new one. Calling `CommitTransactionAsync` or `RollbackTransactionAsync` without an active transaction throws `InvalidOperationException`.
+**Nuance:** Only one transaction can be active at a time per `IRepositoryManager` instance. Calling `BeginTransactionAsync` while a transaction is already open does not throw or start a second one — it returns the transaction already in progress. Calling `CommitTransactionAsync` or `RollbackTransactionAsync` without an active transaction throws `InvalidOperationException`.
+
+## Multiple DbContexts
+
+When your application hosts more than one `DbContext` — for example a central admin application that manages several other applications' databases — `IRepositoryManager.For<TContext>()` gives you a repository bound to a specific context. The parameterless `GetRepository<T>()` always targets your default context (the one registered with `AddCore`); `For<TContext>()` targets any other registered context. See [Setup — Multiple DbContexts](Setup.md#multiple-dbcontexts--managed-contexts) for registering the additional contexts.
+
+### Reading and writing a managed context
+
+```csharp
+public class PortfolioAdminService(IRepositoryManager repositories)
+{
+    private readonly IRepositoryContext<Project> _projects =
+        repositories.For<PortfolioDbContext>().GetRepository<Project>();
+
+    public async Task<List<Project>> GetActiveAsync()
+        => await _projects.GetAllAsync(p => !p.IsDeleted);
+}
+```
+
+Repositories from `For<TContext>()` behave exactly like the default ones — audit fields, soft-delete, and pagination all work the same way. The only difference is which database they read and write.
+
+### Shared entity types
+
+Some types exist in every context — `AuditEntry` (the audit trail) is the common example, since every `DataDbContext` has one. Name the context explicitly to disambiguate which database you mean:
+
+```csharp
+// Audit entries in the default (admin) database
+var ownAudits = repositories.GetRepository<AuditEntry>();
+
+// Audit entries in a managed application's database
+var portfolioAudits = repositories.For<PortfolioDbContext>().GetRepository<AuditEntry>();
+```
+
+This is the main reason to reach for `For<TContext>()` explicitly — a shared type like `AuditEntry` is ambiguous unless you say which context owns the instance you want.
+
+### Per-context transactions
+
+Each context owns its own transaction. Begin, commit, and roll back on the manager for the context you're writing to:
+
+```csharp
+var portfolio = repositories.For<PortfolioDbContext>();
+
+await portfolio.BeginTransactionAsync();
+try
+{
+    await portfolio.GetRepository<Project>().AddAsync(project, saveNow: false);
+    await portfolio.GetRepository<Milestone>().AddAsync(milestone, saveNow: false);
+    await portfolio.CommitTransactionAsync();
+}
+catch
+{
+    await portfolio.RollbackTransactionAsync();
+    throw;
+}
+```
+
+**Nuance:** A transaction is scoped to a single context — it cannot span two databases, and there is no distributed transaction support. If one logical operation writes to both your default context and a managed context, each needs its own transaction and they commit independently. The manager returned by `For<TContext>()` is cached per context for the lifetime of the scope, so calling `For<PortfolioDbContext>()` again returns the same instance and the same in-progress transaction.
 
 ## Soft-delete and restore
 
@@ -575,15 +633,15 @@ Implementations should contain only the job's work. Looping, error handling, and
 
 #### AuditCleanupJob
 
-Deletes audit entries older than the configured retention period. When `RetentionRecordsPerTable` is enabled (the default), the job groups audit entries by table name and ensures each table retains at least `MinimumRetentionRecords` entries. When disabled, the minimum is applied globally across all tables. Processes in configurable chunks to limit the blast radius of each execution.
+`AuditCleanupJob<TContext>` deletes audit entries in `TContext`'s database older than the configured retention period. When `RetentionRecordsPerTable` is enabled (the default), the job groups audit entries by table name and ensures each table retains at least `MinimumRetentionRecords` entries. When disabled, the minimum is applied globally across all tables. Processes in configurable chunks to limit the blast radius of each execution. A non-generic `AuditCleanupJob` is also provided that targets your default context.
 
 #### SoftDeleteCleanupJob
 
-Hard-deletes soft-deleted entities that have been in the "deleted" state longer than the configured retention period. Automatically discovers all entity types in the `DbContext` model that extend `AuditModel` or have a `bool IsDeleted` property. For `AuditModel` entities, the job filters by `DeletedUtc` directly in the database query. For non-`AuditModel` entities with an `IsDeleted` property, it loads all records and filters in memory (EF Core cannot translate reflection-based property access). Respects the blacklist to skip specific entity types.
+`SoftDeleteCleanupJob<TContext>` hard-deletes soft-deleted entities in `TContext` that have been in the "deleted" state longer than the configured retention period. Automatically discovers all entity types in the context model that extend `AuditModel` or have a `bool IsDeleted` property. For `AuditModel` entities, the job filters by `DeletedUtc` directly in the database query. For non-`AuditModel` entities with an `IsDeleted` property, it builds an expression tree so EF Core translates the filter to SQL. Respects the blacklist to skip specific entity types. A non-generic `SoftDeleteCleanupJob` is also provided that targets your default context.
 
 See [Setup — ConfigureCoreBackgroundJobs](Setup.md#configurecorebackgroundjobs--background-job-options) for all configuration options and defaults.
 
-**Nuance:** `ConfigureCoreBackgroundJobs` only configures the options — it does not register the jobs themselves. The consuming application must register `AuditCleanupJob` and/or `SoftDeleteCleanupJob` with JC.BackgroundJobs (or its own hosting infrastructure) for them to execute.
+**Nuance:** `ConfigureCoreBackgroundJobs` only configures the options — it does not register the jobs themselves. The consuming application must register the jobs with JC.BackgroundJobs (or its own hosting infrastructure) for them to execute — the non-generic form for your default context, or a closed generic form (e.g. `AuditCleanupJob<AppDbContext>`) for a managed context.
 
 ## DateTime extensions
 

@@ -72,9 +72,6 @@ public static class ServiceCollectionExtensions
         // Webhook services
         services.TryAddScoped<GithubWebhookService>();
 
-        // Repository contexts
-        services.RegisterRepositoryContexts(typeof(ReportedIssue), typeof(IssueComment));
-
         return services;
     }
 }

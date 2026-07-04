@@ -1,23 +1,35 @@
 using JC.Communication.Logging.Models.Messaging;
+using JC.Communication.Messaging.Data;
 using JC.Communication.Messaging.Models.Options;
+using JC.Core.Data;
 using JC.Core.Models;
 using JC.Core.Services.DataRepositories;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace JC.Communication.Messaging.Services;
 
-public class ActivityLogCleanupJob : IBackgroundJob
+public class ActivityLogCleanupJob(IRepositoryManager repos,
+    IOptions<MessagingBackgroundJobOptions> options,
+    ILogger<ActivityLogCleanupJob<DbContext>> logger)
+    : ActivityLogCleanupJob<DbContext>(repos, options, logger)
+{
+}
+
+
+public class ActivityLogCleanupJob<TContext> : IBackgroundJob
+    where TContext : DbContext
 {
     private readonly IRepositoryContext<ThreadActivityLog> _logs;
     private readonly MessagingBackgroundJobOptions _options;
-    private readonly ILogger<ActivityLogCleanupJob> _logger;
+    private readonly ILogger<ActivityLogCleanupJob<TContext>> _logger;
 
-    public ActivityLogCleanupJob(IRepositoryContext<ThreadActivityLog> logs,
+    public ActivityLogCleanupJob(IRepositoryManager repos,
         IOptions<MessagingBackgroundJobOptions> options,
-        ILogger<ActivityLogCleanupJob> logger)
+        ILogger<ActivityLogCleanupJob<TContext>> logger)
     {
-        _logs = logs;
+        _logs = repos.For<TContext>().GetRepository<ThreadActivityLog>();
         _options = options.Value;
         _logger = logger;
     }

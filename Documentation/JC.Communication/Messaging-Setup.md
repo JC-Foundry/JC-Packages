@@ -74,7 +74,6 @@ When called with no configuration callback, `AddMessaging` registers:
 | `MessagingValidationService` | Scoped | Internal validation shared across messaging services |
 | `MessagingLogService` | Scoped | Thread activity logging and message read tracking |
 | `IMessagingDbContext` → `TContext` | Scoped | Your DbContext as the messaging data context |
-| `IRepositoryContext<T>` (×7) | Scoped | Repositories for ChatThread, ChatMessage, ChatParticipant, ChatMetadata, ThreadDeleted, ThreadActivityLog, MessageReadLog |
 
 Default option values:
 
@@ -160,7 +159,7 @@ options.ThreadActivityLoggingMode = ThreadActivityLoggingMode.Message | ThreadAc
 
 ### ConfigureMessagingBackgroundJobs — cleanup job options
 
-Configures `MessagingBackgroundJobOptions` for the `ActivityLogCleanupJob` and `ReadLogCleanupJob`. Only needs to be called if overriding defaults — jobs use default values automatically if this is not called.
+Configures `MessagingBackgroundJobOptions` for the `ActivityLogCleanupJob<TContext>` and `ReadLogCleanupJob<TContext>`. Only needs to be called if overriding defaults — jobs use default values automatically if this is not called.
 
 ```csharp
 builder.Services.ConfigureMessagingBackgroundJobs(options =>
@@ -204,6 +203,8 @@ builder.Services.ConfigureMessagingBackgroundJobs(options =>
 | `ReadLogMinimumRetentionRecords` | `ushort` | `30` | Minimum number of records to always retain, regardless of age |
 | `ReadLogCleanupChunkingValue` | `ushort` | `500` | Maximum number of records deleted per job execution |
 | `KeepMostRecentReadLog` | `bool` | `true` | When `true`, the most recent read log per user per message is always retained regardless of retention period. Takes precedence over `ReadLogRetentionMonths` |
+
+These jobs are not self-executing. Register them with [JC.BackgroundJobs](../JC.BackgroundJobs/Setup.md), using the non-generic forms (`ActivityLogCleanupJob`, `ReadLogCleanupJob`) for your default context or closed generic forms (e.g. `ActivityLogCleanupJob<AppDbContext>`) for a managed context; configuring the options here only controls their behaviour.
 
 ### ApplyMessagingMappings — entity configuration
 

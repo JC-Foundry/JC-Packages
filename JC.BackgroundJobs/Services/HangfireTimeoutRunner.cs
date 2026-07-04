@@ -31,7 +31,7 @@ internal sealed class HangfireTimeoutRunner<TJob>(
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            logger.LogWarning("{Job} timed out after {Timeout}", typeof(TJob).Name, timeout);
+            logger.LogWarning("{Job} timed out after {Timeout}", JobNaming.GetName(typeof(TJob)), timeout);
             throw;
         }
     }

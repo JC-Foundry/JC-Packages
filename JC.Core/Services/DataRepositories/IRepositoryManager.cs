@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace JC.Core.Services.DataRepositories;
@@ -13,6 +14,13 @@ public interface IRepositoryManager
     /// <typeparam name="T">The entity type.</typeparam>
     /// <returns>The repository context for <typeparamref name="T"/>.</returns>
     IRepositoryContext<T> GetRepository<T>() where T : class;
+
+    /// <summary>
+    /// Retrieves a repository manager instance specific to the provided data context type.
+    /// </summary>
+    /// <typeparam name="T">The type of the data context implementing <see cref="DbContext"/>.</typeparam>
+    /// <returns>An instance of <see cref="IRepositoryManager"/> configured for the specified data context type.</returns>
+    IRepositoryManager For<T>() where T : DbContext;
 
     /// <summary>
     /// Begins a new database transaction.

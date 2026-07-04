@@ -37,9 +37,6 @@ public class AppDbContext : DataDbContext
 ```csharp
 // Register JC.Core services — repository pattern, audit trail, and repository manager
 builder.Services.AddCore<AppDbContext>();
-
-// Register repository contexts for each entity you want to access through the repository pattern
-builder.Services.RegisterRepositoryContexts(typeof(Product), typeof(Order));
 ```
 
 ### Defaults
@@ -50,10 +47,9 @@ When called, `AddCore<TContext>` registers:
 |-------------|----------|-------------|
 | `IDataDbContext` → `TContext` | Scoped | Your DbContext as the data context |
 | `DbContext` → `TContext` | Scoped | Your DbContext as the base EF Core context |
-| `IRepositoryManager` → `RepositoryManager` | Scoped | Unit of work with transaction support |
-| `IRepositoryContext<AuditModel>` | Scoped | Repository for the built-in `AuditModel` base class |
+| `IRepositoryManager` → `RepositoryManager` | Scoped | Unit of work with repository access and transaction support |
 
-`RegisterRepositoryContexts` adds an `IRepositoryContext<T>` / `RepositoryContext<T>` pair for each entity type, giving you typed repository access with automatic audit field population.
+Repositories are obtained from `IRepositoryManager` — inject it and call `GetRepository<T>()` for any entity type. There is no per-entity registration step: repository contexts are created on demand the first time they're requested and cached for the lifetime of the scope.
 
 All registrations use `TryAddScoped` — if you've already registered a service (e.g. `DbContext`), it won't be overwritten.
 
@@ -121,27 +117,11 @@ builder.Services.AddCore<AppDbContext>();
 |---------------|-----------|-------------|
 | `TContext` | `DbContext, IDataDbContext` | Your application's DbContext. Extend `DataDbContext` which implements `IDataDbContext` for you |
 
-There are no configuration parameters or callbacks — `AddCore` registers all services with sensible defaults. Customisation happens through entity registration and DbContext configuration.
+There are no configuration parameters or callbacks — `AddCore` registers all services with sensible defaults. Customisation happens through DbContext configuration.
 
-### RegisterRepositoryContexts — entity registration
+### Accessing repositories
 
-Register repository contexts for your entity types. There are two approaches:
-
-**Multiple types at once (params array):**
-
-```csharp
-builder.Services.RegisterRepositoryContexts(typeof(Product), typeof(Order), typeof(Customer));
-```
-
-**Single type (generic):**
-
-```csharp
-builder.Services.RegisterRepositoryContext<Product>();
-```
-
-Both register a scoped `IRepositoryContext<T>` / `RepositoryContext<T>` pair for each type. Every type must be a class — passing a struct or interface throws `ArgumentException`.
-
-You must register a repository context for every entity type you want to use with the repository pattern — whether you inject `IRepositoryContext<T>` directly or access it through `IRepositoryManager.GetRepository<T>()`. The repository manager resolves repositories from DI, so unregistered types will fail at runtime.
+There is no registration step for individual entity types. Repositories are obtained at runtime from `IRepositoryManager` — inject it and call `GetRepository<T>()` for any entity type, or `For<TContext>()` to target a [managed context](#multiple-dbcontexts--managed-contexts). Contexts are created on demand and cached for the lifetime of the scope. See the [Guide](Guide.md) for usage.
 
 ### DataDbContext — extending the base context
 
@@ -264,6 +244,36 @@ catch
 
 `CommitTransactionAsync` calls `SaveChangesAsync` before committing. `RollbackTransactionAsync` and `CommitTransactionAsync` both throw `InvalidOperationException` if no transaction has been started.
 
+### Multiple DbContexts — managed contexts
+
+`IRepositoryManager` can work with more than one `DbContext` in the same application — useful when a single process reads and writes several databases (for example a central admin application that manages several other applications' data).
+
+Register your default context with `AddCore`, then register each additional context in DI as you would any EF Core context (for example with a JC database provider). Each managed context should extend `DataDbContext` so it gets the same audit trail behaviour as your default context:
+
+```csharp
+// Default context — registered with AddCore
+builder.Services.AddCore<AppDbContext>();
+builder.Services.AddMySqlDatabase<AppDbContext>(builder.Configuration, migrationsAssembly: "MyApp");
+
+// Additional managed context — its own connection string, registered as a normal DbContext
+builder.Services.AddMySqlDatabase<PortfolioDbContext>(builder.Configuration,
+    migrationsAssembly: "Portfolio.Data",
+    connectionStringName: "PortfolioConnection");
+```
+
+Each context resolves its own connection string from configuration:
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "your-default-connection-string",
+    "PortfolioConnection": "your-portfolio-connection-string"
+  }
+}
+```
+
+No further registration is required — `IRepositoryManager.For<TContext>()` resolves each managed context from DI at runtime. See the [Guide](Guide.md) for reading and writing managed contexts, addressing shared entity types, and per-context transactions.
+
 ### IBackgroundJob — cross-package background jobs
 
 JC.Core defines the `IBackgroundJob` interface so that any package can declare background jobs without depending on JC.BackgroundJobs:
@@ -275,7 +285,7 @@ public interface IBackgroundJob
 }
 ```
 
-JC.Core only *defines* jobs — it does not execute them. The consuming application must use [JC.BackgroundJobs](../JC.BackgroundJobs/Setup.md) (hosted services or Hangfire) to register and schedule job execution. JC.Core itself provides two built-in jobs: `AuditCleanupJob` and `SoftDeleteCleanupJob`.
+JC.Core only *defines* jobs — it does not execute them. The consuming application must use [JC.BackgroundJobs](../JC.BackgroundJobs/Setup.md) (hosted services or Hangfire) to register and schedule job execution. JC.Core itself provides two built-in cleanup jobs: `AuditCleanupJob` and `SoftDeleteCleanupJob`. Each has a non-generic form that targets your default context, and a generic `<TContext>` form (e.g. `AuditCleanupJob<AppDbContext>`) for targeting a specific managed context.
 
 ### ConfigureCoreBackgroundJobs — background job options
 
@@ -313,11 +323,11 @@ builder.Services.ConfigureCoreBackgroundJobs(options =>
 
 #### AuditCleanupJob
 
-Deletes audit entries older than `AuditRetentionMonths`, respecting `MinimumRetentionRecords` (globally or per table depending on `RetentionRecordsPerTable`). Processes in chunks when `AuditCleanupChunkingValue` is set.
+`AuditCleanupJob<TContext>` deletes audit entries in `TContext`'s database older than `AuditRetentionMonths`, respecting `MinimumRetentionRecords` (globally or per table depending on `RetentionRecordsPerTable`). Processes in chunks when `AuditCleanupChunkingValue` is set. A non-generic `AuditCleanupJob` is also provided that targets your default context.
 
 #### SoftDeleteCleanupJob
 
-Discovers all entity types in the `DbContext` model that extend `AuditModel` or have a `bool IsDeleted` property. Hard-deletes soft-deleted entities older than `SoftDeleteRetentionMonths`. For `AuditModel` entities, filters by `DeletedUtc` in the database query. For non-`AuditModel` entities with `IsDeleted`, builds an expression tree so EF Core translates the filter to SQL. Respects `SoftDeleteRetentionBlacklist` to skip specific entity types.
+`SoftDeleteCleanupJob<TContext>` discovers all entity types in `TContext`'s model that extend `AuditModel` or have a `bool IsDeleted` property. Hard-deletes soft-deleted entities older than `SoftDeleteRetentionMonths`. For `AuditModel` entities, filters by `DeletedUtc` in the database query. For non-`AuditModel` entities with `IsDeleted`, builds an expression tree so EF Core translates the filter to SQL. Respects `SoftDeleteRetentionBlacklist` to skip specific entity types. A non-generic `SoftDeleteCleanupJob` is also provided that targets your default context.
 
 **Important:** These jobs are not self-executing. Configuring the options here only controls their behaviour — you still need to register them as background jobs using JC.BackgroundJobs for them to actually run. Without that registration, the jobs will never be invoked. See the JC.BackgroundJobs documentation for how to register and schedule jobs:
 

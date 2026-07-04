@@ -81,8 +81,6 @@ When called with no configure callback, `AddGithub` registers:
 | `BugReportService` | Scoped | Creates issues locally and on GitHub |
 | `GithubWebhookService` | Scoped | Processes incoming webhook events |
 | `IGithubDbContext` → `TContext` | Scoped | Your DbContext as the GitHub data context |
-| `IRepositoryContext<ReportedIssue>` | Scoped | Repository for reported issues |
-| `IRepositoryContext<IssueComment>` | Scoped | Repository for issue comments |
 
 Default option values:
 

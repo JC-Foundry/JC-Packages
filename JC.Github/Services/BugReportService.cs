@@ -23,11 +23,11 @@ public class BugReportService
     private readonly string _repo;
 
     public BugReportService(IOptions<GithubOptions> options,
-        IRepositoryContext<ReportedIssue> reportedIssues,
+        IRepositoryManager repos,
         GitHelper gitHelper,
         ILogger<BugReportService> logger)
     {
-        _reportedIssues = reportedIssues;
+        _reportedIssues = repos.GetRepository<ReportedIssue>();
         _gitHelper = gitHelper;
         _logger = logger;
 

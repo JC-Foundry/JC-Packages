@@ -41,20 +41,22 @@ Jobs are resolved from DI, so use standard constructor injection:
 
 ```csharp
 public class InvoiceReminderJob(
-    IRepositoryContext<Invoice> invoices,
+    IRepositoryManager repositories,
     IEmailService emailService,
     ILogger<InvoiceReminderJob> logger) : IBackgroundJob
 {
+    private readonly IRepositoryContext<Invoice> _invoices = repositories.GetRepository<Invoice>();
+
     public async Task ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        var overdue = await invoices.GetAllAsync(
+        var overdue = await _invoices.GetAllAsync(
             i => i.DueDate < DateTime.UtcNow && !i.Paid && !i.ReminderSent);
 
         foreach (var invoice in overdue)
         {
             await emailService.SendReminderAsync(invoice, cancellationToken);
             invoice.ReminderSent = true;
-            await invoices.UpdateAsync(invoice);
+            await _invoices.UpdateAsync(invoice);
         }
 
         logger.LogInformation("Sent {Count} invoice reminders", overdue.Count);
@@ -180,14 +182,16 @@ All wrapper log messages use the job type name as the `{Job}` parameter, making 
 **Scoped (default)** — a new `IServiceScope` is created for each tick. The job and all its dependencies are resolved from that scope and disposed after `ExecuteAsync` completes:
 
 ```csharp
-// Safe to inject DbContext, repositories, HttpClient factories, etc.
-public class DatabaseReportJob(AppDbContext db, IRepositoryContext<Report> reports) : IBackgroundJob
+// Safe to inject DbContext, IRepositoryManager, HttpClient factories, etc.
+public class DatabaseReportJob(AppDbContext db, IRepositoryManager repositories) : IBackgroundJob
 {
+    private readonly IRepositoryContext<Report> _reports = repositories.GetRepository<Report>();
+
     public async Task ExecuteAsync(CancellationToken cancellationToken = default)
     {
-        // db and reports are fresh per execution — no stale tracking context
+        // db and repositories are fresh per execution — no stale tracking context
         var count = await db.Orders.CountAsync(cancellationToken);
-        await reports.AddAsync(new Report { OrderCount = count, GeneratedUtc = DateTime.UtcNow });
+        await _reports.AddAsync(new Report { OrderCount = count, GeneratedUtc = DateTime.UtcNow });
     }
 }
 ```
@@ -295,7 +299,7 @@ builder.Services.AddHangfireSqlServer(builder.Configuration, configureServer: se
 
 ### Job identifiers
 
-By default, the job ID is the class name (e.g. `"CleanupJob"`). Override it if you need a more descriptive identifier in the Hangfire dashboard:
+By default, the job ID is the job type name (e.g. `"CleanupJob"`). For a generic job type, the type arguments are included so each closed type gets a distinct ID — for example `AuditCleanupJob<AppDbContext>` registers as `"AuditCleanupJob(AppDbContext)"`. Override the ID if you need a more descriptive identifier in the Hangfire dashboard:
 
 ```csharp
 builder.Services.AddHangfireJob<CleanupJob>(options =>
@@ -305,7 +309,7 @@ builder.Services.AddHangfireJob<CleanupJob>(options =>
 });
 ```
 
-**Nuance:** Job IDs must be unique across all recurring jobs. If two jobs share the same ID, the second registration overwrites the first in Hangfire.
+**Nuance:** Job IDs must be unique across all recurring jobs — if two jobs share the same ID, the second registration overwrites the first in Hangfire. This is why generic jobs include their type arguments: registering `AuditCleanupJob<AppDbContext>` and `AuditCleanupJob<PortfolioDbContext>` produces distinct IDs automatically, so the same job can run against multiple contexts.
 
 ### Execution timeout
 

@@ -135,9 +135,6 @@ public static class ServiceCollectionExtensions
         // Replace default claims principal factory with our custom one
         services.AddScoped<IUserClaimsPrincipalFactory<TUser>, DefaultClaimsPrincipalFactory<TUser, TRole>>();
 
-        // Register Tenant repository
-        services.RegisterRepositoryContext<Tenant>();
-
         return services;
     }
 

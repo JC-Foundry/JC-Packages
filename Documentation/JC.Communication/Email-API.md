@@ -656,6 +656,28 @@ Returns a fresh copy of the configured branding on each call (via the `EmailBran
 
 # Data
 
+## EmailLogCleanupJob\<TContext\>
+
+**Namespace:** `JC.Communication.Email.Services`
+
+**Constraint:** `TContext : DbContext`
+
+Background job that cleans up old email logs in `TContext`'s database based on the configured retention settings. Implements `IBackgroundJob`. A non-generic `EmailLogCleanupJob` is also provided that targets your default context; use the generic form (e.g. `EmailLogCleanupJob<AppDbContext>`) to target a specific managed context.
+
+### Methods
+
+#### ExecuteAsync(CancellationToken cancellationToken = default)
+
+**Returns:** `Task`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `cancellationToken` | `CancellationToken` | `default` | Optional cancellation token. |
+
+Executes the email log cleanup. Does nothing if `EnableEmailLogCleanupJob` is `false`. Queries all `EmailLog` records with `CreatedUtc` older than the cutoff date (current UTC minus `EmailLogRetentionMonths`), along with their related `EmailRecipientLog`, `EmailContentLog`, and `EmailSentLog` records. If `MinimumRetentionRecords` is greater than zero and greater than or equal to the matching log count, the cleanup is skipped entirely. When `EmailLogCleanupChunkingValue` is greater than zero, the deletion set is limited to that many records. The minimum retention records are preserved by skipping the most recent records after ordering by descending `CreatedUtc`. Deletes the email logs and all related records in a single transaction via hard delete.
+
+---
+
 ## IEmailDbContext
 
 **Namespace:** `JC.Communication.Logging.Data`

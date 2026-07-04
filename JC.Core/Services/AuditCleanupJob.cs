@@ -1,23 +1,34 @@
+using JC.Core.Data;
 using JC.Core.Models;
 using JC.Core.Models.Auditing;
 using JC.Core.Models.Options;
 using JC.Core.Services.DataRepositories;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace JC.Core.Services;
 
-public class AuditCleanupJob : IBackgroundJob
+public class AuditCleanupJob(IRepositoryManager repos,
+    IOptions<CoreBackgroundJobOptions> options,
+    ILogger<AuditCleanupJob<DbContext>> logger)
+    : AuditCleanupJob<DbContext>(repos, options, logger)
+{
+}
+
+
+public class AuditCleanupJob<TContext> : IBackgroundJob
+    where TContext : DbContext
 {
     private readonly IRepositoryContext<AuditEntry> _audits;
-    private readonly ILogger<AuditCleanupJob> _logger;
+    private readonly ILogger<AuditCleanupJob<TContext>> _logger;
     private readonly CoreBackgroundJobOptions _options;
 
-    public AuditCleanupJob(IRepositoryContext<AuditEntry> audits,
+    public AuditCleanupJob(IRepositoryManager repos,
         IOptions<CoreBackgroundJobOptions> options,
-        ILogger<AuditCleanupJob> logger)
+        ILogger<AuditCleanupJob<TContext>> logger)
     {
-        _audits = audits;
+        _audits = repos.For<TContext>().GetRepository<AuditEntry>();
         _logger = logger;
         _options = options.Value;
     }

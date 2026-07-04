@@ -9,19 +9,28 @@ using Microsoft.Extensions.Options;
 
 namespace JC.Core.Services;
 
-public class SoftDeleteCleanupJob : IBackgroundJob
+public class SoftDeleteCleanupJob(DbContext context,
+    IOptions<CoreBackgroundJobOptions> options,
+    ILogger<SoftDeleteCleanupJob<DbContext>> logger) 
+    : SoftDeleteCleanupJob<DbContext>(context, options, logger)
 {
-    private readonly DbContext _context;
+}
+
+
+public class SoftDeleteCleanupJob<TContext> : IBackgroundJob
+    where TContext : DbContext
+{
+    private readonly TContext _context;
     private readonly CoreBackgroundJobOptions _options;
-    private readonly ILogger<SoftDeleteCleanupJob> _logger;
+    private readonly ILogger<SoftDeleteCleanupJob<TContext>> _logger;
 
     private static readonly MethodInfo CleanupMethod =
-        typeof(SoftDeleteCleanupJob).GetMethod(nameof(CleanupEntitiesAsync),
+        typeof(SoftDeleteCleanupJob<TContext>).GetMethod(nameof(CleanupEntitiesAsync),
             BindingFlags.NonPublic | BindingFlags.Instance)!;
 
-    public SoftDeleteCleanupJob(DbContext context,
+    public SoftDeleteCleanupJob(TContext context,
         IOptions<CoreBackgroundJobOptions> options,
-        ILogger<SoftDeleteCleanupJob> logger)
+        ILogger<SoftDeleteCleanupJob<TContext>> logger)
     {
         _context = context;
         _options = options.Value;

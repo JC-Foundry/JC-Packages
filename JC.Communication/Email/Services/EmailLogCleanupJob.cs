@@ -1,16 +1,28 @@
 using JC.Communication.Email.Models.Options;
+using JC.Communication.Logging.Data;
 using JC.Communication.Logging.Models.Email;
+using JC.Core.Data;
 using JC.Core.Models;
 using JC.Core.Services.DataRepositories;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace JC.Communication.Email.Services;
 
-public class EmailLogCleanupJob : IBackgroundJob
+public class EmailLogCleanupJob(IRepositoryManager repos,
+    IOptions<EmailBackgroundJobOptions> options,
+    ILogger<EmailLogCleanupJob<DbContext>> logger)
+    : EmailLogCleanupJob<DbContext>(repos, options, logger)
+{
+}
+
+
+public class EmailLogCleanupJob<TContext> : IBackgroundJob
+    where TContext : DbContext
 {
     private readonly IRepositoryManager _repos;
-    private readonly ILogger<EmailLogCleanupJob> _logger;
+    private readonly ILogger<EmailLogCleanupJob<TContext>> _logger;
     private readonly IRepositoryContext<EmailLog> _emailLogs;
     private readonly IRepositoryContext<EmailRecipientLog> _recipLog;
     private readonly IRepositoryContext<EmailContentLog> _contentLog;
@@ -19,14 +31,14 @@ public class EmailLogCleanupJob : IBackgroundJob
 
     public EmailLogCleanupJob(IRepositoryManager repos,
         IOptions<EmailBackgroundJobOptions> options,
-        ILogger<EmailLogCleanupJob> logger)
+        ILogger<EmailLogCleanupJob<TContext>> logger)
     {
         _repos = repos;
         _logger = logger;
-        _emailLogs = repos.GetRepository<EmailLog>();
-        _recipLog = repos.GetRepository<EmailRecipientLog>();
-        _contentLog = repos.GetRepository<EmailContentLog>();
-        _sentLog = repos.GetRepository<EmailSentLog>();
+        _emailLogs = repos.For<TContext>().GetRepository<EmailLog>();
+        _recipLog = repos.For<TContext>().GetRepository<EmailRecipientLog>();
+        _contentLog = repos.For<TContext>().GetRepository<EmailContentLog>();
+        _sentLog = repos.For<TContext>().GetRepository<EmailSentLog>();
         
         _options = options.Value;
     }

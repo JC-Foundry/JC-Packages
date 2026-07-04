@@ -179,7 +179,7 @@ Creates a new `ReportedIssue` entity with `Created` set to `DateTime.UtcNow`, `R
 
 If the GitHub API call succeeds, `ReportSent` is set to `true` and `ExternalId` is populated with the returned issue number. If it fails, the exception is logged but not thrown — `ReportSent` remains `false` and `ExternalId` remains `null`.
 
-The entity is always persisted to the database via `IRepositoryContext<ReportedIssue>.AddAsync` regardless of GitHub sync outcome.
+The entity is always persisted to the database via the `ReportedIssue` repository's `AddAsync` regardless of GitHub sync outcome.
 
 ---
 
@@ -196,7 +196,7 @@ Keeps a local issue and its GitHub counterpart in sync. Returns `false` immediat
 
 Otherwise, attempts to patch the GitHub issue body via `GitHelper.UpdateIssueBody` using the configured owner and repo. If the GitHub call succeeds the method returns `true`; if it throws, the exception is logged but not rethrown and the method returns `false`.
 
-In both the success and GitHub-failure cases the local record's `Description` is updated to `newBody` and persisted via `IRepositoryContext<ReportedIssue>.UpdateAsync` — the return value reflects only whether the GitHub sync succeeded.
+In both the success and GitHub-failure cases the local record's `Description` is updated to `newBody` and persisted via the `ReportedIssue` repository's `UpdateAsync` — the return value reflects only whether the GitHub sync succeeded.
 
 ---
 

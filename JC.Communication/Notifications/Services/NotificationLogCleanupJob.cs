@@ -1,23 +1,35 @@
 using JC.Communication.Logging.Models.Notifications;
+using JC.Communication.Notifications.Data;
 using JC.Communication.Notifications.Models.Options;
+using JC.Core.Data;
 using JC.Core.Models;
 using JC.Core.Services.DataRepositories;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace JC.Communication.Notifications.Services;
 
-public class NotificationLogCleanupJob : IBackgroundJob
+public class NotificationLogCleanupJob(IRepositoryManager repos,
+    IOptions<NotificationBackgroundJobOptions> options,
+    ILogger<NotificationLogCleanupJob<DbContext>> logger)
+    : NotificationLogCleanupJob<DbContext>(repos, options, logger)
+{
+}
+
+
+public class NotificationLogCleanupJob<TContext> : IBackgroundJob
+    where TContext : DbContext
 {
     private readonly IRepositoryContext<NotificationLog> _logs;
     private readonly NotificationBackgroundJobOptions _options;
-    private readonly ILogger<NotificationLogCleanupJob> _logger;
+    private readonly ILogger<NotificationLogCleanupJob<TContext>> _logger;
 
-    public NotificationLogCleanupJob(IRepositoryContext<NotificationLog> logs,
+    public NotificationLogCleanupJob(IRepositoryManager repos,
         IOptions<NotificationBackgroundJobOptions> options,
-        ILogger<NotificationLogCleanupJob> logger)
+        ILogger<NotificationLogCleanupJob<TContext>> logger)
     {
-        _logs = logs;
+        _logs = repos.For<TContext>().GetRepository<NotificationLog>();
         _options = options.Value;
         _logger = logger;
     }
