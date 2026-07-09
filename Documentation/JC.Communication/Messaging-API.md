@@ -606,6 +606,27 @@ Flags enum controlling which thread activity types are logged by the messaging l
 
 Central service for chat thread operations including querying, creation, promotion, activity tracking, and standard CRUD. All queries are scoped to the current user's participation. Inject via `ChatThreadService`.
 
+#### Thread visibility and `DeletedQueryType`
+
+A thread carries two independent deletion axes:
+
+- **Thread-level soft-delete** (`ChatThread.IsDeleted`), set by `TryDeleteChatThreadForAll`, affecting every participant.
+- **Per-user deletion** (a `ThreadDeleted` record), set by `TryDeleteThreadForUser`, affecting one participant. An *active* record means the thread is deleted for that user; a *soft-deleted* record means the user restored it.
+
+Every query method below resolves `deletedQueryType` against both axes:
+
+| Value | Threads returned |
+|-------|------------------|
+| `OnlyActive` | The thread is not soft-deleted **and** the user has no active `ThreadDeleted` record. |
+| `OnlyDeleted` | The thread is soft-deleted **or** the user has an active `ThreadDeleted` record. |
+| `All` | Every thread, regardless of either axis. |
+
+`OnlyActive` and `OnlyDeleted` partition `All` exactly — every thread falls into one and only one of them.
+
+Independently of `deletedQueryType`, every query is scoped to threads the user is an **active participant** of. Threads the user has left (`TryLeaveGroupChat`) or been removed from (`TryRemoveParticipantsFromChat`) are never returned, under any value.
+
+> **Note:** this is a broader interpretation than `JC.Core`'s `DeletedQueryType`, which concerns a single entity's `IsDeleted` flag. Within `ChatThreadService` it spans the thread and the caller's per-user deletion record.
+
 #### Methods
 
 ##### GetUserChats(string dateFormat = "g", bool preferHexCode = true, bool asNoTracking = true, DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive)
@@ -617,9 +638,9 @@ Central service for chat thread operations including querying, creation, promoti
 | `dateFormat` | `string` | `"g"` | Format string used to display dates. |
 | `preferHexCode` | `bool` | `true` | If `true`, colour values prefer hex over RGB. |
 | `asNoTracking` | `bool` | `true` | If `true`, entities are queried without change tracking. |
-| `deletedQueryType` | `DeletedQueryType` | `OnlyActive` | Controls whether active, deleted, or all threads are returned. |
+| `deletedQueryType` | `DeletedQueryType` | `OnlyActive` | Controls which threads are returned. See [Thread visibility](#thread-visibility-and-deletedquerytype). |
 
-Retrieves all chat threads the current user participates in, projected as `ChatModel`s. Eagerly loads messages, participants, and metadata. Excludes threads that the current user has per-user deleted. Filters message history based on each user's `CanSeeHistory` setting. Results are ordered by creation date descending.
+Retrieves all chat threads the current user participates in, projected as `ChatModel`s. Eagerly loads messages, participants, and metadata. Under the default `OnlyActive`, excludes threads soft-deleted for everyone and threads the current user has deleted for themselves. Filters message history based on each user's `CanSeeHistory` setting. Results are ordered by creation date descending.
 
 ##### GetUserChats(int pageNumber, int pageSize, string dateFormat = "g", bool preferHexCode = true, bool asNoTracking = true, DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive)
 
@@ -632,7 +653,7 @@ Retrieves all chat threads the current user participates in, projected as `ChatM
 | `dateFormat` | `string` | `"g"` | Format string used to display dates. |
 | `preferHexCode` | `bool` | `true` | If `true`, colour values prefer hex over RGB. |
 | `asNoTracking` | `bool` | `true` | If `true`, entities are queried without change tracking. |
-| `deletedQueryType` | `DeletedQueryType` | `OnlyActive` | Controls whether active, deleted, or all threads are returned. |
+| `deletedQueryType` | `DeletedQueryType` | `OnlyActive` | Controls which threads are returned. See [Thread visibility](#thread-visibility-and-deletedquerytype). |
 
 Paginated overload of `GetUserChats`. Pagination is applied at the database level. Returns an `IPagination<ChatModel>` containing the page items and total count.
 
@@ -645,7 +666,7 @@ Paginated overload of `GetUserChats`. Pagination is applied at the database leve
 | `dateFormat` | `string` | `"g"` | Format string used to display dates. |
 | `preferHexCode` | `bool` | `true` | If `true`, colour values prefer hex over RGB. |
 | `asNoTracking` | `bool` | `false` | If `true`, entities are queried without change tracking. |
-| `deletedQueryType` | `DeletedQueryType` | `OnlyActive` | Controls whether active, deleted, or all threads are searched. |
+| `deletedQueryType` | `DeletedQueryType` | `OnlyActive` | Controls which threads are searched. See [Thread visibility](#thread-visibility-and-deletedquerytype). Non-default values can match a soft-deleted thread. |
 | `participantUserIds` | `IEnumerable<string>` | — | The user IDs of the expected participants. |
 
 Finds the default chat thread between the current user and the specified participants. The current user is automatically included if not already present in the participant list. Matches on exact participant count and membership. Logs a read event for the most recent message in the thread via `MessagingLogService.LogMessageReadAsync`. Returns `null` if no default thread exists for these participants. Filters message history based on the current user's `CanSeeHistory` setting.
@@ -660,7 +681,7 @@ Finds the default chat thread between the current user and the specified partici
 | `dateFormat` | `string` | `"g"` | Format string used to display dates. |
 | `preferHexCode` | `bool` | `true` | If `true`, colour values prefer hex over RGB. |
 | `asNoTracking` | `bool` | `false` | If `true`, the entity is queried without change tracking. |
-| `deletedQueryType` | `DeletedQueryType` | `OnlyActive` | Controls whether active, deleted, or all threads are searched. |
+| `deletedQueryType` | `DeletedQueryType` | `OnlyActive` | Controls which threads are searched. See [Thread visibility](#thread-visibility-and-deletedquerytype). Non-default values can match a soft-deleted thread. |
 
 Retrieves a single chat thread by its ID, provided the current user is a participant. Eagerly loads messages, participants, and metadata. Logs a read event for the most recent message in the thread via `MessagingLogService.LogMessageReadAsync`. Returns `null` if not found or the user is not a participant. Filters message history based on the current user's `CanSeeHistory` setting.
 
@@ -685,6 +706,8 @@ Verifies that an active chat thread exists and the current user is a non-deleted
 
 Returns the existing default chat thread for the given participants, or creates a new default thread if none exists. Looks up the default thread using participant user IDs extracted from the provided participants. If no default exists and `PreventDuplicateChatThreads` is `true`, the new thread is created as the default. If creation fails validation, `Chat` is `null` and `ParticipantsResponse` contains the error.
 
+> **Caution:** the existence check honours `chatThreadParams.DeletedQueryType`. Passing `All` or `OnlyDeleted` lets a soft-deleted thread satisfy "already exists", so a deleted thread is returned and no new thread is created. Keep the default `OnlyActive` unless that is intended; to bring a deleted thread back, call `TryRestoreChatThreadForAll`.
+
 ##### GetOrCreateChat(string threadId, ChatThreadParams chatThreadParams, params IEnumerable\<ChatParticipant> participantsParams)
 
 **Returns:** `Task<(ChatModel? Chat, ParticipantValidationResponse ParticipantsResponse)>`
@@ -696,6 +719,8 @@ Returns the existing default chat thread for the given participants, or creates 
 | `participantsParams` | `IEnumerable<ChatParticipant>` | — | The participants to include if a new thread is created. |
 
 Returns the chat thread matching `threadId` if it exists, or creates a new thread if not found. Uses `GetChatModelById` for lookup and `CreateAndGetNewChat` for creation.
+
+> **Caution:** as with `GetOrCreateDefaultChat`, the lookup honours `chatThreadParams.DeletedQueryType`, so `All` or `OnlyDeleted` can return a soft-deleted thread rather than creating a new one.
 
 ##### CreateAndGetNewChat(ChatThreadParams chatThreadParams, params IEnumerable\<ChatParticipant> participantsParams)
 

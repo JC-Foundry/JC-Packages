@@ -272,6 +272,16 @@ public class PortfolioAdminService(IRepositoryManager repositories)
 
 Repositories from `For<TContext>()` behave exactly like the default ones — audit fields, soft-delete, and pagination all work the same way. The only difference is which database they read and write.
 
+When the context type is only known at runtime — for example when iterating a list of managed contexts — use the non-generic `For(Type)` overload instead. It behaves identically and shares the same cache, so `For(typeof(PortfolioDbContext))` and `For<PortfolioDbContext>()` return the same manager:
+
+```csharp
+foreach (var contextType in managedContextTypes)
+{
+    var audits = repositories.For(contextType).GetRepository<AuditEntry>();
+    await audits.AddAsync(entry);
+}
+```
+
 ### Shared entity types
 
 Some types exist in every context — `AuditEntry` (the audit trail) is the common example, since every `DataDbContext` has one. Name the context explicitly to disambiguate which database you mean:
@@ -307,7 +317,7 @@ catch
 }
 ```
 
-**Nuance:** A transaction is scoped to a single context — it cannot span two databases, and there is no distributed transaction support. If one logical operation writes to both your default context and a managed context, each needs its own transaction and they commit independently. The manager returned by `For<TContext>()` is cached per context for the lifetime of the scope, so calling `For<PortfolioDbContext>()` again returns the same instance and the same in-progress transaction.
+**Nuance:** A transaction is scoped to a single context — it cannot span two databases, and there is no distributed transaction support. If one logical operation writes to both your default context and a managed context, each needs its own transaction and they commit independently. The manager returned by `For<TContext>()` is cached per context for the lifetime of the scope, so calling `For<PortfolioDbContext>()` again returns the same instance and the same in-progress transaction. Asking for the context a manager is already bound to returns that same manager, so it too shares the in-progress transaction rather than opening a second one on the same connection.
 
 ## Soft-delete and restore
 

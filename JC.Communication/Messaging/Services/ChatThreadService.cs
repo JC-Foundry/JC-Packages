@@ -56,14 +56,34 @@ public class ChatThreadService
     /// <summary>
     /// Builds a base query for chat threads the current user participates in,
     /// including messages, participants, and metadata, ordered by creation date descending.
+    /// Only threads the user is an <em>active</em> participant of are ever returned — threads the
+    /// user has left, or been removed from, are excluded under every <see cref="DeletedQueryType"/>.
     /// </summary>
+    /// <remarks>
+    /// A thread has two independent deletion axes: its own soft-delete flag (set by
+    /// <see cref="TryDeleteChatThreadForAll"/>, affecting every participant) and a per-user
+    /// <see cref="ThreadDeleted"/> tombstone (set by <see cref="TryDeleteThreadForUser"/>, affecting
+    /// one participant). An active tombstone means the thread is deleted for that user; a soft-deleted
+    /// tombstone means the user restored it. <paramref name="deletedQueryType"/> is interpreted against
+    /// both axes:
+    /// <list type="bullet">
+    /// <item><see cref="DeletedQueryType.All"/> — every thread, regardless of either axis.</item>
+    /// <item><see cref="DeletedQueryType.OnlyActive"/> — the thread is not soft-deleted <em>and</em> the user has no active tombstone.</item>
+    /// <item><see cref="DeletedQueryType.OnlyDeleted"/> — the thread is soft-deleted <em>or</em> the user has an active tombstone.</item>
+    /// </list>
+    /// <see cref="DeletedQueryType.OnlyActive"/> and <see cref="DeletedQueryType.OnlyDeleted"/> partition
+    /// <see cref="DeletedQueryType.All"/> exactly: every thread falls into one and only one of them.
+    /// This is why <c>FilterDeleted</c> is not used here — <see cref="DeletedQueryType.OnlyDeleted"/>
+    /// is a disjunction across the two axes and cannot be expressed as a thread-level filter.
+    /// </remarks>
     /// <param name="asNoTracking">If <c>true</c>, the query uses no-tracking for read-only access.</param>
-    /// <param name="deletedQueryType">Controls whether active, deleted, or all threads are included.</param>
+    /// <param name="deletedQueryType">Controls which threads are included, per the rules above.</param>
     /// <returns>An ordered queryable of <see cref="ChatThread"/> scoped to the current user.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="deletedQueryType"/> is not a recognised value.</exception>
     private IQueryable<ChatThread> QueryThreads(bool asNoTracking, DeletedQueryType deletedQueryType)
     {
-        var query = _repos.GetRepository<ChatThread>()
-            .AsQueryable().FilterDeleted(deletedQueryType);
+        var userId = _userInfo.UserId;
+        var query = _repos.GetRepository<ChatThread>().AsQueryable();
 
         if (asNoTracking)
             query = query.AsNoTracking();
@@ -71,8 +91,18 @@ public class ChatThreadService
         query = query.Include(t => t.Messages)
             .Include(t => t.Participants)
             .Include(t => t.ChatMetadata)
-            .Where(t => t.Participants.Any(p => !p.IsDeleted && p.UserId == _userInfo.UserId) 
-                        && !t.UserThreadDeletions.Any(d => !d.IsDeleted && d.UserId == _userInfo.UserId));
+            .Where(t => t.Participants.Any(p => !p.IsDeleted && p.UserId == userId));
+
+        query = deletedQueryType switch
+        {
+            DeletedQueryType.All => query,
+            DeletedQueryType.OnlyActive => query.Where(t => !t.IsDeleted
+                && !t.UserThreadDeletions.Any(d => !d.IsDeleted && d.UserId == userId)),
+            DeletedQueryType.OnlyDeleted => query.Where(t => t.IsDeleted
+                || t.UserThreadDeletions.Any(d => !d.IsDeleted && d.UserId == userId)),
+            _ => throw new ArgumentOutOfRangeException(nameof(deletedQueryType), deletedQueryType, null)
+        };
+
         return query.OrderByDescending(t => t.CreatedUtc);
     }
 
@@ -106,7 +136,10 @@ public class ChatThreadService
     /// <param name="dateFormat">The format string used to display dates. Defaults to general short format.</param>
     /// <param name="preferHexCode">If <c>true</c>, colour values prefer hex over RGB in the returned model.</param>
     /// <param name="asNoTracking">If <c>true</c>, entities are queried without change tracking.</param>
-    /// <param name="deletedQueryType">Controls whether active, deleted, or all threads are returned.</param>
+    /// <param name="deletedQueryType">Controls which threads are returned. <see cref="DeletedQueryType.OnlyActive"/> excludes
+    /// threads soft-deleted for everyone and threads this user has deleted for themselves;
+    /// <see cref="DeletedQueryType.OnlyDeleted"/> returns exactly those; <see cref="DeletedQueryType.All"/> returns both.
+    /// Threads the user has left are never returned. See <see cref="QueryThreads"/>.</param>
     /// <returns>A list of <see cref="ChatModel"/> representing the user's chat threads.</returns>
     public async Task<List<ChatModel>> GetUserChats(string dateFormat = "g", bool preferHexCode = true,
         bool asNoTracking = true, DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive)
@@ -124,7 +157,8 @@ public class ChatThreadService
     /// <param name="dateFormat">The format string used to display dates. Defaults to general short format.</param>
     /// <param name="preferHexCode">If <c>true</c>, colour values prefer hex over RGB in the returned model.</param>
     /// <param name="asNoTracking">If <c>true</c>, entities are queried without change tracking.</param>
-    /// <param name="deletedQueryType">Controls whether active, deleted, or all threads are returned.</param>
+    /// <param name="deletedQueryType">Controls which threads are returned. See <see cref="QueryThreads"/> for how
+    /// thread-level soft-deletes and per-user deletions are combined.</param>
     /// <returns>A paginated collection of <see cref="ChatModel"/>.</returns>
     public async Task<IPagination<ChatModel>> GetUserChats(int pageNumber, int pageSize, string dateFormat = "g",
         bool preferHexCode = true,
@@ -149,7 +183,8 @@ public class ChatThreadService
     /// <param name="dateFormat">The format string used to display dates.</param>
     /// <param name="preferHexCode">If <c>true</c>, colour values prefer hex over RGB in the returned model.</param>
     /// <param name="asNoTracking">If <c>true</c>, entities are queried without change tracking.</param>
-    /// <param name="deletedQueryType">Controls whether active, deleted, or all threads are searched.</param>
+    /// <param name="deletedQueryType">Controls which threads are searched. See <see cref="QueryThreads"/>. Passing
+    /// <see cref="DeletedQueryType.All"/> or <see cref="DeletedQueryType.OnlyDeleted"/> can match a soft-deleted thread.</param>
     /// <param name="participantUserIds">The user IDs of the expected participants.</param>
     /// <returns>The matching <see cref="ChatModel"/>, or <c>null</c> if no default thread exists for these participants.</returns>
     public async Task<ChatModel?> GetDefaultUserChat(string dateFormat = "g", bool preferHexCode = true, bool asNoTracking = false,
@@ -181,7 +216,8 @@ public class ChatThreadService
     /// <param name="dateFormat">The format string used to display dates.</param>
     /// <param name="preferHexCode">If <c>true</c>, colour values prefer hex over RGB in the returned model.</param>
     /// <param name="asNoTracking">If <c>true</c>, the entity is queried without change tracking.</param>
-    /// <param name="deletedQueryType">Controls whether active, deleted, or all threads are searched.</param>
+    /// <param name="deletedQueryType">Controls which threads are searched. See <see cref="QueryThreads"/>. Passing
+    /// <see cref="DeletedQueryType.All"/> or <see cref="DeletedQueryType.OnlyDeleted"/> can match a soft-deleted thread.</param>
     /// <returns>The matching <see cref="ChatModel"/>, or <c>null</c> if not found or the user is not a participant.</returns>
     public async Task<ChatModel?> GetChatModelById(string chatThreadId, string dateFormat = "g",
         bool preferHexCode = true, bool asNoTracking = false, DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive)
@@ -232,6 +268,13 @@ public class ChatThreadService
     /// <summary>
     /// Returns the existing default chat thread for the given participants, or creates a new default thread if none exists.
     /// </summary>
+    /// <remarks>
+    /// The existence check honours <see cref="QueryParams.DeletedQueryType"/>. Passing
+    /// <see cref="DeletedQueryType.All"/> or <see cref="DeletedQueryType.OnlyDeleted"/> therefore lets a soft-deleted
+    /// thread satisfy "already exists", so a deleted thread is returned rather than a new one being created.
+    /// Use <see cref="DeletedQueryType.OnlyActive"/> (the default) unless that is intended;
+    /// to bring a deleted thread back, call <see cref="TryRestoreChatThreadForAll"/>.
+    /// </remarks>
     /// <param name="chatThreadParams">Parameters controlling thread creation and query behaviour.</param>
     /// <param name="participantsParams">The participants to include in the thread.</param>
     /// <returns>A tuple containing the <see cref="ChatModel"/> (or <c>null</c> on failure) and the participant validation result.</returns>
@@ -250,6 +293,10 @@ public class ChatThreadService
     /// <summary>
     /// Returns the chat thread matching <paramref name="threadId"/> if it exists, or creates a new thread if not found.
     /// </summary>
+    /// <remarks>
+    /// The lookup honours <see cref="QueryParams.DeletedQueryType"/>. Passing <see cref="DeletedQueryType.All"/> or
+    /// <see cref="DeletedQueryType.OnlyDeleted"/> can therefore return a soft-deleted thread instead of creating a new one.
+    /// </remarks>
     /// <param name="threadId">The ID of the thread to look up.</param>
     /// <param name="chatThreadParams">Parameters controlling thread creation and query behaviour.</param>
     /// <param name="participantsParams">The participants to include if a new thread is created.</param>
