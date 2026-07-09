@@ -641,7 +641,19 @@ Retrieves (or creates and caches) the repository context for the specified entit
 
 **Constraint:** `T : DbContext`
 
-Returns a repository manager bound to the specified `DbContext` type, resolved from the service provider. Repositories obtained from the returned manager (via `GetRepository<T>()`) and its transactions operate against that context. The bound manager is cached per context type for the lifetime of the scope, so repeated calls for the same context return the same instance. Use this to read and write additional (managed) contexts; the parameterless members continue to target the default context registered with `AddCore`.
+Returns a repository manager bound to the specified `DbContext` type, resolved from the service provider. Repositories obtained from the returned manager (via `GetRepository<T>()`) and its transactions operate against that context. The bound manager is cached per context type for the lifetime of the scope, so repeated calls for the same context return the same instance. Requesting the context this manager is already bound to returns this same manager, so it shares any in-progress transaction rather than starting a second one on the same connection. Use this to read and write additional (managed) contexts; the parameterless members continue to target the default context registered with `AddCore`.
+
+---
+
+#### For(Type contextType)
+
+**Returns:** `IRepositoryManager`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `contextType` | `Type` | — | The data context type to bind to. Must derive from `DbContext`. |
+
+Non-generic overload of `For<T>()`, for callers that only have a `Type` at runtime rather than a compile-time type argument. Behaves identically, including per-context caching — `For(typeof(PortfolioDbContext))` and `For<PortfolioDbContext>()` return the same manager instance. Throws `ArgumentException` if `contextType` does not derive from `DbContext`, and propagates the underlying `InvalidOperationException` if the context is not registered with the service provider.
 
 ---
 

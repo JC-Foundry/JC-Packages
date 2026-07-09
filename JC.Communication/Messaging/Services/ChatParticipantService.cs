@@ -108,9 +108,10 @@ public class ChatParticipantService
             .Where(p => !existingUserIds.Contains(p.UserId))
             .ToList();
 
+        var addUserIds = participants.Select(p => p.UserId).ToList();
         var restoreParticipants = await _repos.GetRepository<ChatParticipant>()
             .AsQueryable().FilterDeleted(DeletedQueryType.OnlyDeleted)
-            .Where(p => participants.Any(pt => pt.UserId == p.UserId) 
+            .Where(p => addUserIds.Contains(p.UserId)
                         && p.ThreadId == threadId)
             .ToListAsync();
         foreach (var p in restoreParticipants)

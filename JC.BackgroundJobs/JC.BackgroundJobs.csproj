@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.BackgroundJobs</PackageId>
-        <Version>4.0.0</Version>
+        <Version>4.0.1</Version>
         <Description>Lightweight background job hosting for .NET applications — recurring job execution with configurable intervals, error handling, and logging.</Description>
     </PropertyGroup>
 

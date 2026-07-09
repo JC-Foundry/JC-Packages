@@ -209,9 +209,30 @@ await threadService.TryDeleteThreadForUser(threadId);
 await threadService.TryRestoreThreadForUser(threadId);
 ```
 
-Per-user deleted threads are automatically excluded from `GetUserChats` and `GetChatModelById`. The underlying thread and all messages remain intact for other participants.
+Per-user deleted threads are excluded from `GetUserChats` and `GetChatModelById` under the default `DeletedQueryType.OnlyActive`, and returned under `OnlyDeleted` or `All`. The underlying thread and all messages remain intact for other participants.
 
 **Nuance:** Calling `TryDeleteThreadForUser` when the thread is already deleted for the user returns `true` (idempotent). Similarly, `TryRestoreThreadForUser` returns `true` if the thread is not deleted for the user.
+
+### How `DeletedQueryType` sees the two kinds of deletion
+
+Query methods resolve `deletedQueryType` against **both** the thread's own soft-delete flag and the caller's per-user `ThreadDeleted` record:
+
+| Value | Threads returned |
+|-------|------------------|
+| `OnlyActive` | Not soft-deleted **and** no active per-user record for you. |
+| `OnlyDeleted` | Soft-deleted **or** you have an active per-user record. |
+| `All` | Everything. |
+
+`OnlyActive` and `OnlyDeleted` partition `All` exactly. So "my deleted chats" is a single call:
+
+```csharp
+var deleted = await threadService.GetUserChats(
+    deletedQueryType: DeletedQueryType.OnlyDeleted);
+```
+
+This returns threads deleted for everyone *and* threads you deleted just for yourself — which is usually what a "Deleted" or "Archive" view wants.
+
+**Nuance:** threads you have *left* are never returned, under any `DeletedQueryType`. Leaving is not deleting. If you need to see threads a user was formerly in, query `ChatParticipant` directly.
 
 ### Delete for all users
 
@@ -226,6 +247,8 @@ await threadService.TryRestoreChatThreadForAll(threadId, DefaultThreadRestoreMod
 ```
 
 `TryDeleteChatThreadForAll` also creates `ThreadDeleted` records for all participants who do not already have one.
+
+**Nuance:** `TryRestoreChatThreadForAll` soft-deletes every active `ThreadDeleted` record for the thread, so the thread comes back for *all* participants — including anyone who had previously deleted it for themselves before the global delete. A global restore overrides individual deletions.
 
 ### Restore modes
 

@@ -17,10 +17,25 @@ public interface IRepositoryManager
 
     /// <summary>
     /// Retrieves a repository manager instance specific to the provided data context type.
+    /// Bound managers are cached, so repeated calls for the same context return the same instance.
+    /// Requesting the context this manager is already bound to returns this same instance.
     /// </summary>
+    /// <remarks>
+    /// Each context gets its own manager with its own transaction — a transaction started on one
+    /// manager does not span the contexts reached through <see cref="For{T}"/>.
+    /// </remarks>
     /// <typeparam name="T">The type of the data context implementing <see cref="DbContext"/>.</typeparam>
     /// <returns>An instance of <see cref="IRepositoryManager"/> configured for the specified data context type.</returns>
     IRepositoryManager For<T>() where T : DbContext;
+
+    /// <summary>
+    /// Non-generic equivalent of <see cref="For{T}"/>, for callers that only have a <see cref="Type"/>
+    /// at runtime. Behaves identically, including caching.
+    /// </summary>
+    /// <param name="contextType">The data context type. Must derive from <see cref="DbContext"/>.</param>
+    /// <returns>An instance of <see cref="IRepositoryManager"/> configured for the specified data context type.</returns>
+    /// <exception cref="ArgumentException">Thrown if <paramref name="contextType"/> does not derive from <see cref="DbContext"/>.</exception>
+    IRepositoryManager For(Type contextType);
 
     /// <summary>
     /// Begins a new database transaction.
