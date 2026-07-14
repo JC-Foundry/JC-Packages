@@ -63,7 +63,7 @@ With no additional configuration, `SaveChangesAsync` on your `DataDbContext` wil
 4. Log audit entries for creates (deferred until after save so database-generated IDs are captured)
 5. Save the create audit entries
 
-Audit entries are written to an `AuditEntries` table with the user ID, table name, action type, timestamp, and a JSON snapshot of the entity data. If no `IUserInfo` is available (e.g. JC.Identity isn't registered), the user ID falls back to `IUserInfo.MissingUserInfoId` (`"<NONE>"`).
+Audit entries are written to an `AuditEntries` table with the context-level user (`UserId`/`UserName`), the entity-stamped actor (`ActionUserId`), the writing application (`SourceApplication`), the table name, action type, timestamp, and a JSON snapshot of the entity data. `DataDbContext` resolves the ambient `IUserInfo` from the application service provider — when one is available (e.g. JC.Identity is registered), `UserId`/`UserName` record that user; otherwise they fall back to `IUserInfo.MissingUserInfoId` (`"<NONE>"`). See the [Guide](Guide.md#context-user-vs-action-user) for how `ActionUserId` and `IsActionIdPreferred` capture the actor stamped by the repository layer, and [Distinguishing applications](Guide.md#distinguishing-applications) for `SourceApplication`.
 
 **Immutability enforcement:** The audit service enforces strict rules for certain entity types:
 
@@ -108,7 +108,11 @@ Entities extending `LogModel` have only the creation fields populated:
 ### AddCore — service registration
 
 ```csharp
+// Default — no application name stamped onto audit entries
 builder.Services.AddCore<AppDbContext>();
+
+// Optional — stamp this application's name onto every audit entry it writes
+builder.Services.AddCore<AppDbContext>(applicationName: "AdminPortal");
 ```
 
 `AddCore` has a single generic type parameter:
@@ -117,7 +121,19 @@ builder.Services.AddCore<AppDbContext>();
 |---------------|-----------|-------------|
 | `TContext` | `DbContext, IDataDbContext` | Your application's DbContext. Extend `DataDbContext` which implements `IDataDbContext` for you |
 
-There are no configuration parameters or callbacks — `AddCore` registers all services with sensible defaults. Customisation happens through DbContext configuration.
+And a single optional parameter:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `applicationName` | `string?` | `null` | Stamped onto `AuditEntry.SourceApplication` for every entry this application writes. Leave `null` unless you need to attribute audit records to a specific application — see below. |
+
+Aside from `applicationName`, `AddCore` registers all services with sensible defaults. Customisation happens through DbContext configuration.
+
+#### Source application and shared databases
+
+`applicationName` sets `CoreAuditOptions.ApplicationName`, which the audit service stamps onto `AuditEntry.SourceApplication`. This matters when **several applications write to the same database**: each application's entries carry its own name, so a reader can tell which application produced a record — and therefore whether its `UserId`/`ActionUserId` values resolve against that application's user store rather than coincidentally matching an unrelated user with the same id. When left `null`, `SourceApplication` is written as `null`.
+
+`CoreAuditOptions` is a plain options class resolved through `IOptions<CoreAuditOptions>`; passing `applicationName` to `AddCore` is the only configuration it needs. See the [Guide](Guide.md#distinguishing-applications) for the shared-database scenario in full.
 
 ### Accessing repositories
 
@@ -148,12 +164,16 @@ public class AppDbContext : DataDbContext
 |--------------|--------|
 | Primary key | `Id` — string, max 36 characters (GUID) |
 | Index | `UserId` (max 256 characters) |
+| Index | `ActionUserId` (max 256 characters) |
+| Index | `SourceApplication` (max 256 characters) |
 | Index | `TableName` (max 256 characters) |
 | Index | `AuditDate` |
 | Index | `TableName, EntityKey` (composite — for looking up a single entity's history) |
 | Max length | `UserName` (max 256 characters) |
 | Max length | `EntityKey` (max 512 characters — accommodates long or composite consumer keys) |
 | Required properties | `Action`, `AuditDate` |
+
+This configuration lives in `AuditEntryMapping.MapAuditEntry`, which is shared with JC.Identity's `IdentityDataDbContext` so the audit table is mapped identically in every context.
 
 ### AuditModel — auditable entities
 
@@ -363,6 +383,13 @@ dotnet ef migrations add InitialCore --project YourApp
 
 ```csharp
 await app.Services.MigrateDatabaseAsync<AppDbContext>();
+```
+
+The `AuditEntries` table includes the `ActionUserId`, `SourceApplication`, and `IsActionIdPreferred` columns. If you are adding these to an existing integration, generate a new migration so they are applied to your database:
+
+```bash
+dotnet ef migrations add AuditActorColumns --project YourApp
+dotnet ef database update --project YourApp
 ```
 
 ## 4. Verify

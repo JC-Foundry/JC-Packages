@@ -4,7 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Internal/shared JC packages -->
-    <PackageVersion Include="JC.Core" Version="4.0.1" />
+    <PackageVersion Include="JC.Core" Version="4.1.0" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.0.2" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.17" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.17" />

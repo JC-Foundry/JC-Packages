@@ -1,6 +1,8 @@
+using JC.Core.Data.DataMappings;
 using JC.Core.Models.Auditing;
 using JC.Core.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace JC.Core.Data;
 
@@ -11,12 +13,15 @@ namespace JC.Core.Data;
 /// </summary>
 public class DataDbContext : DbContext, IDataDbContext
 {
+    private readonly IServiceProvider? _appServices;
+
     /// <summary>
     /// Initialises a new instance of <see cref="DataDbContext"/> with the specified options.
     /// </summary>
     /// <param name="options">The options to configure the context.</param>
     public DataDbContext(DbContextOptions options) : base(options)
     {
+        _appServices = options.FindExtension<CoreOptionsExtension>()?.ApplicationServiceProvider;
     }
 
     /// <inheritdoc />
@@ -25,7 +30,7 @@ public class DataDbContext : DbContext, IDataDbContext
     /// <inheritdoc cref="SaveChangesAsync" />
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        var auditService = new AuditService(this, null);
+        var auditService = new AuditService(this, _appServices);
         var pendingCreates = await auditService.ProcessChangesAsync(ChangeTracker);
         var result = await base.SaveChangesAsync(cancellationToken);
         if (pendingCreates.Count > 0)
@@ -41,20 +46,6 @@ public class DataDbContext : DbContext, IDataDbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<AuditEntry>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasMaxLength(36);
-            entity.Property(e => e.UserId).HasMaxLength(256);
-            entity.Property(e => e.UserName).HasMaxLength(256);
-            entity.Property(e => e.TableName).HasMaxLength(256);
-            entity.Property(e => e.EntityKey).HasMaxLength(512);
-            entity.Property(e => e.Action).IsRequired();
-            entity.Property(e => e.AuditDate).IsRequired();
-            entity.HasIndex(e => e.UserId);
-            entity.HasIndex(e => e.TableName);
-            entity.HasIndex(e => e.AuditDate);
-            entity.HasIndex(e => new { e.TableName, e.EntityKey });
-        });
+        AuditEntryMapping.MapAuditEntry(modelBuilder.Entity<AuditEntry>());
     }
 }

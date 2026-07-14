@@ -38,7 +38,7 @@ public class ProductService(IRepositoryManager repositories)
 
 Every `AddAsync` call automatically populates `CreatedById` and `CreatedUtc` on entities extending `BaseCreateModel` (which includes both `AuditModel` and `LogModel`). Every `UpdateAsync` populates `LastModifiedById` and `LastModifiedUtc` on `AuditModel` entities. The user ID comes from `IUserInfo.UserId` — if JC.Identity is registered, this is the authenticated user; otherwise it falls back to `IUserInfo.MissingUserInfoId` (`"<NONE>"`).
 
-**Nuance:** The base `DataDbContext` passes `null` for `IUserInfo` to the audit service, so audit fields will always record `"<NONE>"` as the user. If you need real user tracking, use JC.Identity's `IdentityDataDbContext` which injects the authenticated user's details.
+**Nuance:** These entity audit fields (`CreatedById` and friends) are populated by the repository, which resolves `IUserInfo` from DI. The audit *trail* (`AuditEntry` rows) is written separately by the context on `SaveChangesAsync`, and `DataDbContext` now resolves the same ambient `IUserInfo` from the application service provider — so its entries record the real user when one is available and fall back to `"<NONE>"` only when no `IUserInfo` is registered. The entry additionally captures the repository-stamped actor in `ActionUserId`; see [Context user vs action user](#context-user-vs-action-user).
 
 ### Querying
 
@@ -521,11 +521,81 @@ Each `AuditEntry` records:
 | `Id` | GUID-based primary key |
 | `Action` | `AuditAction` enum — `Create`, `Update`, `SoftDelete`, `Delete`, `Restore` |
 | `AuditDate` | UTC timestamp of when the action occurred |
-| `UserId` | The user who performed the action |
-| `UserName` | The user's display name |
+| `UserId` | Context-level user — the ambient `IUserInfo.UserId` the saving context resolved, or `"<NONE>"` when it has no identity |
+| `UserName` | Display name of the context-level user |
+| `ActionUserId` | The id the repository stamped on the entity for this action (`CreatedById`/`LastModifiedById`/`DeletedById`/`RestoredById`); `null` when nothing was stamped |
+| `SourceApplication` | Name of the application that wrote the entry (from `AddCore(applicationName)`); `null` if unset |
+| `IsActionIdPreferred` | `true` when `ActionUserId` is the more accurate actor and differs from `UserId` |
 | `TableName` | The database table affected |
 | `EntityKey` | JSON-serialised primary key of the affected entity |
 | `ActionData` | JSON-serialised change data |
+
+### Context user vs action user
+
+Each entry records **two** actors, captured at different layers:
+
+- **`UserId` / `UserName`** — the *context-level* user. `DataDbContext` resolves the ambient `IUserInfo` from the application service provider when it saves, so this is the authenticated user if one is available, or `"<NONE>"` if the context has no identity.
+- **`ActionUserId`** — the *operation-level* actor. This is the id the repository/manager layer stamped onto the entity itself for this action (`CreatedById` on create, `LastModifiedById` on update, `DeletedById` on soft-delete, `RestoredById` on restore). It reflects any explicit `userId` override passed to the repository, and is populated even when the entity was written through a context with no identity.
+
+`ActionUserId` is `null` for entities that don't extend `AuditModel`/`LogModel`, and for hard deletes (there is no stamped field to read).
+
+**Why two?** They can legitimately diverge — for example when the context has no identity but the repository stamped a real user, or when an explicit `userId` (a background job, an admin acting on behalf of someone, `System__ID`) was passed to the write. `IsActionIdPreferred` flags exactly this case: it is `true` when `ActionUserId` holds a usable id (populated, and not `"<NONE>"`) that differs from `UserId`, telling a reader that `ActionUserId` is the more accurate actor. When it is `false`, `UserId` is authoritative.
+
+**Nuance:** `ActionUserId` stores an id only — there is no action username. When `IsActionIdPreferred` is `true`, resolve the display name yourself from that id against your user store; `UserName` always reflects the context-level user.
+
+### Distinguishing applications
+
+When more than one application writes to the same database, set each application's name so its entries are attributable:
+
+```csharp
+builder.Services.AddCore<AppDbContext>(applicationName: "AdminPortal");
+```
+
+Every entry that application writes carries `SourceApplication = "AdminPortal"`. A reader can then tell which application produced a record — and therefore whether its `UserId`/`ActionUserId` resolve against that application's user store rather than coincidentally matching an unrelated user with the same id. Applications that don't set a name write `SourceApplication` as `null`. See [Setup](Setup.md#addcore--service-registration) for the parameter.
+
+### Searching the trail with QueryAuditEntries
+
+`IRepositoryManager.QueryAuditEntries` builds a composable, untracked query over the audit trail. Because it extends the manager, you choose the database: the default context, or a managed one via `For<TContext>()`.
+
+```csharp
+public class AuditSearchService(IRepositoryManager repositories)
+{
+    // A user's activity across the default database, newest first, paginated
+    public async Task<PagedList<AuditEntry>> ForUserAsync(string userId, int page)
+    {
+        var query = repositories.QueryAuditEntries(
+            new AuditEntryExtensions.AuditEntryTrailSearch(KeyIsUserId: true, SearchKey: userId),
+            search: null,
+            action: null,
+            appName: null);
+
+        return await query
+            .OrderByDescending(a => a.AuditDate)
+            .ToPagedListAsync(page, pageSize: 25);
+    }
+
+    // Hard deletes against the Products table in a managed database, filtered by application
+    public async Task<List<AuditEntry>> ProductDeletionsAsync()
+    {
+        var query = repositories.For<PortfolioDbContext>().QueryAuditEntries(
+            new AuditEntryExtensions.AuditEntryTrailSearch(KeyIsUserId: false, SearchKey: "Products"),
+            search: null,
+            action: AuditAction.Delete,
+            appName: "AdminPortal");
+
+        return await query.OrderByDescending(a => a.AuditDate).ToListAsync();
+    }
+}
+```
+
+The search has one primary axis, set by `AuditEntryTrailSearch`:
+
+- **By user** (`KeyIsUserId: true`) — matches the **effective actor**: entries where `IsActionIdPreferred` is `true` match on `ActionUserId`, otherwise on `UserId`. The optional `search` term then filters on `TableName`/`EntityKey`.
+- **By table** (`KeyIsUserId: false`) — matches `TableName`. The optional `search` term filters on the effective actor id, `UserName`, and `EntityKey`.
+
+`action` and `appName` narrow the results further when supplied. The method returns an unordered `IQueryable<AuditEntry>` — apply your own `OrderBy` and pagination.
+
+**Nuance:** Because the by-user axis matches the *effective* actor, an entry where the searched user was the context user but an override was preferred (so `IsActionIdPreferred` is `true` and `ActionUserId` differs) is **not** returned for that user — it is attributed to the override actor instead.
 
 ### Reading ActionData
 

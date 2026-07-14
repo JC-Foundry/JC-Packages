@@ -3,8 +3,11 @@ using JC.Core.Data;
 using JC.Core.Enums;
 using JC.Core.Models;
 using JC.Core.Models.Auditing;
+using JC.Core.Models.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace JC.Core.Services;
 
@@ -18,12 +21,27 @@ internal class AuditService
     private readonly IDataDbContext _context;
     private readonly string _userId;
     private readonly string _userName;
+    private readonly string? _sourceApplication;
 
-    internal AuditService(IDataDbContext context, IUserInfo? userInfo)
+    /// <param name="context">The data context whose audit entries are being written.</param>
+    /// <param name="appServices">
+    /// The application (scoped) service provider, used to resolve the ambient <see cref="IUserInfo"/>
+    /// and <see cref="CoreAuditOptions"/>. May be <c>null</c> — the audit trail then falls back to
+    /// <see cref="IUserInfo.MissingUserInfoId"/> and a <c>null</c> source application.
+    /// </param>
+    /// <param name="explicitUserInfo">
+    /// A known <see cref="IUserInfo"/> supplied by the context (e.g. an identity-aware context that
+    /// already holds one). Takes precedence over resolving from <paramref name="appServices"/>.
+    /// </param>
+    internal AuditService(IDataDbContext context, IServiceProvider? appServices, IUserInfo? explicitUserInfo = null)
     {
         _context = context;
+
+        var userInfo = explicitUserInfo ?? appServices?.GetService<IUserInfo>();
         _userId = userInfo?.UserId ?? IUserInfo.MissingUserInfoId;
         _userName = userInfo?.Username ?? IUserInfo.MissingUserInfoId;
+
+        _sourceApplication = appServices?.GetService<IOptions<CoreAuditOptions>>()?.Value.ApplicationName;
     }
 
     /// <summary>
@@ -80,7 +98,8 @@ internal class AuditService
             var tableName = entry.Metadata.GetTableName() ?? entry.Entity.GetType().Name;
             var entityKey = SerializeKey(entry);
             var data = SerializeChanges(entry, action.Value);
-            await LogAsync(action.Value, tableName, entityKey, data);
+            var actionUserId = ResolveActionUserId(entry.Entity, action.Value);
+            await LogAsync(action.Value, tableName, entityKey, data, actionUserId);
         }
 
         return pendingCreates;
@@ -98,11 +117,12 @@ internal class AuditService
             var tableName = entry.Metadata.GetTableName() ?? entry.Entity.GetType().Name;
             var entityKey = SerializeKey(entry);
             var data = SerializeChanges(entry, AuditAction.Create);
-            await LogAsync(AuditAction.Create, tableName, entityKey, data);
+            var actionUserId = ResolveActionUserId(entry.Entity, AuditAction.Create);
+            await LogAsync(AuditAction.Create, tableName, entityKey, data, actionUserId);
         }
     }
 
-    private async Task LogAsync(AuditAction action, string tableName, string? entityKey, string? data)
+    private async Task LogAsync(AuditAction action, string tableName, string? entityKey, string? data, string? actionUserId)
     {
         var entry = new AuditEntry
         {
@@ -111,12 +131,42 @@ internal class AuditService
             EntityKey = entityKey,
             UserId = _userId,
             UserName = _userName,
+            ActionUserId = actionUserId,
+            SourceApplication = _sourceApplication,
+            IsActionIdPreferred = IsActionPreferred(actionUserId),
             ActionData = data,
             AuditDate = DateTime.UtcNow
         };
 
         await _context.AuditEntries.AddAsync(entry);
     }
+
+    /// <summary>
+    /// Reads the identifier the repository/manager layer stamped onto the entity for this action
+    /// (<c>CreatedById</c>, <c>LastModifiedById</c>, <c>DeletedById</c> or <c>RestoredById</c>).
+    /// Returns <c>null</c> for non-auditable entities and for actions with no stamped field (hard delete).
+    /// </summary>
+    private static string? ResolveActionUserId(object entity, AuditAction action)
+    {
+        return action switch
+        {
+            AuditAction.Create => (entity as BaseCreateModel)?.CreatedById,
+            AuditAction.Update => (entity as AuditModel)?.LastModifiedById,
+            AuditAction.SoftDelete => (entity as AuditModel)?.DeletedById,
+            AuditAction.Restore => (entity as AuditModel)?.RestoredById,
+            _ => null
+        };
+    }
+
+    /// <summary>
+    /// Determines whether <paramref name="actionUserId"/> is a usable actor that should be preferred
+    /// over the context-level <see cref="_userId"/> — i.e. it is populated, is not the
+    /// <see cref="IUserInfo.MissingUserInfoId"/> sentinel, and differs from the context user.
+    /// </summary>
+    private bool IsActionPreferred(string? actionUserId)
+        => !string.IsNullOrWhiteSpace(actionUserId)
+           && actionUserId != IUserInfo.MissingUserInfoId
+           && !string.Equals(actionUserId, _userId, StringComparison.Ordinal);
 
     private static AuditAction? ResolveAction(EntityEntry entry)
     {
