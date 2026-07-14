@@ -109,7 +109,7 @@ Sets `IsDeleted` to `false`, `RestoredById` to the provided user ID, and `Restor
 
 **Namespace:** `JC.Core.Models.Auditing`
 
-Entity representing a single audit trail record capturing who performed what action, on which table, against which entity, and when. Persisted automatically by `DataDbContext.SaveChangesAsync` via the change tracker.
+Entity representing a single audit trail record capturing who performed what action, on which table, against which entity, and when. Persisted automatically by `DataDbContext.SaveChangesAsync` via the change tracker. Records two actors — the context-level user (`UserId`) and the actor stamped on the entity by the repository layer (`ActionUserId`) — plus the writing application (`SourceApplication`). See the [Guide](Guide.md#context-user-vs-action-user) for how they relate.
 
 ### Properties
 
@@ -118,8 +118,11 @@ Entity representing a single audit trail record capturing who performed what act
 | `Id` | `string` | `Guid.NewGuid().ToString()` | get; private set; | Unique identifier for this audit entry. |
 | `Action` | `AuditAction` | — | get; set; | The type of action that was performed. |
 | `AuditDate` | `DateTime` | — | get; set; | UTC timestamp of when the action occurred. |
-| `UserId` | `string?` | `null` | get; set; | Identifier of the user who performed the action. |
-| `UserName` | `string?` | `null` | get; set; | Display name of the user who performed the action. |
+| `UserId` | `string?` | `null` | get; set; | Context-level identifier of the user who performed the action — the ambient `IUserInfo.UserId` resolved by the saving context, or `IUserInfo.MissingUserInfoId` (`"<NONE>"`) when the context has no identity. |
+| `UserName` | `string?` | `null` | get; set; | Display name of the context-level user who performed the action. |
+| `ActionUserId` | `string?` | `null` | get; set; | Identifier stamped onto the entity's own audit field for this action (`CreatedById`, `LastModifiedById`, `DeletedById`, or `RestoredById`). This is the actor recorded by the repository/manager layer and can be more accurate than `UserId`. `null` for non-auditable entities and for actions with no stamped field (hard delete). |
+| `SourceApplication` | `string?` | `null` | get; set; | Name of the application that wrote this entry, from `CoreAuditOptions.ApplicationName` (set via `AddCore(applicationName)`). `null` when the writing application did not configure one. |
+| `IsActionIdPreferred` | `bool` | `false` | get; set; | Whether `ActionUserId` should be preferred over `UserId` as the true actor. `true` when `ActionUserId` is populated, is not `IUserInfo.MissingUserInfoId`, and differs from `UserId`; otherwise `false`. |
 | `TableName` | `string?` | `null` | get; set; | The database table name affected by the action. |
 | `EntityKey` | `string?` | `null` | get; set; | JSON-serialised primary key of the audited entity, keyed by property name (e.g. `{"Id":"abc"}` or, for composite keys, `{"ThreadId":"abc","UserId":"xyz"}`). `null` for keyless entities or if serialisation fails. |
 | `ActionData` | `string?` | `null` | get; set; | JSON-serialised entity data. For creates, contains all non-null property values. For updates, contains a `From`/`To` diff of modified properties. |
@@ -880,6 +883,39 @@ Returns all `const` fields declared on `T` (including inherited fields) as a dic
 
 # Extensions
 
+## AuditEntryExtensions
+
+**Namespace:** `JC.Core.Extensions`
+
+Static extension methods on `IRepositoryManager` for querying the audit trail. Because it extends `IRepositoryManager`, the caller chooses which context's trail to query — `repos.QueryAuditEntries(...)` targets the default context, `repos.For<TContext>().QueryAuditEntries(...)` a managed one.
+
+### AuditEntryTrailSearch
+
+Nested record describing the primary axis of an audit trail search.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `KeyIsUserId` | `bool` | When `true`, the search is scoped to a user (matched against the effective actor); when `false`, it is scoped to a table name. |
+| `SearchKey` | `string` | The user identifier or table name to scope by, per `KeyIsUserId`. |
+
+### Methods
+
+#### QueryAuditEntries(this IRepositoryManager repos, AuditEntryTrailSearch trailSearch, string? search, AuditAction? action, string? appName)
+
+**Returns:** `IQueryable<AuditEntry>`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `repos` | `IRepositoryManager` | — | The manager whose bound context's audit trail is queried. |
+| `trailSearch` | `AuditEntryTrailSearch` | — | The primary search axis — by user (effective actor) or by table name. |
+| `search` | `string?` | — | Optional free-text filter. When scoped by user, matches `TableName`/`EntityKey`; when scoped by table, matches the effective actor id, `UserName`, and `EntityKey`. Case-insensitive. |
+| `action` | `AuditAction?` | — | Optional filter restricting results to a single action type. |
+| `appName` | `string?` | — | Optional filter restricting results to entries whose `SourceApplication` matches exactly. |
+
+Builds an untracked `IQueryable<AuditEntry>` over the bound context's `AuditEntry` set. When `trailSearch.KeyIsUserId` is `true`, matches the *effective* actor — entries where `IsActionIdPreferred` is `true` are matched on `ActionUserId`, otherwise on `UserId`; when `false`, matches on `TableName`. The optional `appName`, `action`, and `search` filters are then applied in turn. The query is returned unmaterialised and unordered — the caller applies its own ordering and pagination (e.g. `ToPagedListAsync`).
+
+---
+
 ## QueryExtensions
 
 **Namespace:** `JC.Core.Extensions`
@@ -1129,8 +1165,30 @@ EF Core `DbContext` implementation for the core data model. Extends `DbContext` 
 
 On `SaveChangesAsync`, the context inspects the change tracker for added, modified, and deleted entities. Non-create changes are logged immediately. Create entries are deferred until after `base.SaveChangesAsync` completes so that database-generated IDs are available, then logged in a second save pass. `LogModel` entities skip create audit (the log is its own record), log hard deletes, and throw `InvalidOperationException` on update/soft-delete/restore. `AuditEntry` entities skip both create and hard delete audit, and throw on update/soft-delete/restore.
 
+The context obtains the application service provider from its `DbContextOptions` and resolves the ambient `IUserInfo` and `CoreAuditOptions` from it. Each audit entry therefore records the context-level user (`UserId`/`UserName`), the entity-stamped actor (`ActionUserId`), the configured `SourceApplication`, and whether the action id should be preferred (`IsActionIdPreferred`). When no `IUserInfo` is registered, `UserId`/`UserName` fall back to `IUserInfo.MissingUserInfoId`. `AuditEntry` mapping is applied via `AuditEntryMapping.MapAuditEntry` in `OnModelCreating`.
+
 ### Properties
 
 | Property | Type | Access | Description |
 |----------|------|--------|-------------|
 | `AuditEntries` | `DbSet<AuditEntry>` | get; set; | The set of audit trail records. |
+
+---
+
+## AuditEntryMapping
+
+**Namespace:** `JC.Core.Data.DataMappings`
+
+Static helper that applies the EF Core entity configuration for `AuditEntry` — key, column lengths, and indexes. Called from `OnModelCreating` in both `DataDbContext` and JC.Identity's `IdentityDataDbContext` so the audit table is mapped identically in every context.
+
+### Methods
+
+#### MapAuditEntry(EntityTypeBuilder\<AuditEntry\> builder)
+
+**Returns:** `EntityTypeBuilder<AuditEntry>`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `builder` | `EntityTypeBuilder<AuditEntry>` | — | The entity type builder for `AuditEntry`. |
+
+Configures `AuditEntry`: `Id` as the key (max 36 characters); `UserId`, `UserName`, `ActionUserId`, `SourceApplication`, and `TableName` at max 256 characters; `EntityKey` at max 512 characters; `Action` and `AuditDate` as required; and indexes on `UserId`, `ActionUserId`, `SourceApplication`, `TableName`, `AuditDate`, and the composite `TableName, EntityKey`. Returns the same builder for chaining.

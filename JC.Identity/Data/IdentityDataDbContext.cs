@@ -1,4 +1,5 @@
 using JC.Core.Data;
+using JC.Core.Data.DataMappings;
 using JC.Core.Models;
 using JC.Core.Models.Auditing;
 using JC.Core.Services;
@@ -7,6 +8,7 @@ using JC.Identity.Models;
 using JC.Identity.Models.MultiTenancy;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace JC.Identity.Data;
 
@@ -21,6 +23,7 @@ public class IdentityDataDbContext<TUser, TRole> : IdentityDbContext<TUser, TRol
     where TRole : BaseRole
 {
     private readonly IUserInfo _userInfo;
+    private readonly IServiceProvider? _appServices;
 
     /// <summary>
     /// Initialises a new instance of <see cref="IdentityDataDbContext{TUser, TRole}"/>.
@@ -30,6 +33,7 @@ public class IdentityDataDbContext<TUser, TRole> : IdentityDbContext<TUser, TRol
     public IdentityDataDbContext(DbContextOptions options, IUserInfo userInfo) : base(options)
     {
         _userInfo = userInfo;
+        _appServices = options.FindExtension<CoreOptionsExtension>()?.ApplicationServiceProvider;
     }
 
     /// <summary>
@@ -47,7 +51,7 @@ public class IdentityDataDbContext<TUser, TRole> : IdentityDbContext<TUser, TRol
     /// <inheritdoc cref="SaveChangesAsync" />
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        var auditService = new AuditService(this, _userInfo);
+        var auditService = new AuditService(this, _appServices, _userInfo);
         var pendingCreates = await auditService.ProcessChangesAsync(ChangeTracker);
         var result = await base.SaveChangesAsync(cancellationToken);
         if (pendingCreates.Count > 0)
@@ -62,21 +66,7 @@ public class IdentityDataDbContext<TUser, TRole> : IdentityDbContext<TUser, TRol
     {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<AuditEntry>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasMaxLength(36);
-            entity.Property(e => e.UserId).HasMaxLength(256);
-            entity.Property(e => e.UserName).HasMaxLength(256);
-            entity.Property(e => e.TableName).HasMaxLength(256);
-            entity.Property(e => e.EntityKey).HasMaxLength(512);
-            entity.Property(e => e.Action).IsRequired();
-            entity.Property(e => e.AuditDate).IsRequired();
-            entity.HasIndex(e => e.UserId);
-            entity.HasIndex(e => e.TableName);
-            entity.HasIndex(e => e.AuditDate);
-            entity.HasIndex(e => new { e.TableName, e.EntityKey });
-        });
+        AuditEntryMapping.MapAuditEntry(modelBuilder.Entity<AuditEntry>());
 
         modelBuilder.Entity<TUser>(entity =>
         {
