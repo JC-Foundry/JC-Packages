@@ -1,10 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using JC.Core.Models.Auditing;
+using JC.Core.Models.MultiTenancy;
 
 namespace JC.Communication.Messaging.Models.DomainModels;
 
-public class ThreadDeleted : AuditModel
+public class ThreadDeleted : AuditModel, IMultiTenancy
 {
     [Key]
     [MaxLength(36)]
@@ -22,4 +23,9 @@ public class ThreadDeleted : AuditModel
 
     [NotMapped] 
     public DateTime DateDeletedUtc => CreatedUtc;
+
+    [MaxLength(36)]
+    public string? TenantId { get; set; }
+    [ForeignKey(nameof(TenantId))]
+    public Tenant? Tenant { get; set; }
 }

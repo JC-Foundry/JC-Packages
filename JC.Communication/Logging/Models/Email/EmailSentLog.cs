@@ -2,6 +2,8 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using JC.Communication.Email.Models;
 using JC.Core.Models.Auditing;
+using JC.Core.Models.MultiTenancy;
+
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
 namespace JC.Communication.Logging.Models.Email;
@@ -11,7 +13,7 @@ namespace JC.Communication.Logging.Models.Email;
 /// and records the success/failure status, provider, timestamp, and any error details.
 /// Multiple entries per email log support retry scenarios.
 /// </summary>
-public class EmailSentLog : LogModel
+public class EmailSentLog : LogModel, IMultiTenancy
 {
     /// <summary>
     /// Unique identifier for the send result log entry.
@@ -87,4 +89,9 @@ public class EmailSentLog : LogModel
     {
         EmailLogId = emailLogId;
     }
+
+    [MaxLength(36)]
+    public string? TenantId { get; set; }
+    [ForeignKey(nameof(TenantId))]
+    public Tenant? Tenant { get; set; }
 }
