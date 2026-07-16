@@ -2,6 +2,8 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using JC.Communication.Email.Models;
 using JC.Core.Models.Auditing;
+using JC.Core.Models.MultiTenancy;
+
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
 namespace JC.Communication.Logging.Models.Email;
@@ -10,7 +12,7 @@ namespace JC.Communication.Logging.Models.Email;
 /// Persisted log entry for an email recipient. Linked to an <see cref="EmailLog"/>
 /// and categorised by <see cref="RecipientLogType"/> (To, CC, or BCC).
 /// </summary>
-public class EmailRecipientLog : LogModel
+public class EmailRecipientLog : LogModel, IMultiTenancy
 {
     /// <summary>
     /// Unique identifier for the recipient log entry.
@@ -96,6 +98,11 @@ public class EmailRecipientLog : LogModel
     {
         RecipientLogType = logType;
     }
+
+    [MaxLength(36)]
+    public string? TenantId { get; set; }
+    [ForeignKey(nameof(TenantId))]
+    public Tenant? Tenant { get; set; }
 }
 
 /// <summary>

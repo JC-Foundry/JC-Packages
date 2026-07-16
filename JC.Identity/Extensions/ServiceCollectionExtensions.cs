@@ -1,10 +1,8 @@
-using JC.Core.Extensions;
 using JC.Core.Models;
 using JC.Identity.Authentication;
 using JC.Identity.Data;
 using JC.Identity.Models.Options;
 using JC.Identity.Models;
-using JC.Identity.Models.MultiTenancy;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;

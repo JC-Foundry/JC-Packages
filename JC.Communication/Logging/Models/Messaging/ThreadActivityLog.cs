@@ -2,10 +2,11 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using JC.Communication.Messaging.Models.DomainModels;
 using JC.Core.Models.Auditing;
+using JC.Core.Models.MultiTenancy;
 
 namespace JC.Communication.Logging.Models.Messaging;
 
-public class ThreadActivityLog : LogModel
+public class ThreadActivityLog : LogModel, IMultiTenancy
 {
     [Key]
     [MaxLength(36)]
@@ -23,6 +24,11 @@ public class ThreadActivityLog : LogModel
     public ThreadActivityType ActivityType { get; set; }
     [MaxLength(512)]
     public string? ActivityDetails { get; set; }
+
+    [MaxLength(36)]
+    public string? TenantId { get; set; }
+    [ForeignKey(nameof(TenantId))]
+    public Tenant? Tenant { get; set; }
 }
 
 public enum ThreadActivityType

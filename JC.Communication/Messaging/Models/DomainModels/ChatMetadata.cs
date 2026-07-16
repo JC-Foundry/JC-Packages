@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using JC.Core.Models.Auditing;
+using JC.Core.Models.MultiTenancy;
 
 namespace JC.Communication.Messaging.Models.DomainModels;
 
@@ -8,7 +9,7 @@ namespace JC.Communication.Messaging.Models.DomainModels;
 /// Optional visual metadata for a <see cref="ChatThread"/>, including icon, image, and colour settings.
 /// Keyed by <see cref="ThreadId"/> (one-to-one with the thread). Supports soft-delete via <see cref="AuditModel"/>.
 /// </summary>
-public class ChatMetadata : AuditModel
+public class ChatMetadata : AuditModel, IMultiTenancy
 {
     /// <summary>Gets or sets the ID of the thread this metadata belongs to. Also serves as the primary key.</summary>
     [Key]
@@ -41,4 +42,9 @@ public class ChatMetadata : AuditModel
 
     /// <summary>Gets whether an RGB colour value has been set.</summary>
     public bool IsColourRgb => !string.IsNullOrWhiteSpace(ColourRgb);
+
+    [MaxLength(36)]
+    public string? TenantId { get; set; }
+    [ForeignKey(nameof(TenantId))]
+    public Tenant? Tenant { get; set; }
 }

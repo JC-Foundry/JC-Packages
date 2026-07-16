@@ -2,7 +2,7 @@ using JC.Identity.Authentication;
 using JC.Identity.Data;
 using JC.Identity.Middleware;
 using JC.Identity.Models;
-using JC.Identity.Models.MultiTenancy;
+using JC.Core.Models.MultiTenancy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;

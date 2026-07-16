@@ -1,4 +1,4 @@
-namespace JC.Identity.Models.MultiTenancy;
+namespace JC.Core.Models.MultiTenancy;
 
 /// <summary>
 /// Contract for entities that belong to a tenant. Entities implementing this interface

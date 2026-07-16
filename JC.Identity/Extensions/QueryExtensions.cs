@@ -2,7 +2,7 @@ using System.Linq.Expressions;
 using JC.Core.Models;
 using JC.Identity.Authentication;
 using Microsoft.EntityFrameworkCore;
-using JC.Identity.Models.MultiTenancy;
+using JC.Core.Models.MultiTenancy;
 
 namespace JC.Identity.Extensions;
 

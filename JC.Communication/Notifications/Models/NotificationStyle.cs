@@ -1,6 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using JC.Core.Models.Auditing;
+using JC.Core.Models.MultiTenancy;
+
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
 namespace JC.Communication.Notifications.Models;
@@ -10,7 +12,7 @@ namespace JC.Communication.Notifications.Models;
 /// to avoid null column bloat on the notification table when no custom styling is needed.
 /// At least one of <see cref="CustomColourClass"/> or <see cref="CustomIconClass"/> must be set.
 /// </summary>
-public class NotificationStyle : AuditModel
+public class NotificationStyle : AuditModel, IMultiTenancy
 {
     /// <summary>Gets or sets the identifier of the associated notification. Also serves as the primary key.</summary>
     [Key]
@@ -25,4 +27,9 @@ public class NotificationStyle : AuditModel
 
     /// <summary>Gets or sets the custom CSS icon class, overriding the default derived from <see cref="NotificationType"/>.</summary>
     public string? CustomIconClass { get; set; }
+
+    [MaxLength(36)]
+    public string? TenantId { get; set; }
+    [ForeignKey(nameof(TenantId))]
+    public Tenant? Tenant { get; set; }
 }

@@ -1,4 +1,4 @@
-using JC.Identity.Models.MultiTenancy;
+using JC.Core.Models.MultiTenancy;
 using Microsoft.AspNetCore.Identity;
 
 namespace JC.Identity.Models;

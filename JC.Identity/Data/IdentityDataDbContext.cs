@@ -5,7 +5,7 @@ using JC.Core.Models.Auditing;
 using JC.Core.Services;
 using JC.Identity.Extensions;
 using JC.Identity.Models;
-using JC.Identity.Models.MultiTenancy;
+using JC.Core.Models.MultiTenancy;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
