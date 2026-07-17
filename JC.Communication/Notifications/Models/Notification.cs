@@ -1,8 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 using JC.Core.Models.Auditing;
-using JC.Core.Models.MultiTenancy;
-
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
 namespace JC.Communication.Notifications.Models;
@@ -12,7 +9,7 @@ namespace JC.Communication.Notifications.Models;
 /// Supports plain text and HTML body content, optional custom styling,
 /// expiration, and read/unread state managed via domain methods.
 /// </summary>
-public sealed class Notification : AuditModel, IMultiTenancy
+public sealed class Notification : AuditModel
 {
     /// <summary>Gets the unique identifier for this notification.</summary>
     [Key]
@@ -71,9 +68,4 @@ public sealed class Notification : AuditModel, IMultiTenancy
         IsRead = false;
         ReadAtUtc = null;
     }
-
-    [MaxLength(36)]
-    public string? TenantId { get; set; }
-    [ForeignKey(nameof(TenantId))]
-    public Tenant? Tenant { get; set; }
 }

@@ -2,13 +2,12 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using JC.Communication.Messaging.Models.DomainModels;
 using JC.Core.Models.Auditing;
-using JC.Core.Models.MultiTenancy;
 using Microsoft.EntityFrameworkCore;
 
 namespace JC.Communication.Logging.Models.Messaging;
 
 [PrimaryKey(nameof(MessageId), nameof(UserId))]
-public class MessageReadLog : LogModel, IMultiTenancy
+public class MessageReadLog : LogModel
 {
     [Required]
     [MaxLength(36)]
@@ -22,9 +21,4 @@ public class MessageReadLog : LogModel, IMultiTenancy
     [Required]
     [MaxLength(36)]
     public string UserId { get; set; }
-
-    [MaxLength(36)]
-    public string? TenantId { get; set; }
-    [ForeignKey(nameof(TenantId))]
-    public Tenant? Tenant { get; set; }
 }

@@ -1,8 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using JC.Core.Models.Auditing;
-using JC.Core.Models.MultiTenancy;
-
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
 namespace JC.Communication.Logging.Models.Email;
@@ -11,7 +9,7 @@ namespace JC.Communication.Logging.Models.Email;
 /// Persisted log entry for email body content. Only created when <see cref="JC.Communication.Email.Models.Options.EmailLoggingMode.FullLog"/> is used.
 /// Linked to an <see cref="EmailLog"/> as a one-to-one relationship.
 /// </summary>
-public class EmailContentLog : LogModel, IMultiTenancy
+public class EmailContentLog : LogModel
 {
     /// <summary>
     /// Unique identifier for the content log entry.
@@ -47,9 +45,4 @@ public class EmailContentLog : LogModel, IMultiTenancy
     /// </summary>
     [NotMapped]
     public string HtmlBody => string.IsNullOrEmpty(HtmlBodyRaw) ? PlainBody : HtmlBodyRaw;
-
-    [MaxLength(36)]
-    public string? TenantId { get; set; }
-    [ForeignKey(nameof(TenantId))]
-    public Tenant? Tenant { get; set; }
 }

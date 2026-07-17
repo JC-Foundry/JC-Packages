@@ -1,8 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using JC.Core.Models.Auditing;
-using JC.Core.Models.MultiTenancy;
-
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
 namespace JC.Communication.Messaging.Models.DomainModels;
@@ -11,7 +9,7 @@ namespace JC.Communication.Messaging.Models.DomainModels;
 /// Represents a single message within a <see cref="ChatThread"/>.
 /// Derives sender and timestamp from the <see cref="AuditModel"/> creation fields.
 /// </summary>
-public class ChatMessage : AuditModel, IMultiTenancy
+public class ChatMessage : AuditModel
 {
     /// <summary>Gets the unique identifier for this message.</summary>
     [Key]
@@ -68,9 +66,4 @@ public class ChatMessage : AuditModel, IMultiTenancy
         Message = message;
         ReplyToMessageId = replyToMessageId;
     }
-
-    [MaxLength(36)]
-    public string? TenantId { get; set; }
-    [ForeignKey(nameof(TenantId))]
-    public Tenant? Tenant { get; set; }
 }

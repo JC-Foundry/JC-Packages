@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using JC.Core.Models.Auditing;
-using JC.Core.Models.MultiTenancy;
 using Microsoft.EntityFrameworkCore;
 
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
@@ -14,7 +13,7 @@ namespace JC.Communication.Messaging.Models.DomainModels;
 /// Supports soft-delete via <see cref="AuditModel"/> for participant removal and re-join scenarios.
 /// </summary>
 [PrimaryKey(nameof(ThreadId), nameof(UserId))]
-public class ChatParticipant : AuditModel, IMultiTenancy
+public class ChatParticipant : AuditModel
 {
     /// <summary>Gets or sets the ID of the thread this participant belongs to.</summary>
     [Required]
@@ -60,9 +59,4 @@ public class ChatParticipant : AuditModel, IMultiTenancy
     {
         ThreadId = threadId;
     }
-
-    [MaxLength(36)]
-    public string? TenantId { get; set; }
-    [ForeignKey(nameof(TenantId))]
-    public Tenant? Tenant { get; set; }
 }
