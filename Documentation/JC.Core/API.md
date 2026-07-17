@@ -129,6 +129,97 @@ Entity representing a single audit trail record capturing who performed what act
 
 ---
 
+## Tenant
+
+**Namespace:** `JC.Core.Models.MultiTenancy`
+
+Sealed entity representing a tenant in a multi-tenancy system. Extends `AuditModel` for full audit trail support. Tenant settings are stored as serialised JSON and managed through the `SetSettings`/`GetSettings`/`SetSetting` methods. Inherits all audit properties from `AuditModel` — see [AuditModel](#auditmodel).
+
+Tenants live in JC.Core so that any package with domain models can implement [IMultiTenancy](#imultitenancy). The global query filter that scopes those entities is applied by `IdentityDataDbContext` in JC.Identity — see the [JC.Identity API reference](../JC.Identity/API.md).
+
+### Properties
+
+| Property | Type | Default | Access | Description |
+|----------|------|---------|--------|-------------|
+| `Id` | `string` | `Guid.NewGuid().ToString()` | get; set; | Unique identifier for this tenant. |
+| `Name` | `string` | — | get; set; | The tenant name. Marked `required`. |
+| `Description` | `string?` | `null` | get; set; | An optional description of the tenant. |
+| `Domain` | `string?` | `null` | get; set; | The domain associated with the tenant. Indexed for lookup. |
+| `MaxUsers` | `uint?` | `null` | get; set; | The maximum number of users allowed in this tenant. |
+| `ExpiryDateUtc` | `DateTime?` | `null` | get; set; | UTC timestamp when this tenant expires. |
+| `Settings` | `string` | `"[]"` | get; private set; | JSON-serialised tenant settings. Managed through the `SetSettings`/`GetSettings`/`SetSetting` methods. |
+
+### Methods
+
+#### SetSettings(IEnumerable\<TenantSettings\> settings)
+
+**Returns:** `void`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `settings` | `IEnumerable<TenantSettings>` | — | The settings to serialise and store. |
+
+Replaces all tenant settings by serialising the provided collection to JSON and storing it in the `Settings` property.
+
+---
+
+#### SetSetting(string key, string value, bool isActive = true)
+
+**Returns:** `void`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `key` | `string` | — | The setting key. |
+| `value` | `string` | — | The setting value. |
+| `isActive` | `bool` | `true` | Whether the setting is active. |
+
+Adds or updates a single setting by key. Deserialises the current settings, finds an existing entry by key (or creates a new one), updates the value and active flag, then re-serialises and stores the result.
+
+---
+
+#### GetSettings()
+
+**Returns:** `List<TenantSettings>`
+
+Deserialises and returns the current tenant settings from the JSON-stored `Settings` property. Returns an empty list if deserialisation yields `null`.
+
+---
+
+## TenantSettings
+
+**Namespace:** `JC.Core.Models.MultiTenancy`
+
+Sealed class representing a single key-value tenant setting with an active/inactive flag. Serialised into `Tenant.Settings`.
+
+### Properties
+
+| Property | Type | Default | Access | Description |
+|----------|------|---------|--------|-------------|
+| `Key` | `string?` | `null` | get; set; | The setting key. |
+| `Value` | `string?` | `null` | get; set; | The setting value. |
+| `IsActive` | `bool` | `false` | get; set; | Whether this setting is active. |
+
+---
+
+## IMultiTenancy
+
+**Namespace:** `JC.Core.Models.MultiTenancy`
+
+Contract for entities that belong to a tenant. It lives in JC.Core so that any package with domain models can implement it without depending on JC.Identity. Within the suite it is implemented by `SavedFile` (JC.FileStorage); other packages' entities are scoped by their owning user or are deliberately system-wide, so they do not implement it.
+
+Entities implementing this interface are automatically scoped by the global query filters applied by `IdentityDataDbContext<TUser, TRole>` in JC.Identity. **Without JC.Identity there is no query filter**, so implementing this interface alone does not enforce isolation — every entity resolves to the no-tenant scope instead.
+
+A `null` `TenantId` is not a shared or global scope. It is a scope of its own, isolated exactly like any named tenant: the filter matches `TenantId == null` when the current tenant is null, and matches the tenant exactly otherwise.
+
+### Properties
+
+| Property | Type | Access | Description |
+|----------|------|--------|-------------|
+| `TenantId` | `string?` | get; set; | The tenant identifier this entity belongs to. |
+| `Tenant` | `Tenant?` | get; set; | Navigation property to the `Tenant` entity. |
+
+---
+
 ## IUserInfo
 
 **Namespace:** `JC.Core.Models`

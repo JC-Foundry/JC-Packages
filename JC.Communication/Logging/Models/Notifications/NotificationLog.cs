@@ -2,8 +2,6 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using JC.Communication.Notifications.Models;
 using JC.Core.Models.Auditing;
-using JC.Core.Models.MultiTenancy;
-
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
 namespace JC.Communication.Logging.Models.Notifications;
@@ -13,7 +11,7 @@ namespace JC.Communication.Logging.Models.Notifications;
 /// A new log entry is created each time a notification's read state changes,
 /// recording which user performed the action and when.
 /// </summary>
-public class NotificationLog : LogModel, IMultiTenancy
+public class NotificationLog : LogModel
 {
     /// <summary>Gets the unique identifier for this log entry.</summary>
     [Key]
@@ -37,9 +35,4 @@ public class NotificationLog : LogModel, IMultiTenancy
 
     /// <summary>Gets or sets whether this event represents a read (<c>true</c>) or unread (<c>false</c>) action. Defaults to <c>true</c>.</summary>
     public bool IsRead { get; set; } = true;
-
-    [MaxLength(36)]
-    public string? TenantId { get; set; }
-    [ForeignKey(nameof(TenantId))]
-    public Tenant? Tenant { get; set; }
 }

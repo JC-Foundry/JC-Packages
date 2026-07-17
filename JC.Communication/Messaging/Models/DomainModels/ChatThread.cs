@@ -1,8 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 using JC.Core.Models.Auditing;
-using JC.Core.Models.MultiTenancy;
-
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
 namespace JC.Communication.Messaging.Models.DomainModels;
@@ -11,7 +8,7 @@ namespace JC.Communication.Messaging.Models.DomainModels;
 /// Represents a chat thread (conversation) between two or more participants.
 /// Supports both direct messages and group chats, with optional metadata and soft-delete via <see cref="AuditModel"/>.
 /// </summary>
-public class ChatThread : AuditModel, IMultiTenancy
+public class ChatThread : AuditModel
 {
     /// <summary>Default display name assigned to direct message threads.</summary>
     public const string DirectMessageName = "Direct Message";
@@ -62,11 +59,6 @@ public class ChatThread : AuditModel, IMultiTenancy
         => Participants == null!
             ? IsGroupThread
             : Participants.Count > 2;
-
-    [MaxLength(36)]
-    public string? TenantId { get; set; }
-    [ForeignKey(nameof(TenantId))]
-    public Tenant? Tenant { get; set; }
 }
 
 /// <summary>

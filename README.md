@@ -15,6 +15,8 @@ A suite of .NET 9 NuGet packages providing shared infrastructure for .NET applic
 | **JC.Communication.Web** | Razor tag helpers for JC.Communication — notification dropdown/badge/toasts, chat thread/list/input/participants, and contact form | [Documentation](Documentation/JC.Communication/) |
 | **JC.Github** | GitHub integration for bug report and issue tracking services | [Documentation](Documentation/JC.Github/) |
 | **JC.BackgroundJobs** | Lightweight hosted-service background jobs and Hangfire recurring/ad-hoc job integration | [Documentation](Documentation/JC.BackgroundJobs/) |
+| **JC.FileStorage** | Tenant-scoped file storage on disk with database-backed records, audited deletion, per-folder size and type limits, and single-level folder separation | [Documentation](Documentation/JC.FileStorage/) |
+| **JC.FileStorage.Web** | ASP.NET Core integration for JC.FileStorage — `IFormFile` handling, MIME type inference, and an upload constraints tag helper | [Documentation](Documentation/JC.FileStorage/) |
 | **JC.SqlServer.Hangfire** | Hangfire SQL Server storage registration for JC-Packages applications | — |
 
 ## Prerequisites
@@ -42,13 +44,17 @@ JC.Core (foundation — no JC dependencies)
 │   └── JC.Communication.Web (depends on JC.Communication + JC.Web)
 ├── JC.Github
 ├── JC.BackgroundJobs
+├── JC.FileStorage
+│   └── JC.FileStorage.Web (depends on JC.FileStorage + JC.Web)
 ├── JC.MySql
 └── JC.SqlServer
 
 JC.SqlServer.Hangfire (standalone — no JC dependencies)
 ```
 
-JC.Identity, JC.Web, JC.Communication, JC.Github, JC.BackgroundJobs, JC.MySql, and JC.SqlServer all depend on **JC.Core**. The database providers (JC.MySql / JC.SqlServer) are interchangeable. **JC.Communication.Web** depends on both **JC.Communication** and **JC.Web**.
+JC.Identity, JC.Web, JC.Communication, JC.Github, JC.BackgroundJobs, JC.FileStorage, JC.MySql, and JC.SqlServer all depend on **JC.Core**. The database providers (JC.MySql / JC.SqlServer) are interchangeable. **JC.Communication.Web** depends on both **JC.Communication** and **JC.Web**, and **JC.FileStorage.Web** depends on both **JC.FileStorage** and **JC.Web**.
+
+**JC.FileStorage** depends only on JC.Core, but JC.Identity is required for multi-tenancy — without it, every stored file belongs to the no-tenant scope. **JC.FileStorage.Web** is optional: it adds `IFormFile` handling and a tag helper, and is only needed by web applications.
 
 **JC.SqlServer.Hangfire** is standalone — it has no dependency on JC.Core. It depends on Hangfire.SqlServer and Hangfire.AspNetCore.
 
@@ -161,6 +167,50 @@ builder.Services.AddHangfireScheduler(
 
 See [JC.BackgroundJobs documentation](Documentation/JC.BackgroundJobs/) for hosted service options, Hangfire configuration, and ad-hoc scheduling.
 
+### JC.FileStorage
+
+```csharp
+builder.Services.AddCore<AppDbContext>();
+builder.Services.AddFileStorage();
+
+var app = builder.Build();
+
+// Folders must be registered before any file is saved or read.
+// throwOnFail always has to be passed — it precedes a params parameter
+app.AddFolders(true, "invoices", "reports");
+```
+
+Your `DbContext` must implement `IFileStorageDbContext` and call `modelBuilder.ApplyFileStorageMappings()` in `OnModelCreating`. Files are then saved, read, and deleted through `StorageService`.
+
+Folders can cap file size and restrict extensions, falling back to defaults on `FolderRegistry`. `StorageService` enforces them itself, so no caller can bypass them:
+
+```csharp
+// 10MB, PDFs only — enforced on every entry point
+app.AddFolders(true, new FolderModel("invoices", null, 10 * 1024 * 1024, [".pdf"]));
+```
+
+Executable extensions (`.exe`, `.bat`, `.ps1` and around sixty more) can never be stored, and no configuration re-enables them.
+
+See [JC.FileStorage documentation](Documentation/JC.FileStorage/) for folder registration, limits, tenant scoping, cross-tenant access, and delete behaviour.
+
+### JC.FileStorage.Web
+
+```csharp
+builder.Services.AddCore<AppDbContext>();
+
+// Registers WebStorageService, plus everything AddFileStorage registers
+builder.Services.AddFileStorageWeb();
+```
+
+Adds `IFormFile` uploads, downloads with MIME type inference, and an upload constraints tag helper. Add `@addTagHelper *, JC.FileStorage.Web` to `_ViewImports.cshtml` to use it:
+
+```html
+<input type="file" name="Upload" class="form-control" />
+<upload-constraints folder="invoices" />
+```
+
+The tag helper reads the folder's limits from `FolderRegistry`, so the help text cannot drift from what the server enforces. See the [JC.FileStorage documentation](Documentation/JC.FileStorage/) — JC.FileStorage.Web is documented alongside it.
+
 ### JC.SqlServer.Hangfire
 
 ```csharp
@@ -237,6 +287,18 @@ Email configuration is required when using `AddEmail`. The keys shown above are 
 
 `ApiKey` is always required. `Secret` is required when webhooks are enabled (the default). All other settings (API URL, repo owner, repo name, etc.) are configured via `GithubOptions` in the `AddGithub` callback.
 
+### File Storage (JC.FileStorage)
+
+```json
+{
+  "FileStorage": {
+    "BasePath": "C:\\app-data\\file-storage"
+  }
+}
+```
+
+Required when using `AddFileStorage`. `BasePath` is the root directory all files are written under; the application account needs write access to it. The directory does not need to exist — tenant and folder directories are created on demand. Everything else is configured in code.
+
 ### Hangfire Storage (JC.SqlServer.Hangfire)
 
 ```json
@@ -262,6 +324,8 @@ Full documentation for each package is available in the [Documentation](Document
 | JC.Communication.Web | — | [Guide](Documentation/JC.Communication/Communication.Web-Guide.md) | [API](Documentation/JC.Communication/Communication.Web-API.md) |
 | JC.Github | [Setup](Documentation/JC.Github/Setup.md) | [Guide](Documentation/JC.Github/Guide.md) | [API](Documentation/JC.Github/API.md) |
 | JC.BackgroundJobs | [Setup](Documentation/JC.BackgroundJobs/Setup.md) | [Guide](Documentation/JC.BackgroundJobs/Guide.md) | [API](Documentation/JC.BackgroundJobs/API.md) |
+| JC.FileStorage | [Setup](Documentation/JC.FileStorage/Setup.md) | [Guide](Documentation/JC.FileStorage/Guide.md) | [API](Documentation/JC.FileStorage/API.md) |
+| JC.FileStorage.Web | [Setup](Documentation/JC.FileStorage/Setup.md) | [Guide](Documentation/JC.FileStorage/Guide.md) | [API](Documentation/JC.FileStorage/API.md) |
 | JC.MySql / JC.SqlServer | [Database Setup](Documentation/JC.Core/Database-Setup.md) | — | — |
 
 ## Build from Source
@@ -291,7 +355,7 @@ No additional configuration or dependencies are required beyond the .NET 9 SDK.
 - **Major** and **Minor** are shared across the full package suite
 - A **Major** or **Minor** bump in any package updates **all packages**
 - **Patch** versions are normally **package-specific**
-- **`JC.Core` is the exception**: any patch update to `JC.Core` bumps the patch version of all packages **that depend on JC.Core** (JC.Web, JC.Identity, JC.Communication, JC.Communication.Web, JC.Github, JC.BackgroundJobs, JC.MySql, JC.SqlServer). The standalone package JC.SqlServer.Hangfire is unaffected
+- **`JC.Core` is the exception**: any patch update to `JC.Core` bumps the patch version of all packages **that depend on JC.Core** (JC.Web, JC.Identity, JC.Communication, JC.Communication.Web, JC.Github, JC.BackgroundJobs, JC.FileStorage, JC.FileStorage.Web, JC.MySql, JC.SqlServer). The standalone package JC.SqlServer.Hangfire is unaffected
 
 ### What this means
 
