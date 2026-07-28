@@ -1,21 +1,23 @@
 using System.ComponentModel;
-using System.Text;
+using JC.Core.Helpers;
 
 namespace JC.Core.Extensions;
 
 public static class EnumExtensions
 {
+    public readonly record struct EnumOption(string Name, int Value);
+
     /// <summary>
-    /// Retrieves all options of a given enum type, including their names and integer values.
+    /// Retrieves all enum options for a specified enum type as a list of structured name-value pairs.
     /// </summary>
-    /// <typeparam name="T">The enum type from which to retrieve the options.</typeparam>
-    /// <param name="_">An instance of the enum type (can be default).</param>
-    /// <returns>A list of tuples, where each tuple contains the name and integer value of an enum option.</returns>
-    public static List<(string Name, int Value)> GetAllOptions<T>(this T _)
+    /// <param name="_">An enum value, which is only used to infer the type of the enum.</param>
+    /// <typeparam name="T">The type of the enum for which options will be retrieved.</typeparam>
+    /// <returns>A list of <see cref="EnumOption"/> records, each containing the name and numeric value of an enum member.</returns>
+    public static List<EnumOption> GetAllOptions<T>(this T _)
         where T : struct, Enum
         => Enum.GetValues(typeof(T))
             .Cast<T>()
-            .Select(e => (e.ToString(), Convert.ToInt32(e)))
+            .Select(e => new EnumOption(e.ToString(), Convert.ToInt32(e)))
             .ToList();
 
 
@@ -27,51 +29,7 @@ public static class EnumExtensions
     /// <param name="value">The enum value to be converted into a display-friendly string.</param>
     /// <returns>A formatted string representation of the enum value's name.</returns>
     public static string ToDisplayName(this Enum value)
-    {
-        var name = value.ToString();
-
-        if (string.IsNullOrEmpty(name))
-            return string.Empty;
-
-        var result = new StringBuilder();
-
-        for (var i = 0; i < name.Length; i++)
-        {
-            var current = name[i];
-
-            if (current == '_')
-            {
-                if (result.Length > 0)
-                    result.Append(' ');
-                continue;
-            }
-
-            var isUpper = char.IsUpper(current);
-            var isFirst = result.Length == 0 || result[^1] == ' ';
-
-            // Insert space before uppercase if:
-            // - Not at start of word
-            // - Previous char was lowercase, OR
-            // - Next char is lowercase (handles "XMLParser" -> "XML Parser")
-            var newWord = false;
-            if (isUpper && !isFirst)
-            {
-                var prevIsLower = i > 0 && char.IsLower(name[i - 1]);
-                var nextIsLower = i + 1 < name.Length && char.IsLower(name[i + 1]);
-
-                if (prevIsLower || nextIsLower)
-                {
-                    result.Append(' ');
-                    newWord = true;
-                }
-            }
-
-            // Capitalise the first letter of each word, lowercase the rest
-            result.Append(isFirst || newWord ? char.ToUpper(current) : char.ToLower(current));
-        }
-
-        return result.ToString();
-    }
+        => InternalHelpers.ToDisplayName(value.ToString());
 
     /// <summary>
     /// Retrieves the description of an enum value based on the DescriptionAttribute.

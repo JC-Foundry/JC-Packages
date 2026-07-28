@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using JC.Core.Helpers;
 
 namespace JC.Core.Extensions;
 
@@ -30,18 +31,36 @@ public static partial class StringExtensions
     /// characters with hyphens, and collapsing consecutive hyphens.
     /// </summary>
     /// <param name="value">The string to convert into a slug.</param>
+    /// <param name="normaliseToDisplayName">
+    /// Whether the value is normalised to a display name before converting to slug value.
+    /// For example, 'MyText' will normalise to 'My Text', to create slug 'my-text' when true.
+    /// Otherwise, 'MyText' will create slug 'mytext'.
+    /// </param>
     /// <returns>A URL-friendly slug representation of the string.</returns>
-    public static string ToSlug(this string value)
+    public static string ToSlug(this string value, bool normaliseToDisplayName = false)
     {
         if (string.IsNullOrWhiteSpace(value))
             return string.Empty;
 
-        var slug = value.ToLowerInvariant();
+        var name = normaliseToDisplayName 
+            ? InternalHelpers.ToDisplayName(value.Trim())
+            : value.Trim();
+        
+        var slug = name.ToLowerInvariant();
         slug = NonAlphanumericRegex().Replace(slug, "-");
         slug = ConsecutiveHyphensRegex().Replace(slug, "-");
 
         return slug.Trim('-');
     }
+
+    /// <summary>
+    /// Converts a string to a normalised URL-friendly slug by first normalising the string
+    /// to a display name and then converting it to a slug format.
+    /// </summary>
+    /// <param name="value">The string to convert into a normalised slug.</param>
+    /// <returns>A URL-friendly slug representation of the normalised string.</returns>
+    public static string ToNormalisedSlug(this string value)
+        => value.ToSlug(true);
 
     /// <summary>
     /// Converts a string to title case using the current culture's text rules.
@@ -58,6 +77,15 @@ public static partial class StringExtensions
         var textInfo = (culture ?? CultureInfo.CurrentCulture).TextInfo;
         return textInfo.ToTitleCase(value.ToLower(culture ?? CultureInfo.CurrentCulture));
     }
+
+    /// <summary>
+    /// Converts a string to a display-friendly name by applying modifications such as adding spaces
+    /// between words, capitalising letters as appropriate, and other transformations.
+    /// </summary>
+    /// <param name="value">The input string to convert to a display name.</param>
+    /// <returns>A display-friendly version of the input string.</returns>
+    public static string ToDisplayName(this string value)
+        => InternalHelpers.ToDisplayName(value);
 
     /// <summary>
     /// Masks a string by keeping only the first few characters visible and replacing the rest with asterisks.
