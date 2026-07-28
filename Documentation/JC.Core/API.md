@@ -1102,15 +1102,30 @@ Returns the original string unchanged if it is shorter than or equal to `maxLeng
 
 ---
 
-#### ToSlug(this string value)
+#### ToSlug(this string value, bool normaliseToDisplayName = false)
 
 **Returns:** `string`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `value` | `string` | — | The string to convert into a URL-friendly slug. |
+| `normaliseToDisplayName` | `bool` | `false` | When `true`, the value is passed through the display name normaliser first, so word boundaries in PascalCase and underscore-separated input become hyphens. When `false`, the input is slugified as-is. |
 
-Lowercases the input, replaces all non-alphanumeric characters (except hyphens) with hyphens, collapses consecutive hyphens into a single hyphen, and trims leading/trailing hyphens. Returns an empty string if the input is null or whitespace.
+Trims the input, lowercases it, replaces all non-alphanumeric characters (except hyphens) with hyphens, collapses consecutive hyphens into a single hyphen, and trims leading/trailing hyphens. Returns an empty string if the input is null or whitespace.
+
+With `normaliseToDisplayName: false` (the default), PascalCase input has no word boundaries to split on, so `"MyText"` becomes `"mytext"`. With `normaliseToDisplayName: true`, the same input becomes `"my-text"`. Underscores are already treated as non-alphanumeric, so `"PENDING_APPROVAL"` becomes `"pending-approval"` either way.
+
+---
+
+#### ToNormalisedSlug(this string value)
+
+**Returns:** `string`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `value` | `string` | — | The string to convert into a normalised URL-friendly slug. |
+
+Convenience alias for `ToSlug(normaliseToDisplayName: true)`. Normalises the input to a display name before slugifying, so PascalCase identifiers produce hyphen-separated slugs — `"CompletedSuccessfully"` becomes `"completed-successfully"`.
 
 ---
 
@@ -1124,6 +1139,28 @@ Lowercases the input, replaces all non-alphanumeric characters (except hyphens) 
 | `culture` | `CultureInfo?` | `null` | The culture whose casing rules are used. Defaults to `CultureInfo.CurrentCulture` when `null`. |
 
 Converts the input to lowercase first, then applies the culture's `TextInfo.ToTitleCase` rules, capitalising the first letter of each word. Returns the input unchanged if null or whitespace.
+
+---
+
+#### ToDisplayName(this string value)
+
+**Returns:** `string`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `value` | `string` | — | The string to convert into a display-friendly name. |
+
+Converts an identifier-style string into human-readable text using the same normaliser as `EnumExtensions.ToDisplayName`. Replaces underscores with spaces, inserts a space before an uppercase letter that starts a new word, and capitalises the first letter of each word while lowercasing the rest. Returns an empty string if the input is null or empty.
+
+| Input | Output |
+|-------|--------|
+| `"MyText"` | `"My Text"` |
+| `"InProgress"` | `"In Progress"` |
+| `"user_first_name"` | `"User First Name"` |
+| `"PENDING_APPROVAL"` | `"Pending Approval"` |
+| `"hello world"` | `"Hello World"` |
+
+> **Intended for identifier-style input.** Because every character that does not start a word is lowercased, text that is already display-formatted loses its casing: `"PDF Export"` becomes `"Pdf Export"`, `"Order ID"` becomes `"Order Id"`, and `"iOS App"` becomes `"I Os App"`. Digits are not treated as word boundaries, so `"Version2Point0"` becomes `"Version2 Point0"`. Use `ToTitleCase` instead when the input is already prose.
 
 ---
 
@@ -1191,11 +1228,26 @@ Calculates a person's age in whole years from their date of birth relative to `D
 
 Static extension methods for enum operations.
 
+### Nested types
+
+#### EnumOption
+
+**Declaration:** `public readonly record struct EnumOption(string Name, int Value)`
+
+A single enum member's name and numeric value, returned by `GetAllOptions`.
+
+| Property | Type | Access | Description |
+|----------|------|--------|-------------|
+| `Name` | `string` | get; init; | The enum member's name, as returned by `Enum.ToString()`. Not passed through `ToDisplayName` — apply that yourself if you need display text. |
+| `Value` | `int` | get; init; | The member's underlying integer value. |
+
+Being a `record struct`, it supports value equality, `with` expressions, and deconstruction into `(string name, int value)`. `ToString()` produces `EnumOption { Name = InProgress, Value = 1 }`.
+
 ### Methods
 
 #### GetAllOptions\<T\>(this T _)
 
-**Returns:** `List<(string Name, int Value)>`
+**Returns:** `List<EnumOption>`
 
 **Constraint:** `T : struct, Enum`
 
@@ -1203,7 +1255,7 @@ Static extension methods for enum operations.
 |-----------|------|---------|-------------|
 | `_` | `T` | — | An instance of the enum type (can be `default`). Used only for type inference. |
 
-Returns all members of the enum type as a list of tuples containing the member name and its integer value.
+Returns all members of the enum type as a list of `EnumOption` values, each carrying the member name and its integer value, in declaration order.
 
 ---
 
@@ -1215,7 +1267,11 @@ Returns all members of the enum type as a list of tuples containing the member n
 |-----------|------|---------|-------------|
 | `value` | `Enum` | — | The enum value to convert. |
 
-Converts an enum value's name to a human-readable string. Replaces underscores with spaces, inserts spaces before uppercase letters in PascalCase (handling acronyms like "XML" correctly), and capitalises the first letter of each word. Supports PascalCase (e.g. `InProgress` → "In Progress"), SCREAMING_CASE (e.g. `PENDING_APPROVAL` → "Pending Approval"), and acronym prefixes (e.g. `XMLParser` → "XML Parser").
+Converts an enum value's name to a human-readable string. Replaces underscores with spaces, inserts a space before an uppercase letter that starts a new word, and capitalises the first letter of each word while lowercasing the rest. Supports PascalCase (e.g. `InProgress` → "In Progress") and SCREAMING_CASE (e.g. `PENDING_APPROVAL` → "Pending Approval").
+
+Runs of consecutive uppercase letters are split at the correct word boundary but are not preserved as acronyms — `XMLParser` produces "Xml Parser", not "XML Parser". Use a `[Description]` attribute with `GetDescription` when an acronym must keep its casing.
+
+Shares its implementation with `StringExtensions.ToDisplayName`.
 
 ---
 

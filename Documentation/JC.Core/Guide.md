@@ -791,12 +791,52 @@ The suffix is appended after `maxLength` characters, so the total returned lengt
 
 Lowercases, replaces non-alphanumeric characters with hyphens, collapses consecutive hyphens, and trims leading/trailing hyphens.
 
+Because the split happens on non-alphanumeric characters, PascalCase input has no word boundaries to break on and collapses into a single word. Pass `normaliseToDisplayName: true` — or use the `ToNormalisedSlug()` alias — to insert those word breaks first:
+
+```csharp
+"MyText".ToSlug();            // "mytext"
+"MyText".ToSlug(true);        // "my-text"
+"MyText".ToNormalisedSlug();  // "my-text"
+
+"CompletedSuccessfully".ToNormalisedSlug(); // "completed-successfully"
+"XMLParser".ToNormalisedSlug();             // "xml-parser"
+```
+
+This is useful for turning enum member names or type names into route segments. Input that already contains spaces or underscores produces the same result either way, since those characters are already treated as separators:
+
+```csharp
+"PENDING_APPROVAL".ToSlug();            // "pending-approval"
+"PENDING_APPROVAL".ToNormalisedSlug();  // "pending-approval"
+```
+
 ### Title case
 
 ```csharp
 "hello world".ToTitleCase();                           // "Hello World"
 "the quick brown fox".ToTitleCase(new CultureInfo("en-GB")); // "The Quick Brown Fox"
 ```
+
+### Display name
+
+Turns an identifier-style string into human-readable text — the same normaliser used by [`ToDisplayName()` on enums](#display-name-1):
+
+```csharp
+"MyText".ToDisplayName();           // "My Text"
+"InProgress".ToDisplayName();       // "In Progress"
+"user_first_name".ToDisplayName();  // "User First Name"
+"PENDING_APPROVAL".ToDisplayName(); // "Pending Approval"
+```
+
+This is for identifiers, not prose. Every character that does not start a word is lowercased, so text that is already display-formatted will lose its casing:
+
+```csharp
+"PDF Export".ToDisplayName();     // "Pdf Export"  — acronym flattened
+"Order ID".ToDisplayName();       // "Order Id"
+"iOS App".ToDisplayName();        // "I Os App"
+"Version2Point0".ToDisplayName(); // "Version2 Point0" — digits don't split words
+```
+
+Use `ToTitleCase()` instead when the input is already readable text.
 
 ### Mask
 
@@ -812,7 +852,7 @@ Keeps the first `visibleChars` characters visible and replaces the rest with ast
 
 ### Display name
 
-Converts enum values to human-readable text, supporting PascalCase, SCREAMING_CASE, and acronym prefixes:
+Converts enum values to human-readable text, supporting PascalCase and SCREAMING_CASE:
 
 ```csharp
 public enum OrderStatus
@@ -824,14 +864,28 @@ public enum OrderStatus
     PENDING_APPROVAL       // SCREAMING_CASE
 }
 
-OrderStatus.PendingApproval.ToDisplayName();       // "Pending approval"
-OrderStatus.InProgress.ToDisplayName();             // "In progress"
-OrderStatus.CompletedSuccessfully.ToDisplayName(); // "Completed successfully"
-OrderStatus.XMLExport.ToDisplayName();              // "XML Export"
+OrderStatus.PendingApproval.ToDisplayName();       // "Pending Approval"
+OrderStatus.InProgress.ToDisplayName();            // "In Progress"
+OrderStatus.CompletedSuccessfully.ToDisplayName(); // "Completed Successfully"
+OrderStatus.XMLExport.ToDisplayName();             // "Xml Export"
 OrderStatus.PENDING_APPROVAL.ToDisplayName();      // "Pending Approval"
 ```
 
-Handles PascalCase, SCREAMING_CASE (underscores become spaces), and acronyms (keeps consecutive uppercase letters together).
+Underscores become spaces, PascalCase word boundaries become spaces, and each word is capitalised with the remaining letters lowercased.
+
+Acronyms are split at the right boundary but are not preserved — `XMLExport` gives "Xml Export" rather than "XML Export". Where the casing matters, use a `[Description]` attribute:
+
+```csharp
+public enum ExportFormat
+{
+    [Description("XML Export")]
+    XMLExport
+}
+
+ExportFormat.XMLExport.GetDescription(); // "XML Export"
+```
+
+The same normaliser is available on strings via [`ToDisplayName()`](#display-name).
 
 ### Description attribute
 
@@ -851,7 +905,7 @@ public enum PaymentMethod
 
 PaymentMethod.Card.GetDescription();         // "Credit or debit card"
 PaymentMethod.BankTransfer.GetDescription(); // "Bank transfer (BACS)"
-PaymentMethod.DirectDebit.GetDescription();  // "Direct debit" (falls back to ToDisplayName)
+PaymentMethod.DirectDebit.GetDescription();  // "Direct Debit" (falls back to ToDisplayName)
 ```
 
 ### Safe parsing
@@ -871,12 +925,39 @@ var empty = EnumExtensions.TryParse<OrderStatus>(null);
 
 ### Listing all options
 
+Returns every member of the enum as a `List<EnumOption>` — a `readonly record struct` holding the member's `Name` and integer `Value`:
+
 ```csharp
 var options = default(OrderStatus).GetAllOptions();
-// [(Name: "PendingApproval", Value: 0), (Name: "InProgress", Value: 1), ...]
+// EnumOption { Name = PendingApproval, Value = 0 }
+// EnumOption { Name = InProgress, Value = 1 }
+// EnumOption { Name = CompletedSuccessfully, Value = 2 }
+// EnumOption { Name = XMLExport, Value = 3 }
+// EnumOption { Name = PENDING_APPROVAL, Value = 4 }
+
+foreach (var option in options)
+    Console.WriteLine($"{option.Name} = {option.Value}");
+```
+
+Because it is a record struct, it deconstructs and compares by value:
+
+```csharp
+foreach (var (name, value) in options)
+    Console.WriteLine($"{name} = {value}");
 ```
 
 Useful for populating dropdowns or select lists. Call on `default(T)` since the instance value is ignored.
+
+`Name` is the raw member name, not display text — pipe it through [`ToDisplayName()`](#display-name) if you are rendering it:
+
+```csharp
+var items = default(OrderStatus).GetAllOptions()
+    .Select(o => (Text: o.Name.ToDisplayName(), Value: o.Value))
+    .ToList();
+// ("Pending Approval", 0), ("In Progress", 1), ("Completed Successfully", 2), ...
+```
+
+If you are building `<select>` options in an ASP.NET Core app, `DropdownHelper.FromEnum<T>()` in JC.Web does this for you and applies `ToDisplayName` already.
 
 ## Helpers
 
