@@ -501,6 +501,74 @@ The last `<crumb>` is automatically rendered as the active page (with `aria-curr
 
 ## UI helpers
 
+### ContentSanitiser
+
+Strips user-authored HTML down to an allowlist, removing scripts, event handlers, `javascript:` URLs and unknown elements:
+
+```csharp
+// Default policy — the full output of a WYSIWYG editor
+var clean = ContentSanitiser.SanitiseContent(model.Body);
+```
+
+Treat this as the **only** XSS control on that content. A rich-text editor's own sanitiser and paste-cleanup settings run in the browser, and the value reaches you through an ordinary form field — so anything holding a valid antiforgery token can post straight past them. Editors that expose a source-code view make arbitrary markup an expected input, not an exotic attack.
+
+Sanitise on **write** rather than on render. The stored value is then trustworthy for every reader, including other applications sharing the database, instead of each render site having to remember — which is what keeps `@Html.Raw` honest.
+
+Null, empty, or whitespace-only input returns `null`, so a visually-empty editor stores "no content" rather than stray markup.
+
+#### Policies
+
+`ContentSanitiserOptions` carries the allowlists. Three presets are provided:
+
+| Preset | Allows |
+|--------|--------|
+| `RichText()` | Headings, tables, images (including inline `data:` images), links, lists, and the inline styles editors use for font, colour and alignment. The default. |
+| `Basic()` | Inline formatting, lists, quotes and links. No images, tables, styles or classes, so the result cannot carry layout or colour into the page. |
+| `Empty()` | Nothing. With `KeepChildNodes` left on, this reduces markup to its text — a strip-all-HTML policy. |
+
+```csharp
+// Comment-sized policy, reused across calls
+var sanitiser = new ContentSanitiser(ContentSanitiserOptions.Basic());
+var comment = sanitiser.Sanitise(model.Comment);
+
+// The usual policy, but without inline images
+var noImages = new ContentSanitiser(o =>
+{
+    o.AllowInlineImages = false;
+    o.AllowedTags.Remove("img");
+});
+
+// Strip all HTML, keep the text
+var plain = new ContentSanitiser(ContentSanitiserOptions.Empty()).Sanitise(model.Body);
+```
+
+Presets are methods rather than properties: each call returns a fresh instance, so adjusting one never affects another caller.
+
+#### Inline images
+
+`AllowInlineImages` — on in `RichText()` — allows the `data:` scheme but narrows it to `data:image/*` on `<img>` elements. Allowing the scheme outright would also permit `data:text/html` on a link, which executes script. Turning it off does not remove a `data` entry you added to `AllowedSchemes` yourself; that stays allowed, and unnarrowed, because you asked for it.
+
+#### Load-bearing allowlist entries
+
+`class` is required, not cosmetic. An editor's image quick-toolbar stores Align, Caption and Display as theme classes and its stylesheet is what positions them — strip the attribute and every aligned or captioned image silently loses its layout. Table styles work the same way. Use `AllowedClasses` to narrow which class names survive rather than dropping the attribute.
+
+`width`, `height` and `max-width` in `AllowedCssProperties` are what editors write onto images to keep them fluid. Drop them and that normalisation is undone on save.
+
+#### Anything not modelled
+
+`Configure` hands you the underlying `HtmlSanitizer` after every other setting has been applied, so it can override them:
+
+```csharp
+var sanitiser = new ContentSanitiser(o =>
+{
+    o.Configure = s =>
+    {
+        s.AllowDataAttributes = true;
+        s.RemovingTag += (_, e) => logger.LogDebug("Stripped <{Tag}>", e.Tag.NodeName);
+    };
+});
+```
+
 ### TableBuilder
 
 Generates a Bootstrap HTML table from a collection:

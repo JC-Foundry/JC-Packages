@@ -944,6 +944,125 @@ Builds the complete Content-Security-Policy header value string by joining all d
 
 ---
 
+## ContentSanitiser
+
+**Namespace:** `JC.Web.UI.Helpers`
+
+Server-side sanitisation for HTML authored by a user — typically the output of a rich-text editor. Everything outside the configured allowlist is removed: scripts, event handlers, `javascript:` URLs and unknown elements. The allowlists are supplied by [`ContentSanitiserOptions`](#contentsanitiseroptions).
+
+Treat this as the only XSS control on that content — an editor's own sanitiser runs in the browser and can be bypassed by posting directly. Sanitise on write rather than on render, so the stored value is trustworthy for every reader.
+
+A fresh underlying sanitiser is built per call: the library documents no thread-safety guarantee, and the options are mutable, so a shared instance could be reconfigured mid-sanitise.
+
+### Constructors
+
+#### ContentSanitiser()
+
+Creates a sanitiser using `ContentSanitiserOptions.RichText()`.
+
+---
+
+#### ContentSanitiser(ContentSanitiserOptions options)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `options` | `ContentSanitiserOptions` | — | The allowlists to enforce. |
+
+Creates a sanitiser using the supplied options. Throws `ArgumentNullException` if `options` is `null`.
+
+---
+
+#### ContentSanitiser(Action\<ContentSanitiserOptions\> configure)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `configure` | `Action<ContentSanitiserOptions>` | — | Receives the rich-text options to modify. |
+
+Creates a sanitiser from `ContentSanitiserOptions.RichText()` with adjustments applied — the shorthand for "the usual policy, but…". Throws `ArgumentNullException` if `configure` is `null`.
+
+### Methods
+
+#### Sanitise(string? html)
+
+**Returns:** `string?`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `html` | `string?` | — | The untrusted HTML to sanitise. |
+
+Returns the HTML with everything outside this instance's allowlist removed, or `null` when `html` is `null`, empty, or whitespace.
+
+---
+
+#### SanitiseContent(string? html)
+
+**Returns:** `string?`
+
+**Static.**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `html` | `string?` | — | The untrusted HTML to sanitise. |
+
+Sanitises against `ContentSanitiserOptions.RichText()` without constructing an instance. Equivalent to `new ContentSanitiser().Sanitise(html)`.
+
+---
+
+## ContentSanitiserOptions
+
+**Namespace:** `JC.Web.UI.Helpers`
+
+The allowlists and switches a [`ContentSanitiser`](#contentsanitiser) enforces. Everything not listed is removed. All sets are case-insensitive and mutable.
+
+### Properties
+
+| Property | Type | Access | Description |
+|----------|------|--------|-------------|
+| `AllowedTags` | `HashSet<string>` | get; set; | Element names that survive. Everything else is stripped, subject to `KeepChildNodes`. |
+| `AllowedAttributes` | `HashSet<string>` | get; set; | Attribute names that survive on any allowed element. Event handlers are removed regardless. |
+| `AllowedCssProperties` | `HashSet<string>` | get; set; | CSS property names that survive inside a `style` attribute. Only consulted when `style` is allowed. |
+| `AllowedSchemes` | `HashSet<string>` | get; set; | URL schemes that survive in `href`, `src` and other URL attributes. An empty set strips every URL. |
+| `AllowedClasses` | `HashSet<string>` | get; set; | Class names that survive in a `class` attribute. Empty (the default) allows **all** classes. Only consulted when `class` is allowed. |
+| `KeepChildNodes` | `bool` | get; set; | Whether the children of a disallowed element survive when it is stripped. Defaults to `true`. |
+| `AllowInlineImages` | `bool` | get; set; | Whether images inlined as `data:` URIs are kept. Allows the `data` scheme but narrows it to `data:image/*` on `<img>` elements. |
+| `Configure` | `Action<HtmlSanitizer>?` | get; set; | Escape hatch run against the underlying `HtmlSanitizer` after every other setting, so it can override them. |
+
+### Methods
+
+#### Empty()
+
+**Returns:** `ContentSanitiserOptions`
+
+**Static.**
+
+Allows nothing. Combined with the default `KeepChildNodes` this reduces markup to its text, making it both a strip-all-HTML policy and the starting point for a hand-built allowlist.
+
+---
+
+#### Basic()
+
+**Returns:** `ContentSanitiserOptions`
+
+**Static.**
+
+Inline formatting, lists, quotes and links — what a comment box or short description field needs. No images, tables, styles or classes.
+
+Tags: `p`, `br`, `strong`, `b`, `em`, `i`, `u`, `s`, `del`, `ins`, `blockquote`, `pre`, `code`, `ol`, `ul`, `li`, `a`. Attributes: `href`, `target`, `rel`, `title`. Schemes: `http`, `https`, `mailto`.
+
+---
+
+#### RichText()
+
+**Returns:** `ContentSanitiserOptions`
+
+**Static.**
+
+The full output of a WYSIWYG editor — headings, tables, images and the inline styles used for font, colour and alignment. Tuned to what a Syncfusion Rich Text Editor toolbar produces, and a superset of most others. `AllowInlineImages` is on.
+
+Each preset returns a fresh instance, so mutating one never affects another.
+
+---
+
 ## DropdownHelper
 
 **Namespace:** `JC.Web.UI.Helpers`
