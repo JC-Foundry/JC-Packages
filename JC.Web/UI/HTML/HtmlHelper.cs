@@ -4,7 +4,7 @@ namespace JC.Web.UI.HTML;
 
 /// <summary>
 /// Builds HTML elements using the configured UI framework's classes, with specific methods for
-/// pagination components. Registered as a singleton by <c>AddUi</c>.
+/// pagination components. Registered as a singleton by <c>AddUI</c>.
 /// </summary>
 /// <param name="dictionary">The class dictionary for the configured framework.</param>
 public class HtmlHelper(IWebFrameworkDictionary dictionary)

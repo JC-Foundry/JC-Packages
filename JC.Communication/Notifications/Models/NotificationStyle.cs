@@ -23,6 +23,14 @@ public class NotificationStyle : AuditModel
     /// <summary>Gets or sets the custom CSS colour class, overriding the default derived from <see cref="NotificationType"/>.</summary>
     public string? CustomColourClass { get; set; }
 
-    /// <summary>Gets or sets the custom CSS icon class, overriding the default derived from <see cref="NotificationType"/>.</summary>
+    /// <summary>
+    /// Gets or sets the custom CSS icon class, overriding the default derived from
+    /// <see cref="NotificationType"/>.
+    /// </summary>
+    /// <remarks>
+    /// Normalised against the configured icon set's base class when rendered, so under Bootstrap
+    /// Icons both <c>"bi-star"</c> and <c>"bi bi-star"</c> work. A set with no base class, such as
+    /// Font Awesome, takes the value as given — <c>"fa-solid fa-star"</c>.
+    /// </remarks>
     public string? CustomIconClass { get; set; }
 }

@@ -1,7 +1,7 @@
 using System.Net;
-using JC.Communication.Notifications.Helpers;
 using JC.Communication.Notifications.Models;
 using JC.Communication.Notifications.Services;
+using JC.Communication.Web.Framework;
 using JC.Core.Extensions;
 using JC.Web.UI.HTML;
 using Microsoft.AspNetCore.Razor.TagHelpers;
@@ -17,14 +17,28 @@ namespace JC.Communication.Web.TagHelpers;
 public class NotificationDropdownTagHelper : TagHelper
 {
     private readonly NotificationCache _cache;
+    private readonly HtmlHelper _html;
+    private readonly ICommunicationFrameworkDictionary _dictionary;
+    private readonly ICommunicationIconDictionary _icons;
 
-    /// <summary>Gets or sets the Bootstrap icon class for the bell button. Defaults to "bi-bell".</summary>
+    /// <summary>
+    /// Gets or sets the icon class for the bell button. Falls back to the configured icon set's bell
+    /// when unset.
+    /// </summary>
+    /// <remarks>
+    /// Normalised against the configured icon set's base class, so under Bootstrap Icons both
+    /// <c>"bi-star"</c> and <c>"bi bi-star"</c> work. A set with no base class, such as Font
+    /// Awesome, takes the value as given — <c>"fa-solid fa-star"</c>.
+    /// </remarks>
     [HtmlAttributeName("icon")]
-    public string Icon { get; set; } = "bi-bell";
+    public string? Icon { get; set; }
 
-    /// <summary>Gets or sets the Bootstrap colour class for the unread badge. Defaults to "danger".</summary>
+    /// <summary>
+    /// Gets or sets the colour for the unread badge. Falls back to the configured framework's
+    /// default when unset.
+    /// </summary>
     [HtmlAttributeName("badge-colour")]
-    public string BadgeColour { get; set; } = "danger";
+    public string? BadgeColour { get; set; }
 
     /// <summary>Gets or sets the maximum height of the scrollable notification list in pixels. Defaults to 350.</summary>
     [HtmlAttributeName("max-height")]
@@ -46,13 +60,22 @@ public class NotificationDropdownTagHelper : TagHelper
     [HtmlAttributeName("view-all-href")]
     public string? ViewAllHref { get; set; }
 
-    /// <summary>Gets or sets the dropdown alignment. Defaults to "end".</summary>
+    /// <summary>
+    /// Gets or sets the dropdown alignment. Falls back to the configured framework's default when
+    /// unset, which is "end" under Bootstrap.
+    /// </summary>
     [HtmlAttributeName("align")]
-    public string Align { get; set; } = "end";
+    public string? Align { get; set; }
 
-    public NotificationDropdownTagHelper(NotificationCache cache)
+    public NotificationDropdownTagHelper(NotificationCache cache,
+        HtmlHelper html,
+        ICommunicationFrameworkDictionary dictionary,
+        ICommunicationIconDictionary icons)
     {
         _cache = cache;
+        _html = html;
+        _dictionary = dictionary;
+        _icons = icons;
     }
 
     public override async Task ProcessAsync(TagHelperContext context, TagHelperOutput output)
@@ -70,98 +93,112 @@ public class NotificationDropdownTagHelper : TagHelper
 
     private string BuildHtml(List<Notification> items)
     {
+        var css = _dictionary.NotificationDropdown;
+        var badgeColour = WebUtility.HtmlEncode(
+            string.IsNullOrWhiteSpace(BadgeColour) ? css.DefaultBadgeColour : BadgeColour);
+
         var badge = items.Count > 0
-            ? HtmlHelper.CreateElement("span",
+            ? _html.CreateElement("span",
                 (items.Count > 99 ? "99+" : items.Count.ToString()) +
-                HtmlHelper.CreateElement("span", "unread notifications", classes: "visually-hidden"),
+                _html.CreateElement("span", "unread notifications", classes: css.ScreenReaderOnly),
                 attributes: new Dictionary<string, string>(),
-                classes: $"position-absolute top-0 start-100 translate-middle badge rounded-pill bg-{WebUtility.HtmlEncode(BadgeColour)}")
+                classes: css.Badge(badgeColour))
             : "";
 
-        var button = HtmlHelper.CreateElement("button",
-            HtmlHelper.CreateElement("i", "", classes: $"bi {WebUtility.HtmlEncode(Icon)}") + badge,
+        var bellIcon = WebUtility.HtmlEncode(
+            string.IsNullOrWhiteSpace(Icon) ? _icons.Icons.Bell : _icons.Icons.Custom(Icon));
+
+        var button = _html.CreateElement("button",
+            _html.CreateElement("i", "", classes: bellIcon) + badge,
             attributes: new Dictionary<string, string>
             {
                 ["type"] = "button",
                 ["data-bs-toggle"] = "dropdown",
                 ["aria-expanded"] = "false"
             },
-            classes: "btn btn-link position-relative");
+            classes: css.BellButton);
 
         string listContent;
         if (items.Count == 0)
         {
-            listContent = HtmlHelper.CreateElement("li",
+            listContent = _html.CreateElement("li",
                 WebUtility.HtmlEncode(EmptyText),
-                classes: "dropdown-item text-center text-muted py-3");
+                classes: css.EmptyItem);
         }
         else
         {
             var notificationItems = string.Concat(items.Select(BuildNotificationItem));
-            var scrollable = HtmlHelper.CreateElement("div", notificationItems,
+            var scrollable = _html.CreateElement("div", notificationItems,
                 attributes: new Dictionary<string, string>
                 {
                     ["style"] = $"max-height:{MaxHeight}px;overflow-y:auto;"
                 });
-            listContent = HtmlHelper.CreateElement("li", scrollable);
+            listContent = _html.CreateElement("li", scrollable);
         }
 
         // View all footer
         var footer = "";
         if (!string.IsNullOrWhiteSpace(ViewAllHref))
         {
-            var divider = HtmlHelper.CreateElement("li",
-                HtmlHelper.CreateElement("hr", "", classes: "dropdown-divider m-0"));
-            var link = HtmlHelper.CreateElement("a", "View all",
+            var divider = _html.CreateElement("li",
+                _html.CreateElement("hr", "", classes: css.Divider));
+            var link = _html.CreateElement("a", "View all",
                 attributes: new Dictionary<string, string> { ["href"] = ViewAllHref },
-                classes: "dropdown-item text-center py-2");
-            footer = divider + HtmlHelper.CreateElement("li", link);
+                classes: css.FooterLink);
+            footer = divider + _html.CreateElement("li", link);
         }
 
-        var menu = HtmlHelper.CreateElement("ul", listContent + footer,
+        var align = WebUtility.HtmlEncode(
+            string.IsNullOrWhiteSpace(Align) ? css.DefaultAlign : Align);
+
+        var menu = _html.CreateElement("ul", listContent + footer,
             attributes: new Dictionary<string, string>
             {
                 ["style"] = $"width:{DropdownWidth}px;"
             },
-            classes: $"dropdown-menu dropdown-menu-{WebUtility.HtmlEncode(Align)} p-0");
+            classes: css.Menu(align));
 
-        return HtmlHelper.CreateElement("div", button + menu, classes: "dropdown");
+        return _html.CreateElement("div", button + menu, classes: css.Container);
     }
 
     private string BuildNotificationItem(Notification notification)
     {
-        var iconClass = notification.Style?.CustomIconClass
-                        ?? NotificationUIHelper.GetIconClass(notification.Type);
+        var css = _dictionary.NotificationDropdown;
+
+        var iconClass = notification.Style?.CustomIconClass is { } custom
+            ? _icons.Icons.Custom(custom)
+            : _icons.Icons.Notification(notification.Type);
         var colourClass = notification.Style?.CustomColourClass
-                          ?? NotificationUIHelper.GetColourClass(notification.Type);
+                          ?? _dictionary.NotificationTypes.Colour(notification.Type);
 
         var body = WebUtility.HtmlEncode(notification.Body.Truncate(BodyMaxLength));
         var title = WebUtility.HtmlEncode(notification.Title);
         var time = notification.CreatedUtc.ToRelativeTime();
 
-        var icon = HtmlHelper.CreateElement("i", "",
-            classes: $"bi {WebUtility.HtmlEncode(iconClass)} text-{WebUtility.HtmlEncode(colourClass)} mt-1");
+        var icon = _html.CreateElement("i", "",
+            classes: css.ItemIcon(WebUtility.HtmlEncode(iconClass), WebUtility.HtmlEncode(colourClass)));
 
-        var content = HtmlHelper.CreateElement("div",
-            HtmlHelper.CreateElement("div", title, classes: "fw-semibold text-truncate") +
-            HtmlHelper.CreateElement("div", body, classes: "small text-muted text-truncate") +
-            HtmlHelper.CreateElement("div", WebUtility.HtmlEncode(time), classes: "small text-muted"),
-            classes: "flex-grow-1 overflow-hidden");
+        var content = _html.CreateElement("div",
+            _html.CreateElement("div", title, classes: css.ItemTitle) +
+            _html.CreateElement("div", body, classes: css.ItemBody) +
+            _html.CreateElement("div", WebUtility.HtmlEncode(time), classes: css.ItemTime),
+            classes: css.ItemContent);
 
-        var unreadDot = HtmlHelper.CreateElement("span", "",
+        var unreadDot = _html.CreateElement("span", "",
             attributes: new Dictionary<string, string>
             {
                 ["style"] = "width:8px;height:8px;min-width:8px;"
             },
-            classes: $"bg-{WebUtility.HtmlEncode(BadgeColour)} rounded-circle mt-2");
+            classes: css.UnreadDot(WebUtility.HtmlEncode(
+                string.IsNullOrWhiteSpace(BadgeColour) ? css.DefaultBadgeColour : BadgeColour)));
 
         var tag = string.IsNullOrWhiteSpace(notification.UrlLink) ? "div" : "a";
         var attrs = new Dictionary<string, string>();
         if (!string.IsNullOrWhiteSpace(notification.UrlLink))
             attrs["href"] = notification.UrlLink;
 
-        return HtmlHelper.CreateElement(tag, icon + content + unreadDot,
+        return _html.CreateElement(tag, icon + content + unreadDot,
             attributes: attrs,
-            classes: "dropdown-item d-flex align-items-start gap-2 py-2 px-3 border-bottom");
+            classes: css.Item);
     }
 }

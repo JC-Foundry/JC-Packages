@@ -2,6 +2,7 @@ using System.Net;
 using JC.Core.Models;
 using JC.FileStorage.Models;
 using JC.FileStorage.Services;
+using JC.FileStorage.Web.Framework;
 using JC.FileStorage.Web.Helpers;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -12,8 +13,8 @@ using HtmlHelper = JC.Web.UI.HTML.HtmlHelper;
 namespace JC.FileStorage.Web.TagHelpers;
 
 /// <summary>
-/// Renders the upload constraints for a folder as Bootstrap help text — the accepted file types and
-/// the maximum size.
+/// Renders the upload constraints for a folder as help text — the accepted file types and the
+/// maximum size — using the configured UI framework's classes.
 /// </summary>
 /// <remarks>
 /// Reads the limits from <see cref="FolderRegistry"/>, resolving the folder's own values and falling
@@ -24,6 +25,8 @@ namespace JC.FileStorage.Web.TagHelpers;
 public class UploadConstraintsTagHelper : TagHelper
 {
     private readonly FolderRegistry _folderRegistry;
+    private readonly HtmlHelper _html;
+    private readonly IFileStorageFrameworkDictionary _dictionary;
 
     /// <summary>Gets or sets the folder name to show constraints for. Required.</summary>
     [HtmlAttributeName("folder")]
@@ -59,17 +62,27 @@ public class UploadConstraintsTagHelper : TagHelper
     [HtmlAttributeName("any-type-text")]
     public string AnyTypeText { get; set; } = "Any type except executable files";
 
-    /// <summary>Gets or sets the CSS classes applied to the wrapper. Defaults to "form-text".</summary>
+    /// <summary>
+    /// Gets or sets the CSS classes applied to the wrapper. Falls back to the configured framework's
+    /// container class when null or whitespace.
+    /// </summary>
     [HtmlAttributeName("css-class")]
-    public string CssClass { get; set; } = "form-text";
+    public string? CssClass { get; set; }
 
     [HtmlAttributeNotBound]
     [ViewContext]
     public ViewContext ViewContext { get; set; } = null!;
 
-    public UploadConstraintsTagHelper(FolderRegistry folderRegistry)
+    /// <param name="folderRegistry">The registry supplying the folder's upload limits.</param>
+    /// <param name="html">The HTML element builder, resolved from the container.</param>
+    /// <param name="dictionary">The class dictionary for the configured framework.</param>
+    public UploadConstraintsTagHelper(FolderRegistry folderRegistry,
+        HtmlHelper html,
+        IFileStorageFrameworkDictionary dictionary)
     {
         _folderRegistry = folderRegistry;
+        _html = html;
+        _dictionary = dictionary;
     }
 
     public override void Process(TagHelperContext context, TagHelperOutput output)
@@ -94,11 +107,15 @@ public class UploadConstraintsTagHelper : TagHelper
             return;
         }
 
+        var css = string.IsNullOrWhiteSpace(CssClass)
+            ? _dictionary.UploadConstraints.Container
+            : CssClass;
+
         output.TagName = null;
         output.TagMode = TagMode.StartTagAndEndTag;
-        output.Content.SetHtmlContent(HtmlHelper.CreateElement("div",
+        output.Content.SetHtmlContent(_html.CreateElement("div",
             string.Join(" &middot; ", parts),
-            classes: WebUtility.HtmlEncode(CssClass)));
+            classes: WebUtility.HtmlEncode(css)));
     }
 
     private List<string> BuildParts(FolderModel folder)

@@ -22,7 +22,7 @@ public enum AlertType
 
 /// <summary>
 /// Renders alert components using the configured UI framework's classes.
-/// Registered as a singleton by <c>AddUi</c> — inject it where alerts are built in code.
+/// Registered as a singleton by <c>AddUI</c> — inject it where alerts are built in code.
 /// </summary>
 /// <param name="dictionary">The class dictionary for the configured framework.</param>
 public class AlertHelper(IWebFrameworkDictionary dictionary)

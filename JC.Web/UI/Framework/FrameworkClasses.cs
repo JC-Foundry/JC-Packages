@@ -109,6 +109,79 @@ public sealed record TableClasses
 }
 
 /// <summary>
+/// Classes for the floating bug reporter widget.
+/// </summary>
+/// <remarks>
+/// The widget takes a contextual colour as a tag helper attribute, so the values it appears in are
+/// stored as formats and read through the accessor methods below. See
+/// <see cref="FrameworkClass.Format"/> for why the whole format lives here rather than the widget
+/// appending a colour to a base class.
+/// </remarks>
+public sealed record BugReporterClasses
+{
+    /// <summary>The floating button that opens the widget.</summary>
+    public string ToggleButton { get; init; } = "";
+
+    /// <summary>The report panel. <c>{0}</c> is the configured colour.</summary>
+    public string PanelFormat { get; init; } = "";
+
+    /// <summary>The contextual colour used when the caller specifies none.</summary>
+    public string DefaultColour { get; init; } = "";
+
+    /// <summary>The panel's inner body.</summary>
+    public string PanelBody { get; init; } = "";
+
+    /// <summary>The panel heading. <c>{0}</c> is the configured colour.</summary>
+    public string TitleFormat { get; init; } = "";
+
+    /// <summary>The wrapper around a single form field.</summary>
+    public string Field { get; init; } = "";
+
+    /// <summary>A field label.</summary>
+    public string Label { get; init; } = "";
+
+    /// <summary>The report type select.</summary>
+    public string Select { get; init; } = "";
+
+    /// <summary>The description textarea.</summary>
+    public string TextArea { get; init; } = "";
+
+    /// <summary>Hides an element. Applied to the feedback area until there is something to say.</summary>
+    public string Hidden { get; init; } = "";
+
+    /// <summary>The row holding the cancel and submit buttons.</summary>
+    public string Actions { get; init; } = "";
+
+    /// <summary>The cancel button.</summary>
+    public string CancelButton { get; init; } = "";
+
+    /// <summary>The submit button. <c>{0}</c> is the configured colour.</summary>
+    public string SubmitButtonFormat { get; init; } = "";
+
+    /// <summary>
+    /// The inline feedback message shown after submitting. <c>{0}</c> is the outcome — one of
+    /// <c>success</c>, <c>warning</c> or <c>danger</c>.
+    /// </summary>
+    /// <remarks>
+    /// Substituted in the browser rather than on the server, since the outcome is not known until
+    /// the request completes. The format is emitted into the widget's script as-is.
+    /// </remarks>
+    public string FeedbackFormat { get; init; } = "";
+
+    /// <summary>Returns the panel class for the given colour.</summary>
+    /// <param name="colour">The configured contextual colour.</param>
+    public string Panel(string colour) => FrameworkClass.Format(PanelFormat, colour);
+
+    /// <summary>Returns the heading class for the given colour.</summary>
+    /// <param name="colour">The configured contextual colour.</param>
+    public string Title(string colour) => FrameworkClass.Format(TitleFormat, colour);
+
+    /// <summary>Returns the submit button class for the given colour.</summary>
+    /// <param name="colour">The configured contextual colour.</param>
+    public string SubmitButton(string colour) => FrameworkClass.Format(SubmitButtonFormat, colour);
+}
+
+/// <summary>
 /// Classes for element states shared across components, applied by <see cref="HtmlTagBuilder"/>.
 /// </summary>
 public sealed record StateClasses

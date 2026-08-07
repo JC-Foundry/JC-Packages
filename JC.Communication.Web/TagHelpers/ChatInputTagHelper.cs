@@ -1,5 +1,6 @@
 using System.Net;
 using JC.Communication.Messaging.Models;
+using JC.Communication.Web.Framework;
 using JC.Core.Extensions;
 using JC.Web.UI.HTML;
 using Microsoft.AspNetCore.Antiforgery;
@@ -16,8 +17,14 @@ namespace JC.Communication.Web.TagHelpers;
 /// When <see cref="ReplyTo"/> is set, a dismissible preview of the message being replied to is shown
 /// above the input area. Posts to <see cref="Endpoint"/> with the thread ID and message content.
 /// </summary>
+/// <param name="html">The HTML element builder, resolved from the container.</param>
+/// <param name="dictionary">The class dictionary for the configured framework.</param>
+/// <param name="icons">The icon dictionary for the configured icon set.</param>
 [HtmlTargetElement("chat-input", TagStructure = TagStructure.WithoutEndTag)]
-public class ChatInputTagHelper : TagHelper
+public class ChatInputTagHelper(HtmlHelper html,
+    ICommunicationFrameworkDictionary dictionary,
+    ICommunicationIconDictionary icons)
+    : TagHelper
 {
     /// <summary>Gets or sets the POST endpoint URL for sending messages. Required.</summary>
     [HtmlAttributeName("endpoint")]
@@ -51,9 +58,12 @@ public class ChatInputTagHelper : TagHelper
     [HtmlAttributeName("button-text")]
     public string ButtonText { get; set; } = "Send";
 
-    /// <summary>Gets or sets the Bootstrap button colour class. Defaults to "primary".</summary>
+    /// <summary>
+    /// Gets or sets the send button colour. Falls back to the configured framework's default when
+    /// unset, which is "primary" under Bootstrap.
+    /// </summary>
     [HtmlAttributeName("button-colour")]
-    public string ButtonColour { get; set; } = "primary";
+    public string? ButtonColour { get; set; }
 
     /// <summary>Gets or sets the model binding prefix for input names. Defaults to "Input".</summary>
     [HtmlAttributeName("prefix")]
@@ -87,6 +97,7 @@ public class ChatInputTagHelper : TagHelper
 
     private string BuildHtml()
     {
+        var css = dictionary.ChatInput;
         var namePrefix = string.IsNullOrEmpty(Prefix) ? "" : $"{Prefix}.";
         var content = "";
 
@@ -98,7 +109,7 @@ public class ChatInputTagHelper : TagHelper
             {
                 var tokens = antiforgery.GetAndStoreTokens(ViewContext.HttpContext);
                 if (tokens.RequestToken != null)
-                    content += HtmlHelper.CreateElement("input", "",
+                    content += html.CreateElement("input", "",
                         attributes: new Dictionary<string, string>
                         {
                             ["type"] = "hidden",
@@ -109,7 +120,7 @@ public class ChatInputTagHelper : TagHelper
         }
 
         // Hidden thread ID
-        content += HtmlHelper.CreateElement("input", "",
+        content += html.CreateElement("input", "",
             attributes: new Dictionary<string, string>
             {
                 ["type"] = "hidden",
@@ -124,7 +135,7 @@ public class ChatInputTagHelper : TagHelper
             var replyBody = WebUtility.HtmlEncode(ReplyTo.Message.Truncate(ReplyTruncateLength));
 
             // Hidden input for reply-to message ID
-            content += HtmlHelper.CreateElement("input", "",
+            content += html.CreateElement("input", "",
                 attributes: new Dictionary<string, string>
                 {
                     ["type"] = "hidden",
@@ -133,25 +144,24 @@ public class ChatInputTagHelper : TagHelper
                 });
 
             var replyContent =
-                HtmlHelper.CreateElement("div",
-                    HtmlHelper.CreateElement("i", "", classes: "bi bi-reply") + " " +
-                    HtmlHelper.CreateElement("span", replyName, classes: "fw-semibold") + " " +
+                html.CreateElement("div",
+                    html.CreateElement("i", "", classes: icons.Icons.Reply) + " " +
+                    html.CreateElement("span", replyName, classes: css.ReplyName) + " " +
                     replyBody,
-                    classes: "flex-grow-1 small text-truncate") +
-                HtmlHelper.CreateElement("button", HtmlHelper.CreateElement("i", "", classes: "bi bi-x"),
+                    classes: css.ReplyText) +
+                html.CreateElement("button", html.CreateElement("i", "", classes: icons.Icons.Close),
                     attributes: new Dictionary<string, string>
                     {
                         ["type"] = "button",
                         ["aria-label"] = "Cancel reply"
                     },
-                    classes: "btn-close btn-close-sm ms-2");
+                    classes: css.ReplyClose);
 
-            content += HtmlHelper.CreateElement("div", replyContent,
-                classes: "d-flex align-items-center border-start border-2 border-primary ps-2 py-1 mb-2 bg-light rounded");
+            content += html.CreateElement("div", replyContent, classes: css.ReplyBar);
         }
 
         // Input row: textarea + send button
-        var textarea = HtmlHelper.CreateElement("textarea", "",
+        var textarea = html.CreateElement("textarea", "",
             attributes: new Dictionary<string, string>
             {
                 ["name"] = $"{WebUtility.HtmlEncode(namePrefix)}Message",
@@ -160,24 +170,26 @@ public class ChatInputTagHelper : TagHelper
                 ["maxlength"] = MaxLength.ToString(),
                 ["required"] = "required"
             },
-            classes: "form-control");
+            classes: css.TextArea);
 
-        var sendButton = HtmlHelper.CreateElement("button",
-            HtmlHelper.CreateElement("i", "", classes: "bi bi-send") + " " +
+        var buttonColour = WebUtility.HtmlEncode(
+            string.IsNullOrWhiteSpace(ButtonColour) ? css.DefaultButtonColour : ButtonColour);
+
+        var sendButton = html.CreateElement("button",
+            html.CreateElement("i", "", classes: icons.Icons.Send) + " " +
             WebUtility.HtmlEncode(ButtonText),
             attributes: new Dictionary<string, string> { ["type"] = "submit" },
-            classes: $"btn btn-{WebUtility.HtmlEncode(ButtonColour)} ms-2 align-self-end");
+            classes: css.SendButton(buttonColour));
 
-        content += HtmlHelper.CreateElement("div", textarea + sendButton,
-            classes: "d-flex align-items-end");
+        content += html.CreateElement("div", textarea + sendButton, classes: css.InputRow);
 
-        return HtmlHelper.CreateElement("form", content,
+        return html.CreateElement("form", content,
             attributes: new Dictionary<string, string>
             {
                 ["method"] = "post",
                 ["action"] = Endpoint
             },
-            classes: "p-3 border-top");
+            classes: css.Form);
     }
 
     private string ResolveName(string userId)

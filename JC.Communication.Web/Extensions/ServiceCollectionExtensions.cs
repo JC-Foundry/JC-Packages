@@ -1,19 +1,19 @@
-using JC.FileStorage.Extensions;
-using JC.FileStorage.Web.Framework;
-using JC.FileStorage.Web.Services;
+using JC.Communication.Web.Framework;
 using JC.Web.Extensions;
 using JC.Web.UI.Framework;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace JC.FileStorage.Web.Extensions;
+namespace JC.Communication.Web.Extensions;
 
+/// <summary>
+/// Extension methods for <see cref="IServiceCollection"/> providing JC.Communication.Web service
+/// registration.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers <see cref="WebStorageService"/>, along with the JC.FileStorage services it wraps
-    /// and the UI services this package's tag helpers resolve.
-    /// Calling <c>AddFileStorage</c> separately is not required.
+    /// Registers the services JC.Communication.Web's tag helpers resolve — the UI framework
+    /// services from JC.Web and this package's own class dictionary.
     /// </summary>
     /// <param name="services">The service collection to register into.</param>
     /// <param name="framework">
@@ -22,12 +22,12 @@ public static class ServiceCollectionExtensions
     /// <c>AddWebDefaults</c>, since the registration there wins.
     /// </param>
     /// <param name="iconFramework">
-    /// The icon set, chosen independently of <paramref name="framework"/>. Ignored under the same
-    /// conditions. This package registers no icon dictionary of its own.
+    /// The icon set tag helpers render glyphs from, chosen independently of
+    /// <paramref name="framework"/>. Ignored under the same conditions.
     /// </param>
     /// <returns>The service collection for chaining.</returns>
     /// <remarks>
-    /// The tag helpers in this package inject <see cref="IFileStorageFrameworkDictionary"/> and
+    /// Every tag helper in this package injects <see cref="ICommunicationFrameworkDictionary"/> and
     /// JC.Web's <see cref="JC.Web.UI.HTML.HtmlHelper"/>, neither of which the container can supply
     /// on its own. Without this call the failure is at render time rather than at build or startup,
     /// so call it wherever the package is used.
@@ -38,22 +38,21 @@ public static class ServiceCollectionExtensions
     /// <see cref="UIFrameworkService.Framework"/>.
     /// </para>
     /// </remarks>
-    public static IServiceCollection AddFileStorageWeb(this IServiceCollection services,
+    public static IServiceCollection AddCommunicationWeb(this IServiceCollection services,
         UIFramework framework = UIFramework.Bootstrap,
         IconFramework iconFramework = IconFramework.Bootstrap)
     {
-        services.AddFileStorage();
-        services.TryAddScoped<WebStorageService>();
-
-        // No icon dictionary is registered — this package's tag helper renders no glyphs. The icon
-        // choice is still passed on, so an application registering only this package still gets a
-        // resolved icon set for anything layered above it.
         services.AddUI(framework, iconFramework);
 
         // Bootstrap is the only dictionary implemented so far. Tailwind and CustomJCTailwind become
         // additional switch arms here once theirs exist; no tag helper changes.
-        services.AddFrameworkDictionary<IFileStorageFrameworkDictionary>(
-            _ => new BootstrapFileStorageDictionary());
+        services.AddFrameworkDictionary<ICommunicationFrameworkDictionary>(
+            _ => new BootstrapCommunicationDictionary());
+
+        // Likewise for icons — FontAwesome becomes a second arm here, selected by its own choice
+        // rather than by the CSS framework.
+        services.AddIconDictionary<ICommunicationIconDictionary>(
+            _ => new BootstrapIconsCommunicationDictionary());
 
         return services;
     }

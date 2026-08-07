@@ -41,6 +41,7 @@ public static class ServiceCollectionExtensions
     /// <param name="configureBotFilter">Optional callback to configure <see cref="BotFilterOptions"/>.</param>
     /// <param name="configureClientIp">Optional callback to configure <see cref="ClientIpOptions"/>.</param>
     /// <param name="uiFramework">The selected UI framework tag helpers use. Defaults to bootstrap</param>
+    /// <param name="iconFramework">The selected icon framework tag helpers use. Chosen independently of <paramref name="uiFramework"/>. Defaults to bootstrap</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddWebDefaults(this IServiceCollection services,
         IConfiguration? configuration = null,
@@ -49,11 +50,12 @@ public static class ServiceCollectionExtensions
         Action<CookieDefaultOptions>? configureCookieFilter = null,
         Action<BotFilterOptions>? configureBotFilter = null,
         Action<ClientIpOptions>? configureClientIp = null,
-        UIFramework uiFramework = UIFramework.Bootstrap)
+        UIFramework uiFramework = UIFramework.Bootstrap,
+        IconFramework iconFramework = IconFramework.Bootstrap)
     {
         services.AddSecurityDefaults(configuration, useEncryptedCookies, configureHeaderFilter, configureCookieFilter);
         services.AddClientProfiling(configureBotFilter, configureClientIp);
-        services.AddUi(uiFramework);
+        services.AddUI(uiFramework, iconFramework);
 
         return services;
     }
@@ -72,6 +74,7 @@ public static class ServiceCollectionExtensions
     /// <param name="configureGeoLocation">Optional callback to configure <see cref="GeoLocationOptions"/>.</param>
     /// <param name="configureClientIp">Optional callback to configure <see cref="ClientIpOptions"/>.</param>
     /// <param name="uiFramework">The selected UI framework tag helpers use. Defaults to bootstrap</param>
+    /// <param name="iconFramework">The selected icon framework tag helpers use. Chosen independently of <paramref name="uiFramework"/>. Defaults to bootstrap</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddWebDefaults<TGeoService>(this IServiceCollection services,
         IConfiguration? configuration = null,
@@ -81,12 +84,13 @@ public static class ServiceCollectionExtensions
         Action<BotFilterOptions>? configureBotFilter = null,
         Action<GeoLocationOptions>? configureGeoLocation = null,
         Action<ClientIpOptions>? configureClientIp = null,
-        UIFramework uiFramework = UIFramework.Bootstrap)
+        UIFramework uiFramework = UIFramework.Bootstrap,
+        IconFramework iconFramework = IconFramework.Bootstrap)
         where TGeoService : class, IGeoLocationProvider
     {
         services.AddSecurityDefaults(configuration, useEncryptedCookies, configureHeaderFilter, configureCookieFilter);
         services.AddClientProfiling<TGeoService>(configureBotFilter, configureGeoLocation, configureClientIp);
-        services.AddUi(uiFramework);
+        services.AddUI(uiFramework, iconFramework);
 
         return services;
     }
@@ -435,16 +439,24 @@ public static class ServiceCollectionExtensions
     /// The framework tag helpers and builders render for. May combine flags, in which case the most
     /// specific is used. Defaults to <see cref="UIFramework.Bootstrap"/>.
     /// </param>
+    /// <param name="iconFramework">
+    /// The icon framework tag helpers and builders render for. May combine flags, in which case
+    /// the most specific is used. Defaults to <see cref="IconFramework.Bootstrap"/>
+    /// </param>
     /// <returns>The service collection for chaining.</returns>
-    public static IServiceCollection AddUi(this IServiceCollection services,
-        UIFramework framework = UIFramework.Bootstrap)
+    public static IServiceCollection AddUI(this IServiceCollection services,
+        UIFramework framework = UIFramework.Bootstrap,
+        IconFramework iconFramework = IconFramework.Bootstrap)
     {
         services.TryAddSingleton<UIFrameworkService>(
-            _ => new UIFrameworkService(framework));
+            _ => new UIFrameworkService(framework, iconFramework));
 
-        // Bootstrap is the only dictionary implemented so far. Tailwind and CustomJCTailwind become
-        // additional switch arms here once theirs exist; nothing else in the package changes.
-        services.AddFrameworkDictionary<IWebFrameworkDictionary>(_ => new BootstrapDictionary());
+        services.AddFrameworkDictionary<IWebFrameworkDictionary>(f => f switch
+        {
+            UIFramework.Tailwind => new TailwindDictionary(),
+            UIFramework.CustomJCTailwind => new CustomJCTailwindDictionary(),
+            _ => new BootstrapDictionary()
+        });
 
         // Stateless renderers, so a singleton each. The builders that accumulate state
         // (BreadcrumbBuilder, TableBuilder<T>) are constructed per use and take the dictionary
@@ -470,7 +482,7 @@ public static class ServiceCollectionExtensions
     /// package layered above JC.Web never requires changing JC.Web. Every dictionary is driven by
     /// the same single framework choice, so they cannot disagree.
     /// <para>
-    /// Requires <see cref="AddUi"/> to have been called, since the factory is handed the framework
+    /// Requires <see cref="AddUI"/> to have been called, since the factory is handed the framework
     /// held by <see cref="UIFrameworkService"/>.
     /// </para>
     /// </remarks>
@@ -484,9 +496,39 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Registers a package's icon class dictionary, selecting the implementation from the icon set
+    /// resolved by <see cref="UIFrameworkService"/>.
+    /// </summary>
+    /// <typeparam name="TDictionary">The package's icon dictionary contract.</typeparam>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="factory">
+    /// Returns the implementation for the resolved icon set. Called once, on first resolution.
+    /// </param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// The icon counterpart to <see cref="AddFrameworkDictionary{TDictionary}"/>, reading
+    /// <see cref="UIFrameworkService.IconFramework"/> rather than
+    /// <see cref="UIFrameworkService.Framework"/>. The two are independent choices, so a package may
+    /// register either or both.
+    /// <para>
+    /// Requires <see cref="AddUI"/> to have been called, since the factory is handed the icon set
+    /// held by <see cref="UIFrameworkService"/>.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddIconDictionary<TDictionary>(this IServiceCollection services,
+        Func<IconFramework, TDictionary> factory)
+        where TDictionary : class, IIconDictionary
+    {
+        services.TryAddSingleton(sp =>
+            factory(sp.GetRequiredService<UIFrameworkService>().IconFramework));
+
+        return services;
+    }
+
     #endregion
-    
-    
+
+
     #region SEO
 
     /// <summary>

@@ -20,4 +20,8 @@
     <ItemGroup Condition="'$(UseLocalProjectReferences)' != 'true'">
         <PackageReference Include="JC.Core" />
     </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="UI\Framework\Icons\" />
+    </ItemGroup>
 </Project>

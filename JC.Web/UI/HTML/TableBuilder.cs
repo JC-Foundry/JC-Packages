@@ -65,49 +65,65 @@ public class TableBuilder<T>(IWebFrameworkDictionary dictionary)
     /// <returns>The rendered HTML table string.</returns>
     public string Build(IEnumerable<T> items, string? tableClass = null)
     {
-        var css = string.IsNullOrWhiteSpace(tableClass) ? _dictionary.Table.Table : tableClass;
+        var classes = _dictionary.Table;
+        var css = string.IsNullOrWhiteSpace(tableClass) ? classes.Table : tableClass;
 
         var sb = new StringBuilder();
-        sb.Append("<table class=\"").Append(css).Append("\">");
+        Open(sb, "table", css);
 
-        BuildHead(sb);
-        BuildBody(sb, items);
+        BuildHead(sb, classes);
+        BuildBody(sb, classes, items);
 
         sb.Append("</table>");
         return sb.ToString();
     }
 
-    private void BuildHead(StringBuilder sb)
+    /// <summary>
+    /// Opens a tag, emitting a class attribute only when there is one to emit.
+    /// </summary>
+    /// <remarks>
+    /// Bootstrap styles the table element alone and leaves the structural entries empty, so the
+    /// generated markup is the bare <c>&lt;thead&gt;</c> and <c>&lt;td&gt;</c> tags it always was.
+    /// A framework that has to style every part can fill them in without this builder changing.
+    /// </remarks>
+    private static void Open(StringBuilder sb, string tag, params string?[] classes)
     {
-        sb.Append("<thead><tr>");
+        var css = FrameworkClass.Join(classes);
+
+        sb.Append('<').Append(tag);
+
+        if (!string.IsNullOrWhiteSpace(css))
+            sb.Append(" class=\"").Append(css).Append('"');
+
+        sb.Append('>');
+    }
+
+    private void BuildHead(StringBuilder sb, TableClasses classes)
+    {
+        Open(sb, "thead", classes.Head);
+        sb.Append("<tr>");
 
         foreach (var col in _columns)
         {
-            if (col.CssClass != null)
-                sb.Append("<th class=\"").Append(col.CssClass).Append("\">").Append(WebUtility.HtmlEncode(col.Header)).Append("</th>");
-            else
-                sb.Append("<th>").Append(WebUtility.HtmlEncode(col.Header)).Append("</th>");
+            Open(sb, "th", classes.HeaderCell, col.CssClass);
+            sb.Append(WebUtility.HtmlEncode(col.Header)).Append("</th>");
         }
 
         sb.Append("</tr></thead>");
     }
 
-    private void BuildBody(StringBuilder sb, IEnumerable<T> items)
+    private void BuildBody(StringBuilder sb, TableClasses classes, IEnumerable<T> items)
     {
-        sb.Append("<tbody>");
+        Open(sb, "tbody", classes.Body);
 
         foreach (var item in items)
         {
-            sb.Append("<tr>");
+            Open(sb, "tr", classes.Row);
 
             foreach (var col in _columns)
             {
-                var value = WebUtility.HtmlEncode(col.ValueSelector(item) ?? string.Empty);
-
-                if (col.CssClass != null)
-                    sb.Append("<td class=\"").Append(col.CssClass).Append("\">").Append(value).Append("</td>");
-                else
-                    sb.Append("<td>").Append(value).Append("</td>");
+                Open(sb, "td", classes.Cell, col.CssClass);
+                sb.Append(WebUtility.HtmlEncode(col.ValueSelector(item) ?? string.Empty)).Append("</td>");
             }
 
             sb.Append("</tr>");

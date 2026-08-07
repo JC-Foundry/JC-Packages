@@ -25,7 +25,6 @@ namespace JC.Web.UI.HTML;
 /// <param name="dictionary">The class dictionary for the configured framework.</param>
 public class BreadcrumbBuilder(IWebFrameworkDictionary dictionary)
 {
-    private readonly IWebFrameworkDictionary _dictionary = dictionary;
     private readonly List<(string Label, string? Url)> _items = new();
 
     /// <summary>
@@ -49,7 +48,7 @@ public class BreadcrumbBuilder(IWebFrameworkDictionary dictionary)
         if (_items.Count == 0)
             return string.Empty;
 
-        var classes = _dictionary.Breadcrumb;
+        var classes = dictionary.Breadcrumb;
 
         var sb = new StringBuilder();
         sb.Append("<nav aria-label=\"breadcrumb\"");

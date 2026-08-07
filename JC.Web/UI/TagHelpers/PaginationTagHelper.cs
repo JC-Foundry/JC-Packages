@@ -1,5 +1,6 @@
 using System.Text;
 using JC.Core.Models.Pagination;
+using JC.Web.UI.Framework;
 using JC.Web.UI.HTML;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 
@@ -69,8 +70,11 @@ public class PaginationTagHelper(HtmlHelper html) : TagHelper
         output.TagMode = TagMode.StartTagAndEndTag;
         output.Attributes.SetAttribute("aria-label", "Page navigation");
 
-        if (!string.IsNullOrWhiteSpace(ContainerClass))
-            output.Attributes.SetAttribute("class", ContainerClass);
+        // Bootstrap styles the list rather than the nav, so its nav class is empty and the attribute
+        // carries the caller's value alone — as it did before the dictionary existed.
+        var navClass = FrameworkClass.Join(html.PaginationNavClass, ContainerClass);
+        if (!string.IsNullOrWhiteSpace(navClass))
+            output.Attributes.SetAttribute("class", navClass);
 
         var sb = new StringBuilder();
         sb.Append("<ul class=\"").Append(html.PaginationListClass).Append("\">");

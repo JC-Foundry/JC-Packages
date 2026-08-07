@@ -53,6 +53,25 @@ public sealed class BootstrapDictionary : IWebFrameworkDictionary
     };
 
     /// <inheritdoc />
+    public BugReporterClasses BugReporter { get; } = new()
+    {
+        ToggleButton = "d-print-none",
+        PanelFormat = "card border-{0} d-print-none",
+        DefaultColour = "danger",
+        PanelBody = "card-body p-3",
+        TitleFormat = "card-title text-{0}",
+        Field = "mb-2",
+        Label = "form-label",
+        Select = "form-select form-select-sm",
+        TextArea = "form-control form-control-sm",
+        Hidden = "d-none",
+        Actions = "d-flex justify-content-between",
+        CancelButton = "btn btn-sm btn-outline-secondary",
+        SubmitButtonFormat = "btn btn-sm btn-{0}",
+        FeedbackFormat = "alert alert-{0} py-1 px-2 mb-2 small"
+    };
+
+    /// <inheritdoc />
     public StateClasses State { get; } = new()
     {
         Active = "active",

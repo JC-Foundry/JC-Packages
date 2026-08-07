@@ -1,4 +1,5 @@
 using JC.Web.ClientProfiling;
+using JC.Web.UI.Framework;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -19,10 +20,11 @@ namespace JC.Web.UI.TagHelpers;
 /// The consuming application must provide the POST endpoint. The widget sends a JSON body:
 /// <code>{ "type": "bug"|"suggestion", "description": "...", "metadata": "..." }</code>
 /// </para>
-/// Assumes Bootstrap 5 is available.
+/// Renders using the configured UI framework's classes.
 /// </summary>
+/// <param name="dictionary">The class dictionary for the configured framework.</param>
 [HtmlTargetElement("bug-reporter", TagStructure = TagStructure.WithoutEndTag)]
-public class BugReporterTagHelper : TagHelper
+public class BugReporterTagHelper(IWebFrameworkDictionary dictionary) : TagHelper
 {
     /// <summary>
     /// The POST endpoint that receives bug reports. Required.
@@ -44,13 +46,19 @@ public class BugReporterTagHelper : TagHelper
     public string Title { get; set; } = "Send Feedback";
 
     /// <summary>
-    /// The Bootstrap contextual suffix used for the card border, title, and submit button
-    /// (e.g. <c>"danger"</c>, <c>"info"</c>, <c>"warning"</c>). The value is appended to
-    /// <c>border-</c>, <c>text-</c>, and <c>btn-</c> classes, so custom values only work if
-    /// matching utility classes exist (e.g. via SCSS). Defaults to <c>"danger"</c>.
+    /// The contextual colour used for the panel border, title, and submit button
+    /// (e.g. <c>"danger"</c>, <c>"info"</c>, <c>"warning"</c>). Falls back to the configured
+    /// framework's default when unset.
     /// </summary>
+    /// <remarks>
+    /// How the value becomes a class is the dictionary's business, not this tag helper's — under
+    /// Bootstrap it fills the <c>border-</c>, <c>text-</c> and <c>btn-</c> formats on
+    /// <see cref="BugReporterClasses"/>, so custom values only work where matching utility classes
+    /// exist. The default lives on the dictionary for the same reason: <c>"danger"</c> is a
+    /// Bootstrap colour name, not a universal one.
+    /// </remarks>
     [HtmlAttributeName("colour")]
-    public string Colour { get; set; } = "danger";
+    public string? Colour { get; set; }
     
     public bool MaskRequestPath { get; set; } = false;
     public bool MaskQuery { get; set; } = true;
@@ -96,43 +104,52 @@ public class BugReporterTagHelper : TagHelper
         var escapedEndpoint = System.Net.WebUtility.HtmlEncode(Endpoint);
         var escapedTitle = System.Net.WebUtility.HtmlEncode(Title);
         var escapedIcon = System.Net.WebUtility.HtmlEncode(Icon);
-        var escapedColour = System.Net.WebUtility.HtmlEncode(Colour);
         var escapedToken = antiforgeryToken != null
             ? System.Net.WebUtility.HtmlEncode(antiforgeryToken)
             : "";
 
+        var css = dictionary.BugReporter;
+
+        var escapedColour = System.Net.WebUtility.HtmlEncode(
+            string.IsNullOrWhiteSpace(Colour) ? css.DefaultColour : Colour);
+
+        // The outcome is not known until the request completes, so the feedback class is substituted
+        // in the browser. The format is the dictionary's, not this helper's.
+        var feedbackFormat = JavaScriptString(css.FeedbackFormat);
+        var hiddenClass = JavaScriptString(css.Hidden);
+
         return $$"""
-                <button id="br-{{id}}-toggle" type="button" class="d-print-none" title="{{escapedTitle}}"
+                <button id="br-{{id}}-toggle" type="button" class="{{css.ToggleButton}}" title="{{escapedTitle}}"
                         aria-label="{{escapedTitle}}"
                         style="position:fixed;bottom:20px;right:20px;z-index:9999;cursor:pointer;font-size:2rem;
                                background:#fff;border:none;border-radius:50%;width:50px;height:50px;display:flex;
                                align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.25);">
                     {{escapedIcon}}
                 </button>
-                <div id="br-{{id}}-box" class="card border-{{escapedColour}} d-print-none"
+                <div id="br-{{id}}-box" class="{{css.Panel(escapedColour)}}"
                      style="display:none;position:fixed;bottom:80px;right:20px;z-index:9999;width:350px;
                             box-shadow:0 4px 16px rgba(0,0,0,.25);"
                      data-endpoint="{{escapedEndpoint}}"
                      data-metadata="{{escapedMetadata}}"
                      data-token="{{escapedToken}}">
-                    <div class="card-body p-3">
-                        <h5 class="card-title text-{{escapedColour}}">{{escapedTitle}}</h5>
-                        <div class="mb-2">
-                            <label for="br-{{id}}-type" class="form-label">Type</label>
-                            <select id="br-{{id}}-type" class="form-select form-select-sm">
+                    <div class="{{css.PanelBody}}">
+                        <h5 class="{{css.Title(escapedColour)}}">{{escapedTitle}}</h5>
+                        <div class="{{css.Field}}">
+                            <label for="br-{{id}}-type" class="{{css.Label}}">Type</label>
+                            <select id="br-{{id}}-type" class="{{css.Select}}">
                                 <option value="bug">Bug</option>
                                 <option value="suggestion">Suggestion</option>
                             </select>
                         </div>
-                        <div class="mb-2">
-                            <label for="br-{{id}}-desc" class="form-label">Description</label>
-                            <textarea id="br-{{id}}-desc" class="form-control form-control-sm" rows="5"
+                        <div class="{{css.Field}}">
+                            <label for="br-{{id}}-desc" class="{{css.Label}}">Description</label>
+                            <textarea id="br-{{id}}-desc" class="{{css.TextArea}}" rows="5"
                                       placeholder="Describe the issue..."></textarea>
                         </div>
-                        <div id="br-{{id}}-alert" class="d-none"></div>
-                        <div class="d-flex justify-content-between">
-                            <button id="br-{{id}}-cancel" type="button" class="btn btn-sm btn-outline-secondary">Cancel</button>
-                            <button id="br-{{id}}-submit" type="button" class="btn btn-sm btn-{{escapedColour}}">Submit</button>
+                        <div id="br-{{id}}-alert" class="{{css.Hidden}}"></div>
+                        <div class="{{css.Actions}}">
+                            <button id="br-{{id}}-cancel" type="button" class="{{css.CancelButton}}">Cancel</button>
+                            <button id="br-{{id}}-submit" type="button" class="{{css.SubmitButton(escapedColour)}}">Submit</button>
                         </div>
                     </div>
                 </div>
@@ -147,7 +164,7 @@ public class BugReporterTagHelper : TagHelper
                     var alertEl = document.getElementById(p + '-alert');
 
                     function showAlert(msg, type) {
-                        alertEl.className = 'alert alert-' + type + ' py-1 px-2 mb-2 small';
+                        alertEl.className = '{{feedbackFormat}}'.replace('{0}', type);
                         alertEl.textContent = msg;
                     }
 
@@ -183,7 +200,7 @@ public class BugReporterTagHelper : TagHelper
                             if (!r.ok) throw new Error('Failed');
                             showAlert('Thank you for your feedback!', 'success');
                             desc.value = '';
-                            setTimeout(function() { box.style.display = 'none'; alertEl.className = 'd-none'; submit.disabled = false; }, 4000);
+                            setTimeout(function() { box.style.display = 'none'; alertEl.className = '{{hiddenClass}}'; submit.disabled = false; }, 4000);
                         })
                         .catch(function() {
                             showAlert('Something went wrong. Please try again.', 'danger');
@@ -194,4 +211,15 @@ public class BugReporterTagHelper : TagHelper
                 </script>
                 """;
     }
+
+    /// <summary>
+    /// Escapes a class value for use inside a single-quoted JavaScript string literal.
+    /// </summary>
+    /// <remarks>
+    /// Dictionary values are written by whoever implements the dictionary rather than supplied by a
+    /// request, so this guards against an awkward class name breaking the script rather than against
+    /// an attacker.
+    /// </remarks>
+    private static string JavaScriptString(string value)
+        => value.Replace("\\", "\\\\").Replace("'", "\\'");
 }

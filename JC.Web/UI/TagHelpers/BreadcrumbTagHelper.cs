@@ -37,7 +37,7 @@ public class BreadcrumbTagHelper(IWebFrameworkDictionary dictionary) : TagHelper
             return;
         }
 
-        var builder = new BreadcrumbBuilder();
+        var builder = new BreadcrumbBuilder(dictionary);
         foreach (var (label, href) in crumbs)
             builder.Add(label, href);
 

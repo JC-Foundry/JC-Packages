@@ -24,6 +24,9 @@ public interface IWebFrameworkDictionary : IFrameworkDictionary
     /// <summary>Classes for generated tables.</summary>
     TableClasses Table { get; }
 
+    /// <summary>Classes for the bug reporter widget.</summary>
+    BugReporterClasses BugReporter { get; }
+
     /// <summary>Classes for element states shared across components.</summary>
     StateClasses State { get; }
 }

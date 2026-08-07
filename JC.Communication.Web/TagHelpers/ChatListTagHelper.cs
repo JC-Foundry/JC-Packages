@@ -1,6 +1,7 @@
 using System.Net;
 using JC.Communication.Logging.Models.Messaging;
 using JC.Communication.Messaging.Models;
+using JC.Communication.Web.Framework;
 using JC.Core.Extensions;
 using JC.Core.Models;
 using JC.Core.Services.DataRepositories;
@@ -21,6 +22,9 @@ public class ChatListTagHelper : TagHelper
 {
     private readonly IRepositoryManager _repos;
     private readonly IUserInfo _userInfo;
+    private readonly HtmlHelper _html;
+    private readonly ICommunicationFrameworkDictionary _dictionary;
+    private readonly ICommunicationIconDictionary _icons;
 
     /// <summary>Gets or sets the list of chat models to render. Required.</summary>
     [HtmlAttributeName("model")]
@@ -38,9 +42,12 @@ public class ChatListTagHelper : TagHelper
     [HtmlAttributeName("empty-text")]
     public string EmptyText { get; set; } = "No conversations";
 
-    /// <summary>Gets or sets the container CSS class. Defaults to "list-group".</summary>
+    /// <summary>
+    /// Gets or sets the container CSS class. Falls back to the configured framework's default when
+    /// unset, which is "list-group" under Bootstrap.
+    /// </summary>
     [HtmlAttributeName("container-class")]
-    public string ContainerClass { get; set; } = "list-group";
+    public string? ContainerClass { get; set; }
 
     /// <summary>
     /// Gets or sets a function that resolves a user ID to a display name.
@@ -53,14 +60,24 @@ public class ChatListTagHelper : TagHelper
     [HtmlAttributeName("show-unread")]
     public bool ShowUnread { get; set; } = true;
 
-    /// <summary>Gets or sets the Bootstrap badge colour for unread counts. Defaults to "primary".</summary>
+    /// <summary>
+    /// Gets or sets the badge colour for unread counts. Falls back to the configured framework's
+    /// default when unset, which is "primary" under Bootstrap.
+    /// </summary>
     [HtmlAttributeName("unread-badge-colour")]
-    public string UnreadBadgeColour { get; set; } = "primary";
+    public string? UnreadBadgeColour { get; set; }
 
-    public ChatListTagHelper(IRepositoryManager repos, IUserInfo userInfo)
+    public ChatListTagHelper(IRepositoryManager repos,
+        IUserInfo userInfo,
+        HtmlHelper html,
+        ICommunicationFrameworkDictionary dictionary,
+        ICommunicationIconDictionary icons)
     {
         _repos = repos;
         _userInfo = userInfo;
+        _html = html;
+        _dictionary = dictionary;
+        _icons = icons;
     }
 
     public override async Task ProcessAsync(TagHelperContext context, TagHelperOutput output)
@@ -69,7 +86,7 @@ public class ChatListTagHelper : TagHelper
         {
             output.TagName = "div";
             output.TagMode = TagMode.StartTagAndEndTag;
-            output.Attributes.SetAttribute("class", "text-center text-muted py-3");
+            output.Attributes.SetAttribute("class", _dictionary.ChatList.Empty);
             output.Content.SetHtmlContent(WebUtility.HtmlEncode(EmptyText));
             return;
         }
@@ -127,11 +144,17 @@ public class ChatListTagHelper : TagHelper
     private string BuildHtml(Dictionary<string, int> unreadCounts)
     {
         var items = string.Concat(Model.Select(c => BuildChatItem(c, unreadCounts)));
-        return HtmlHelper.CreateElement("div", items, classes: ContainerClass);
+
+        return _html.CreateElement("div", items,
+            classes: string.IsNullOrWhiteSpace(ContainerClass)
+                ? _dictionary.ChatList.Container
+                : ContainerClass);
     }
 
     private string BuildChatItem(ChatModel chat, Dictionary<string, int> unreadCounts)
     {
+        var css = _dictionary.ChatList;
+
         var href = string.Format(HrefFormat, WebUtility.UrlEncode(chat.ThreadId));
         var metadata = chat.ChatMetadata;
         var unread = unreadCounts.GetValueOrDefault(chat.ThreadId);
@@ -140,50 +163,50 @@ public class ChatListTagHelper : TagHelper
         string avatarContent;
         if (metadata?.ImgPath != null)
         {
-            avatarContent = HtmlHelper.CreateElement("img", "",
+            avatarContent = _html.CreateElement("img", "",
                 attributes: new Dictionary<string, string>
                 {
                     ["src"] = metadata.ImgPath,
                     ["alt"] = "",
                     ["style"] = "width:40px;height:40px;object-fit:cover;"
                 },
-                classes: "rounded-circle");
+                classes: css.AvatarImage);
         }
         else if (metadata?.Icon != null)
         {
-            var bgStyle = metadata.Colour != null
-                ? $"width:40px;height:40px;background-color:{WebUtility.HtmlEncode(metadata.Colour)};"
-                : "width:40px;height:40px;background-color:var(--bs-secondary-bg);";
+            // A colour value rather than a class, since it is set through the style that sizes the
+            // avatar — Bootstrap's own CSS variable is the framework's business, not this helper's.
+            var background = metadata.Colour ?? css.AvatarIconBackground;
+            var bgStyle = $"width:40px;height:40px;background-color:{WebUtility.HtmlEncode(background)};";
 
-            avatarContent = HtmlHelper.CreateElement("div",
-                HtmlHelper.CreateElement("i", "", classes: WebUtility.HtmlEncode(metadata.Icon)),
+            avatarContent = _html.CreateElement("div",
+                _html.CreateElement("i", "", classes: WebUtility.HtmlEncode(metadata.Icon)),
                 attributes: new Dictionary<string, string> { ["style"] = bgStyle },
-                classes: "rounded-circle d-flex align-items-center justify-content-center");
+                classes: css.AvatarIcon);
         }
         else
         {
-            var icon = chat.IsGroupChat ? "bi-people" : "bi-person";
-            avatarContent = HtmlHelper.CreateElement("div",
-                HtmlHelper.CreateElement("i", "", classes: $"bi {icon}"),
+            var icon = chat.IsGroupChat ? _icons.Icons.People : _icons.Icons.Person;
+            avatarContent = _html.CreateElement("div",
+                _html.CreateElement("i", "", classes: icon),
                 attributes: new Dictionary<string, string> { ["style"] = "width:40px;height:40px;" },
-                classes: "rounded-circle d-flex align-items-center justify-content-center bg-secondary-subtle");
+                classes: css.AvatarFallback);
         }
 
-        var avatar = HtmlHelper.CreateElement("div", avatarContent,
+        var avatar = _html.CreateElement("div", avatarContent,
             attributes: new Dictionary<string, string> { ["style"] = "width:40px;height:40px;" },
-            classes: "flex-shrink-0");
+            classes: css.Avatar);
 
         // Name + time row
         var nameAttrs = metadata?.Colour != null
             ? new Dictionary<string, string> { ["style"] = $"color:{WebUtility.HtmlEncode(metadata.Colour)};" }
             : null;
-        var nameHtml = HtmlHelper.CreateElement("span", WebUtility.HtmlEncode(chat.ChatName),
+        var nameHtml = _html.CreateElement("span", WebUtility.HtmlEncode(chat.ChatName),
             attributes: nameAttrs,
-            classes: "fw-semibold text-truncate");
-        var timeHtml = HtmlHelper.CreateElement("small", WebUtility.HtmlEncode(chat.LastActivity),
-            classes: "text-muted flex-shrink-0 ms-2");
-        var nameRow = HtmlHelper.CreateElement("div", nameHtml + timeHtml,
-            classes: "d-flex justify-content-between");
+            classes: css.Name);
+        var timeHtml = _html.CreateElement("small", WebUtility.HtmlEncode(chat.LastActivity),
+            classes: css.Time);
+        var nameRow = _html.CreateElement("div", nameHtml + timeHtml, classes: css.NameRow);
 
         // Last message preview
         var previewHtml = "";
@@ -192,27 +215,29 @@ public class ChatListTagHelper : TagHelper
         {
             var senderName = ResolveName(lastMessage.SenderUserId);
             var preview = lastMessage.Message.Truncate(PreviewMaxLength);
-            previewHtml = HtmlHelper.CreateElement("div",
-                HtmlHelper.CreateElement("span", WebUtility.HtmlEncode(senderName) + ":", classes: "fw-medium") + " " +
+            previewHtml = _html.CreateElement("div",
+                _html.CreateElement("span", WebUtility.HtmlEncode(senderName) + ":", classes: css.PreviewSender) + " " +
                 WebUtility.HtmlEncode(preview),
-                classes: "small text-muted text-truncate");
+                classes: css.Preview);
         }
 
-        var content = HtmlHelper.CreateElement("div", nameRow + previewHtml,
-            classes: "flex-grow-1 overflow-hidden");
+        var content = _html.CreateElement("div", nameRow + previewHtml, classes: css.Content);
 
         // Unread badge
         var badgeHtml = "";
         if (ShowUnread && unread > 0)
         {
-            badgeHtml = HtmlHelper.CreateElement("span",
+            var badgeColour = WebUtility.HtmlEncode(
+                string.IsNullOrWhiteSpace(UnreadBadgeColour) ? css.DefaultUnreadBadgeColour : UnreadBadgeColour);
+
+            badgeHtml = _html.CreateElement("span",
                 unread > 99 ? "99+" : unread.ToString(),
-                classes: $"badge rounded-pill bg-{WebUtility.HtmlEncode(UnreadBadgeColour)} align-self-center flex-shrink-0");
+                classes: css.UnreadBadge(badgeColour));
         }
 
-        return HtmlHelper.CreateElement("a", avatar + content + badgeHtml,
+        return _html.CreateElement("a", avatar + content + badgeHtml,
             attributes: new Dictionary<string, string> { ["href"] = href },
-            classes: "list-group-item list-group-item-action d-flex align-items-center gap-3 py-2");
+            classes: css.Item);
     }
 
     private string ResolveName(string userId)

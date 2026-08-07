@@ -1,5 +1,6 @@
 using System.Net;
 using JC.Communication.Messaging.Models;
+using JC.Communication.Web.Framework;
 using JC.Web.UI.HTML;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 
@@ -9,8 +10,11 @@ namespace JC.Communication.Web.TagHelpers;
 /// Renders a participant list for a chat thread, showing avatars or initials for each participant.
 /// When the number of participants exceeds <see cref="MaxDisplay"/>, an overflow indicator is shown.
 /// </summary>
+/// <param name="html">The HTML element builder, resolved from the container.</param>
+/// <param name="dictionary">The class dictionary for the configured framework.</param>
 [HtmlTargetElement("chat-participants", TagStructure = TagStructure.WithoutEndTag)]
-public class ChatParticipantsTagHelper : TagHelper
+public class ChatParticipantsTagHelper(HtmlHelper html, ICommunicationFrameworkDictionary dictionary)
+    : TagHelper
 {
     /// <summary>Gets or sets the chat model whose participants to render. Required.</summary>
     [HtmlAttributeName("model")]
@@ -31,9 +35,12 @@ public class ChatParticipantsTagHelper : TagHelper
     [HtmlAttributeName("user-resolver")]
     public Func<string, string>? UserResolver { get; set; }
 
-    /// <summary>Gets or sets the container CSS class. Defaults to "d-flex align-items-center gap-1".</summary>
+    /// <summary>
+    /// Gets or sets the container CSS class. Falls back to the configured framework's default when
+    /// unset, which is "d-flex align-items-center gap-1" under Bootstrap.
+    /// </summary>
     [HtmlAttributeName("container-class")]
-    public string ContainerClass { get; set; } = "d-flex align-items-center gap-1";
+    public string? ContainerClass { get; set; }
 
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
@@ -50,6 +57,8 @@ public class ChatParticipantsTagHelper : TagHelper
 
     private string BuildHtml()
     {
+        var css = dictionary.ChatParticipants;
+
         var participants = Model.Participants;
         var visible = participants.Take(MaxDisplay).ToList();
         var overflow = participants.Count - MaxDisplay;
@@ -59,16 +68,17 @@ public class ChatParticipantsTagHelper : TagHelper
 
         if (overflow > 0)
         {
-            avatars += HtmlHelper.CreateElement("div", $"+{overflow}",
+            avatars += html.CreateElement("div", $"+{overflow}",
                 attributes: new Dictionary<string, string>
                 {
                     ["style"] = sizeStyle,
                     ["title"] = $"{overflow} more participant{(overflow == 1 ? "" : "s")}"
                 },
-                classes: "rounded-circle bg-secondary-subtle d-flex align-items-center justify-content-center fw-semibold text-muted");
+                classes: css.Overflow);
         }
 
-        return HtmlHelper.CreateElement("div", avatars, classes: ContainerClass);
+        return html.CreateElement("div", avatars,
+            classes: string.IsNullOrWhiteSpace(ContainerClass) ? css.Container : ContainerClass);
     }
 
     private string BuildAvatar(ParticipantModel participant, string sizeStyle)
@@ -76,14 +86,14 @@ public class ChatParticipantsTagHelper : TagHelper
         var name = ResolveName(participant.UserId);
         var initials = GetInitials(name);
 
-        return HtmlHelper.CreateElement("div",
+        return html.CreateElement("div",
             WebUtility.HtmlEncode(initials),
             attributes: new Dictionary<string, string>
             {
                 ["style"] = sizeStyle,
                 ["title"] = WebUtility.HtmlEncode(name)
             },
-            classes: "rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center fw-semibold");
+            classes: dictionary.ChatParticipants.Avatar);
     }
 
     private string ResolveName(string userId)

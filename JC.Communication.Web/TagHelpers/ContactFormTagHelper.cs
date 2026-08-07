@@ -1,4 +1,5 @@
 using System.Net;
+using JC.Communication.Web.Framework;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -9,11 +10,15 @@ using HtmlHelper = JC.Web.UI.HTML.HtmlHelper;
 namespace JC.Communication.Web.TagHelpers;
 
 /// <summary>
-/// Renders a Bootstrap contact form with email, subject, and message fields.
-/// Posts to the configured endpoint using the <see cref="Models.ContactInputModel"/> shape.
+/// Renders a contact form with email, subject, and message fields, using the configured UI
+/// framework's classes. Posts to the configured endpoint using the
+/// <see cref="Models.ContactInputModel"/> shape.
 /// </summary>
+/// <param name="html">The HTML element builder, resolved from the container.</param>
+/// <param name="dictionary">The class dictionary for the configured framework.</param>
 [HtmlTargetElement("contact-form", TagStructure = TagStructure.WithoutEndTag)]
-public class ContactFormTagHelper : TagHelper
+public class ContactFormTagHelper(HtmlHelper html, ICommunicationFrameworkDictionary dictionary)
+    : TagHelper
 {
     /// <summary>Gets or sets the POST endpoint URL. Required.</summary>
     [HtmlAttributeName("endpoint")]
@@ -27,9 +32,12 @@ public class ContactFormTagHelper : TagHelper
     [HtmlAttributeName("button-text")]
     public string ButtonText { get; set; } = "Send Message";
 
-    /// <summary>Gets or sets the Bootstrap button colour class. Defaults to "primary".</summary>
+    /// <summary>
+    /// Gets or sets the submit button colour. Falls back to the configured framework's default when
+    /// unset, which is "primary" under Bootstrap.
+    /// </summary>
     [HtmlAttributeName("button-colour")]
-    public string ButtonColour { get; set; } = "primary";
+    public string? ButtonColour { get; set; }
 
     /// <summary>Gets or sets the model binding prefix for input names. Defaults to "Input".</summary>
     [HtmlAttributeName("prefix")]
@@ -72,6 +80,7 @@ public class ContactFormTagHelper : TagHelper
 
     private string BuildHtml()
     {
+        var css = dictionary.ContactForm;
         var namePrefix = string.IsNullOrEmpty(Prefix) ? "" : $"{Prefix}.";
         var content = "";
 
@@ -83,7 +92,7 @@ public class ContactFormTagHelper : TagHelper
             {
                 var tokens = antiforgery.GetAndStoreTokens(ViewContext.HttpContext);
                 if (tokens.RequestToken != null)
-                    content += HtmlHelper.CreateElement("input", "",
+                    content += html.CreateElement("input", "",
                         attributes: new Dictionary<string, string>
                         {
                             ["type"] = "hidden",
@@ -94,14 +103,14 @@ public class ContactFormTagHelper : TagHelper
         }
 
         if (!string.IsNullOrWhiteSpace(Heading))
-            content += HtmlHelper.CreateElement("h4", WebUtility.HtmlEncode(Heading), classes: "mb-3");
+            content += html.CreateElement("h4", WebUtility.HtmlEncode(Heading), classes: css.Heading);
 
         // Email
-        content += HtmlHelper.CreateElement("div",
-            HtmlHelper.CreateElement("label", "Email",
+        content += html.CreateElement("div",
+            html.CreateElement("label", "Email",
                 attributes: new Dictionary<string, string> { ["for"] = "contact-email" },
-                classes: "form-label") +
-            HtmlHelper.CreateElement("input", "",
+                classes: css.Label) +
+            html.CreateElement("input", "",
                 attributes: new Dictionary<string, string>
                 {
                     ["type"] = "email",
@@ -110,15 +119,15 @@ public class ContactFormTagHelper : TagHelper
                     ["placeholder"] = EmailPlaceholder,
                     ["required"] = "required"
                 },
-                classes: "form-control"),
-            classes: "mb-3");
+                classes: css.Input),
+            classes: css.Field);
 
         // Subject
-        content += HtmlHelper.CreateElement("div",
-            HtmlHelper.CreateElement("label", "Subject",
+        content += html.CreateElement("div",
+            html.CreateElement("label", "Subject",
                 attributes: new Dictionary<string, string> { ["for"] = "contact-subject" },
-                classes: "form-label") +
-            HtmlHelper.CreateElement("input", "",
+                classes: css.Label) +
+            html.CreateElement("input", "",
                 attributes: new Dictionary<string, string>
                 {
                     ["type"] = "text",
@@ -127,15 +136,15 @@ public class ContactFormTagHelper : TagHelper
                     ["placeholder"] = SubjectPlaceholder,
                     ["required"] = "required"
                 },
-                classes: "form-control"),
-            classes: "mb-3");
+                classes: css.Input),
+            classes: css.Field);
 
         // Message
-        content += HtmlHelper.CreateElement("div",
-            HtmlHelper.CreateElement("label", "Message",
+        content += html.CreateElement("div",
+            html.CreateElement("label", "Message",
                 attributes: new Dictionary<string, string> { ["for"] = "contact-message" },
-                classes: "form-label") +
-            HtmlHelper.CreateElement("textarea", "",
+                classes: css.Label) +
+            html.CreateElement("textarea", "",
                 attributes: new Dictionary<string, string>
                 {
                     ["id"] = "contact-message",
@@ -144,15 +153,18 @@ public class ContactFormTagHelper : TagHelper
                     ["placeholder"] = MessagePlaceholder,
                     ["required"] = "required"
                 },
-                classes: "form-control"),
-            classes: "mb-3");
+                classes: css.TextArea),
+            classes: css.Field);
 
         // Submit
-        content += HtmlHelper.CreateElement("button", WebUtility.HtmlEncode(ButtonText),
-            attributes: new Dictionary<string, string> { ["type"] = "submit" },
-            classes: $"btn btn-{WebUtility.HtmlEncode(ButtonColour)}");
+        var buttonColour = WebUtility.HtmlEncode(
+            string.IsNullOrWhiteSpace(ButtonColour) ? css.DefaultButtonColour : ButtonColour);
 
-        return HtmlHelper.CreateElement("form", content,
+        content += html.CreateElement("button", WebUtility.HtmlEncode(ButtonText),
+            attributes: new Dictionary<string, string> { ["type"] = "submit" },
+            classes: css.SubmitButton(buttonColour));
+
+        return html.CreateElement("form", content,
             attributes: new Dictionary<string, string>
             {
                 ["method"] = "post",
