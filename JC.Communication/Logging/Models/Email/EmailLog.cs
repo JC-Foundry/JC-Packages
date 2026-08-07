@@ -41,6 +41,11 @@ public class EmailLog : LogModel
     public EmailContentLog? EmailContentLog { get; set; }
 
     /// <summary>
+    /// The attachment metadata for this email. Empty when the email carried no attachments.
+    /// </summary>
+    public ICollection<EmailAttachmentLog> EmailAttachmentLogs { get; set; }
+
+    /// <summary>
     /// The send attempt results for this email. Supports multiple entries for retry scenarios.
     /// </summary>
     public ICollection<EmailSentLog> EmailSentLogs { get; set; }

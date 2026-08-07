@@ -23,6 +23,7 @@ public static class DataExtensions
         modelBuilder.ApplyConfiguration(new EmailLogMap());
         modelBuilder.ApplyConfiguration(new EmailRecipientLogMap());
         modelBuilder.ApplyConfiguration(new EmailContentLogMap());
+        modelBuilder.ApplyConfiguration(new EmailAttachmentLogMap());
         modelBuilder.ApplyConfiguration(new EmailSentLogMap());
 
         return modelBuilder;

@@ -24,7 +24,20 @@ public class EmailOptions
     /// Timeout in milliseconds for email send operations. Defaults to 30,000ms (30 seconds).
     /// </summary>
     public int TimeoutMs { get; set; } = 30_000;
-    
+
+    /// <summary>
+    /// The combined size of all attachments allowed on a single message, in bytes.
+    /// Defaults to 18 MB. Set to zero to disable the check.
+    /// </summary>
+    /// <remarks>
+    /// Providers cap the size of the encoded message rather than the raw file bytes, and base64
+    /// inflates content by roughly a third. The 18 MB default therefore encodes to around 24 MB,
+    /// leaving headroom under the 25 MB message limit applied by Microsoft 365 and Gmail. Raise it
+    /// only if your provider is known to allow more, otherwise oversized mail is rejected by the
+    /// server after the upload rather than by validation beforehand.
+    /// </remarks>
+    public long MaxTotalAttachmentBytes { get; set; } = 18L * 1024 * 1024;
+
     public EmailBranding DefaultBranding { get; set; } = new("JC Foundry");
 
 

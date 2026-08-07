@@ -53,21 +53,25 @@ public class MicrosoftEmailService : IEmailService
     
     public Task<EmailSendResult> SendAsync(IEnumerable<EmailRecipient> recipients, string subject, 
         string plainBody, string? htmlBody = null, IEnumerable<EmailRecipient>? ccRecipients = null, 
-        IEnumerable<EmailRecipient>? bccRecipients = null)
+        IEnumerable<EmailRecipient>? bccRecipients = null, IEnumerable<EmailAttachment>? attachments = null)
     {
         var fromAddress = _config[EmailOptions.ConfigFromAddress];
         if(string.IsNullOrEmpty(fromAddress))
             throw new InvalidOperationException("From address is not configured.");
-        
-        var message = new EmailMessage(fromAddress, htmlBody ?? string.Empty, plainBody, subject, 
+
+        var message = new EmailMessage(fromAddress, htmlBody ?? string.Empty, plainBody, subject,
             recipients, ccRecipients ?? [], bccRecipients ?? []);
+
+        if (attachments != null)
+            message.WithAttachments(attachments);
+
         return SendAsync(message);
     }
 
     public async Task<EmailSendResult> SendAsync(EmailMessage message,
         CancellationToken cancellationToken = default)
     {
-        var validationErrors = message.ValidateEmailMessage();
+        var validationErrors = message.ValidateEmailMessage(_options.MaxTotalAttachmentBytes);
         if (validationErrors != null)
         {
             var failed = new EmailSendResult(validationErrors, EmailProvider.Microsoft);

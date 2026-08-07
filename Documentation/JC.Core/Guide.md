@@ -809,6 +809,8 @@ This is useful for turning enum member names or type names into route segments. 
 "PENDING_APPROVAL".ToNormalisedSlug();  // "pending-approval"
 ```
 
+Digits are left attached when slugifying, so `"Version2".ToNormalisedSlug()` gives "version2" rather than "version-2". Slugs are usually persisted in URLs, so the display name normaliser's [digit splitting](#digits) is deliberately not applied here.
+
 ### Title case
 
 ```csharp
@@ -827,16 +829,67 @@ Turns an identifier-style string into human-readable text — the same normalise
 "PENDING_APPROVAL".ToDisplayName(); // "Pending Approval"
 ```
 
-This is for identifiers, not prose. Every character that does not start a word is lowercased, so text that is already display-formatted will lose its casing:
+Underscores, hyphens, full stops and whitespace all separate words. Runs of them collapse to a single space and any at either end are dropped, so untidy input still comes out clean:
 
 ```csharp
-"PDF Export".ToDisplayName();     // "Pdf Export"  — acronym flattened
-"Order ID".ToDisplayName();       // "Order Id"
-"iOS App".ToDisplayName();        // "I Os App"
-"Version2Point0".ToDisplayName(); // "Version2 Point0" — digits don't split words
+"my-text".ToDisplayName();          // "My Text"
+"first.name".ToDisplayName();       // "First Name"
+"user-first_name".ToDisplayName();  // "User First Name"
+"  spaced__out_ ".ToDisplayName();  // "Spaced Out"
 ```
 
-Use `ToTitleCase()` instead when the input is already readable text.
+Punctuation outside that set is left where it is, so a flags enum's `"Read, Write"` keeps its comma.
+
+#### Acronyms
+
+Casing is only flattened when the input contains no lowercase letter at all. Mixed-case input keeps its inner casing, so acronyms survive:
+
+```csharp
+"XMLParser".ToDisplayName();       // "XML Parser"
+"HTTPSConnection".ToDisplayName(); // "HTTPS Connection"
+"UserID".ToDisplayName();          // "User ID"
+"PDF Export".ToDisplayName();      // "PDF Export"
+"Order ID".ToDisplayName();        // "Order ID"
+```
+
+An unbroken uppercase run carries no word boundary to split on, so it cannot be recovered — `"XMLEXPORT"` gives "Xmlexport".
+
+#### Reference codes
+
+A hyphen or full stop flanked on both sides by a digit or a capital belongs to the token around it rather than separating words. That token is then carried across verbatim, which keeps versions, dates and reference codes intact:
+
+```csharp
+"26.4".ToDisplayName();             // "26.4"
+"BT.23.9".ToDisplayName();          // "BT.23.9"
+"2024-01-15".ToDisplayName();       // "2024-01-15"
+"UTF-8".ToDisplayName();            // "UTF-8"
+"X-Ray".ToDisplayName();            // "X-Ray"
+"referenceBT.23.9".ToDisplayName(); // "Reference BT.23.9"
+"Version1.2Beta".ToDisplayName();   // "Version 1.2 Beta"
+```
+
+A lowercase letter on either side makes the character an ordinary separator again, which is why `"my-text"` and `"first.name"` still split. The rule keys on capitals rather than on words, so an all-caps pair such as `"PENDING-APPROVAL"` or `"CONFIG.VALUE"` is read as a code and preserved too — write those as `"Pending-Approval"` or `"PENDING_APPROVAL"` if you want them split.
+
+#### Digits
+
+By default a digit next to a letter starts a new word. Pass `splitDigits: false` to leave digits attached to the word they follow:
+
+```csharp
+"Address1".ToDisplayName();       // "Address 1"
+"Version2Point0".ToDisplayName(); // "Version 2 Point 0"
+"UTF8Encoding".ToDisplayName();   // "UTF 8 Encoding"
+
+"Address1".ToDisplayName(splitDigits: false);     // "Address1"
+"UTF8Encoding".ToDisplayName(splitDigits: false); // "UTF8 Encoding"
+```
+
+Adjacent digits stay together either way, so `"Base64Encode"` gives "Base 64 Encode" rather than "Base 6 4 Encode".
+
+#### Limits
+
+This is for identifiers, not prose — every word is capitalised, so `"order of operations"` becomes "Order Of Operations". Use `ToTitleCase()` when the input is already readable text.
+
+Word boundaries come from casing alone, so a lowercase prefix on an acronym cannot be detected and `"iOS App"` gives "I OS App". Use a `[Description]` attribute on the enum member where the exact text matters.
 
 ### Mask
 
@@ -852,7 +905,7 @@ Keeps the first `visibleChars` characters visible and replaces the rest with ast
 
 ### Display name
 
-Converts enum values to human-readable text, supporting PascalCase and SCREAMING_CASE:
+Converts enum values to human-readable text, supporting PascalCase and SCREAMING_CASE and preserving acronyms:
 
 ```csharp
 public enum OrderStatus
@@ -867,25 +920,39 @@ public enum OrderStatus
 OrderStatus.PendingApproval.ToDisplayName();       // "Pending Approval"
 OrderStatus.InProgress.ToDisplayName();            // "In Progress"
 OrderStatus.CompletedSuccessfully.ToDisplayName(); // "Completed Successfully"
-OrderStatus.XMLExport.ToDisplayName();             // "Xml Export"
+OrderStatus.XMLExport.ToDisplayName();             // "XML Export"
 OrderStatus.PENDING_APPROVAL.ToDisplayName();      // "Pending Approval"
 ```
 
-Underscores become spaces, PascalCase word boundaries become spaces, and each word is capitalised with the remaining letters lowercased.
+Underscores become spaces, PascalCase word boundaries become spaces, and each word is capitalised. Members whose names contain no lowercase letter have their trailing letters lowercased, which is what turns `PENDING_APPROVAL` into "Pending Approval"; anything mixed-case keeps its inner casing, which is what lets `XMLExport` keep its acronym.
 
-Acronyms are split at the right boundary but are not preserved — `XMLExport` gives "Xml Export" rather than "XML Export". Where the casing matters, use a `[Description]` attribute:
+A digit next to a letter starts a new word by default. Pass `splitDigits: false` to leave it attached:
+
+```csharp
+public enum ReportFormat
+{
+    Base64Encode,
+    Version2Point0
+}
+
+ReportFormat.Base64Encode.ToDisplayName();                     // "Base 64 Encode"
+ReportFormat.Version2Point0.ToDisplayName();                   // "Version 2 Point 0"
+ReportFormat.Version2Point0.ToDisplayName(splitDigits: false); // "Version2 Point0"
+```
+
+Where the normaliser cannot produce the text you need — an unbroken uppercase run such as `XMLEXPORT`, or a lowercase-prefixed acronym such as `iOSExport` — use a `[Description]` attribute instead:
 
 ```csharp
 public enum ExportFormat
 {
-    [Description("XML Export")]
-    XMLExport
+    [Description("XMLEXPORT (legacy)")]
+    XMLEXPORT
 }
 
-ExportFormat.XMLExport.GetDescription(); // "XML Export"
+ExportFormat.XMLEXPORT.GetDescription(); // "XMLEXPORT (legacy)"
 ```
 
-The same normaliser is available on strings via [`ToDisplayName()`](#display-name).
+The full rule set, including how reference codes such as `BT.23.9` are handled, is covered under [`ToDisplayName()` on strings](#display-name).
 
 ### Description attribute
 

@@ -26,6 +26,7 @@ public class EmailLogCleanupJob<TContext> : IBackgroundJob
     private readonly IRepositoryContext<EmailLog> _emailLogs;
     private readonly IRepositoryContext<EmailRecipientLog> _recipLog;
     private readonly IRepositoryContext<EmailContentLog> _contentLog;
+    private readonly IRepositoryContext<EmailAttachmentLog> _attachmentLog;
     private readonly IRepositoryContext<EmailSentLog> _sentLog;
     private readonly EmailBackgroundJobOptions _options;
 
@@ -38,8 +39,9 @@ public class EmailLogCleanupJob<TContext> : IBackgroundJob
         _emailLogs = repos.For<TContext>().GetRepository<EmailLog>();
         _recipLog = repos.For<TContext>().GetRepository<EmailRecipientLog>();
         _contentLog = repos.For<TContext>().GetRepository<EmailContentLog>();
+        _attachmentLog = repos.For<TContext>().GetRepository<EmailAttachmentLog>();
         _sentLog = repos.For<TContext>().GetRepository<EmailSentLog>();
-        
+
         _options = options.Value;
     }
     
@@ -59,13 +61,15 @@ public class EmailLogCleanupJob<TContext> : IBackgroundJob
             x => x.OrderByDescending(r => r.CreatedUtc), cancellationToken);
         var contentLogs = await _contentLog.GetAllAsync(c => logIds.Contains(c.EmailLogId),
             x => x.OrderByDescending(c => c.CreatedUtc), cancellationToken);
+        var attachmentLogs = await _attachmentLog.GetAllAsync(a => logIds.Contains(a.EmailLogId),
+            x => x.OrderByDescending(a => a.CreatedUtc), cancellationToken);
         var sentLogs = await _sentLog.GetAllAsync(s => logIds.Contains(s.EmailLogId),
             x => x.OrderByDescending(s => s.CreatedUtc), cancellationToken);
-        
+
         var retention = _options.MinimumRetentionRecords;
         if (retention == 0)
         {
-            await ProcessCleanup(emailLogs, recipLogs, contentLogs, sentLogs);
+            await ProcessCleanup(emailLogs, recipLogs, contentLogs, attachmentLogs, sentLogs);
             return;
         }
 
@@ -85,23 +89,27 @@ public class EmailLogCleanupJob<TContext> : IBackgroundJob
         
         recipLogs = recipLogs.Where(r => logIds.Contains(r.EmailLogId)).ToList();
         contentLogs = contentLogs.Where(c => logIds.Contains(c.EmailLogId)).ToList();
+        attachmentLogs = attachmentLogs.Where(a => logIds.Contains(a.EmailLogId)).ToList();
         sentLogs = sentLogs.Where(s => logIds.Contains(s.EmailLogId)).ToList();
-        
-        await ProcessCleanup(emailLogs, recipLogs, contentLogs, sentLogs);
+
+        await ProcessCleanup(emailLogs, recipLogs, contentLogs, attachmentLogs, sentLogs);
     }
 
-    private async Task ProcessCleanup(List<EmailLog> emailLogs, List<EmailRecipientLog> recipLogs, 
-        List<EmailContentLog> contentLogs, List<EmailSentLog> sentLogs)
+    private async Task ProcessCleanup(List<EmailLog> emailLogs, List<EmailRecipientLog> recipLogs,
+        List<EmailContentLog> contentLogs, List<EmailAttachmentLog> attachmentLogs, List<EmailSentLog> sentLogs)
     {
         await _repos.BeginTransactionAsync();
         try
         {
             if(recipLogs.Count > 0)
                 await _recipLog.DeleteRangeAsync(recipLogs, false);
-            
+
             if(contentLogs.Count > 0)
                 await _contentLog.DeleteRangeAsync(contentLogs, false);
-            
+
+            if(attachmentLogs.Count > 0)
+                await _attachmentLog.DeleteRangeAsync(attachmentLogs, false);
+
             if(sentLogs.Count > 0)
                 await _sentLog.DeleteRangeAsync(sentLogs, false);
             

@@ -25,6 +25,12 @@ public interface IEmailDbContext
     DbSet<EmailContentLog> EmailContentLogs { get; set; }
 
     /// <summary>
+    /// The attachment log entries recording file name, MIME type and size. Metadata only —
+    /// attachment content is never persisted.
+    /// </summary>
+    DbSet<EmailAttachmentLog> EmailAttachmentLogs { get; set; }
+
+    /// <summary>
     /// The send result log entries containing success/failure status, provider, and error details.
     /// </summary>
     DbSet<EmailSentLog> EmailSentLogs { get; set; }

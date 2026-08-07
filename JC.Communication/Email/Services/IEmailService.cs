@@ -21,6 +21,7 @@ public interface IEmailService
     /// <param name="htmlBody">Optional HTML body. When null, <paramref name="plainBody"/> is used for both plain and HTML content.</param>
     /// <param name="ccRecipients">Optional carbon copy recipients.</param>
     /// <param name="bccRecipients">Optional blind carbon copy recipients.</param>
+    /// <param name="attachments">Optional files to attach to the email.</param>
     /// <returns>An <see cref="EmailSendResult"/> indicating whether the send succeeded or failed, including any error details.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the default from address is not configured.</exception>
     Task<EmailSendResult> SendAsync(
@@ -29,7 +30,8 @@ public interface IEmailService
         string plainBody,
         string? htmlBody = null,
         IEnumerable<EmailRecipient>? ccRecipients = null,
-        IEnumerable<EmailRecipient>? bccRecipients = null);
+        IEnumerable<EmailRecipient>? bccRecipients = null,
+        IEnumerable<EmailAttachment>? attachments = null);
 
     /// <summary>
     /// Sends a fully constructed <see cref="EmailMessage"/>. Use this overload when you need full control
@@ -51,7 +53,8 @@ internal static class BuildEmail
 {
     /// <summary>
     /// Builds a <see cref="MimeMessage"/> from an <see cref="EmailMessage"/>, setting the from address
-    /// (using the configured display name if available), all recipients (To, CC, BCC), subject, and body content.
+    /// (using the configured display name if available), all recipients (To, CC, BCC), subject,
+    /// body content, and any attachments.
     /// </summary>
     /// <param name="message">The email message to convert.</param>
     /// <param name="config">The application configuration, used to resolve the default from display name.</param>
@@ -80,6 +83,14 @@ internal static class BuildEmail
             TextBody = message.PlainBody,
             HtmlBody = message.HtmlBody
         };
+
+        // Adding any attachment makes ToMessageBody() wrap the alternative bodies in a
+        // multipart/mixed, so both plain and HTML parts are preserved alongside the files.
+        foreach (var attachment in message.Attachments)
+            bodyBuilder.Attachments.Add(
+                attachment.FileName,
+                attachment.Content,
+                ContentType.Parse(attachment.ResolvedContentType));
 
         msg.Body = bodyBuilder.ToMessageBody();
 

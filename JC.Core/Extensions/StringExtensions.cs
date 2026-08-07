@@ -42,8 +42,11 @@ public static partial class StringExtensions
         if (string.IsNullOrWhiteSpace(value))
             return string.Empty;
 
-        var name = normaliseToDisplayName 
-            ? InternalHelpers.ToDisplayName(value.Trim())
+        // Digits are deliberately left attached here even though the display name normaliser
+        // splits them by default. Slugs are persisted in URLs, so splitting would silently
+        // turn an existing 'version2' into 'version-2' and break every link to it.
+        var name = normaliseToDisplayName
+            ? InternalHelpers.ToDisplayName(value.Trim(), splitDigits: false)
             : value.Trim();
         
         var slug = name.ToLowerInvariant();
@@ -79,13 +82,23 @@ public static partial class StringExtensions
     }
 
     /// <summary>
-    /// Converts a string to a display-friendly name by applying modifications such as adding spaces
-    /// between words, capitalising letters as appropriate, and other transformations.
+    /// Converts an identifier-style string to a display-friendly name. Underscores, hyphens, full stops
+    /// and whitespace separate words, as do casing transitions, and each word is capitalised.
+    /// Acronyms keep their casing unless the input is entirely uppercase.
     /// </summary>
+    /// <remarks>
+    /// Intended for identifiers rather than prose, since every word is capitalised. Use
+    /// <see cref="ToTitleCase"/> when the input is already readable text.
+    /// </remarks>
     /// <param name="value">The input string to convert to a display name.</param>
-    /// <returns>A display-friendly version of the input string.</returns>
-    public static string ToDisplayName(this string value)
-        => InternalHelpers.ToDisplayName(value);
+    /// <param name="splitDigits">
+    /// Whether a digit adjoining a letter starts a new word, so that 'Address1' becomes 'Address 1'.
+    /// Adjacent digits are kept together either way. Set to <c>false</c> to leave digits attached
+    /// to the word they follow, giving 'Address1'.
+    /// </param>
+    /// <returns>A display-friendly version of the input string, or an empty string if the input is null or whitespace.</returns>
+    public static string ToDisplayName(this string value, bool splitDigits = true)
+        => InternalHelpers.ToDisplayName(value, splitDigits);
 
     /// <summary>
     /// Masks a string by keeping only the first few characters visible and replacing the rest with asterisks.

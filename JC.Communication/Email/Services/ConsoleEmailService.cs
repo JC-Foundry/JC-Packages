@@ -23,6 +23,7 @@ public class ConsoleEmailService : IEmailService
     private readonly IConfiguration _config;
     private readonly ILogger<ConsoleEmailService> _logger;
     private readonly LogLevel _logLevel;
+    private readonly long _maxTotalAttachmentBytes;
 
     public ConsoleEmailService(IOptions<EmailOptions> options,
         EmailLogService logService,
@@ -33,25 +34,30 @@ public class ConsoleEmailService : IEmailService
         this._config = _config;
         _logger = logger;
         _logLevel = options.Value.LogLevel;
+        _maxTotalAttachmentBytes = options.Value.MaxTotalAttachmentBytes;
     }
 
-    public Task<EmailSendResult> SendAsync(IEnumerable<EmailRecipient> recipients, string subject, 
-        string plainBody, string? htmlBody = null, IEnumerable<EmailRecipient>? ccRecipients = null, 
-        IEnumerable<EmailRecipient>? bccRecipients = null)
+    public Task<EmailSendResult> SendAsync(IEnumerable<EmailRecipient> recipients, string subject,
+        string plainBody, string? htmlBody = null, IEnumerable<EmailRecipient>? ccRecipients = null,
+        IEnumerable<EmailRecipient>? bccRecipients = null, IEnumerable<EmailAttachment>? attachments = null)
     {
         var fromAddress = _config[EmailOptions.ConfigFromAddress];
         if(string.IsNullOrEmpty(fromAddress))
             throw new InvalidOperationException("From address is not configured.");
-        
-        var message = new EmailMessage(fromAddress, htmlBody ?? string.Empty, plainBody, subject, 
+
+        var message = new EmailMessage(fromAddress, htmlBody ?? string.Empty, plainBody, subject,
             recipients, ccRecipients ?? [], bccRecipients ?? []);
+
+        if (attachments != null)
+            message.WithAttachments(attachments);
+
         return SendAsync(message);
     }
-    
+
     public async Task<EmailSendResult> SendAsync(EmailMessage message,
         CancellationToken cancellationToken = default)
     {
-        var validationErrors = message.ValidateEmailMessage();
+        var validationErrors = message.ValidateEmailMessage(_maxTotalAttachmentBytes);
         if (validationErrors != null)
         {
             var failed = new EmailSendResult(validationErrors, EmailProvider.Console);
@@ -73,6 +79,13 @@ public class ConsoleEmailService : IEmailService
         if (message.BccAddresses.Count > 0)
             _logger.Log(_logLevel, "BCC: {BccCount} recipient(s)",
                 message.BccAddresses.Count);
+
+        // This provider never builds a MimeMessage, so attachments would otherwise be invisible
+        // during development. Names and sizes only — content is not written out.
+        if (message.Attachments.Count > 0)
+            _logger.Log(_logLevel, "Attachments: {AttachmentCount} | {Attachments}",
+                message.Attachments.Count,
+                string.Join(", ", message.Attachments.Select(a => $"{a.FileName} ({a.ResolvedContentType}, {a.SizeBytes:N0} bytes)")));
 
         var result = new EmailSendResult(EmailProvider.Console);
 

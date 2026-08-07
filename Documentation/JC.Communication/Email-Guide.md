@@ -152,6 +152,56 @@ var message = new EmailMessage("noreply@example.com", "Body text", subject: null
 // message.Subject == "NO SUBJECT"
 ```
 
+### Attachments
+
+Attach files by chaining `WithAttachment` onto a message. Each call returns the same message, so they compose:
+
+```csharp
+var message = new EmailMessage("noreply@example.com", "See attached.", "Your invoice",
+        new EmailRecipient("user@example.com"))
+    .WithAttachment("invoice.pdf", invoiceBytes)
+    .WithAttachment("terms.pdf", termsBytes);
+
+var result = await emailService.SendAsync(message);
+```
+
+The convenience overload takes them as a final optional argument:
+
+```csharp
+await emailService.SendAsync(
+    recipients: [new EmailRecipient("user@example.com")],
+    subject: "Your invoice",
+    plainBody: "See attached.",
+    attachments: [new EmailAttachment("invoice.pdf", invoiceBytes)]);
+```
+
+Content is held as `byte[]` and owned by the message, so it stays valid across validation, sending and logging. There is no stream or file-path overload — read the bytes yourself and pass them in.
+
+#### Content types
+
+The MIME type is inferred from the file extension, so you rarely need to supply one. Pass it explicitly to override the inference or to type an extension the inference doesn't know:
+
+```csharp
+new EmailAttachment("invoice.pdf", bytes);                        // application/pdf
+new EmailAttachment("export.csv", bytes);                         // text/csv
+new EmailAttachment("data.xyzq", bytes);                          // application/octet-stream
+new EmailAttachment("archive.bin", bytes, "application/zip");     // application/zip
+```
+
+#### Attaching a stored file
+
+JC.Communication does not reference JC.FileStorage — keeping the two packages independent — but bridging them is one call, since `StorageService` already hands back bytes:
+
+```csharp
+var file = await storageService.GetSavedFileBytes(folder, "invoice.pdf");
+if (file.Result)
+    message.WithAttachment("invoice.pdf", file.FileContent!);
+```
+
+#### Size limits
+
+Providers cap the size of the *encoded* message, and base64 inflates content by roughly a third. `EmailOptions.MaxTotalAttachmentBytes` defaults to 18 MB, which encodes to around 24 MB and so stays under the 25 MB limit applied by Microsoft 365 and Gmail. Exceeding it fails validation before the send is attempted, rather than surfacing as an opaque SMTP rejection after the upload. See [EmailOptions](Email-Setup.md#emailoptions) to change or disable it.
+
 ## Composing branded email bodies
 
 `EmailBodyBuilder` produces a matching plain-text body and HTML body from one set of section calls, so the two never drift. The HTML is wrapped in a branded, email-client-safe shell — a gradient header carrying your brand name and an optional caption, then the body. All text you pass is HTML-encoded inside the builder, so call sites can pass raw user input without escaping it themselves.
@@ -298,6 +348,8 @@ Every `SendAsync` call validates the message before attempting to send. Validati
 3. **Email body is required** — empty or whitespace-only plain body.
 4. **Invalid recipient addresses** — any To, CC, or BCC address that is empty, whitespace, or missing '@'. All invalid addresses are listed in the error.
 5. **Duplicate recipients** — any address appearing more than once across To, CC, and BCC (case-insensitive comparison). All duplicates are listed in the error.
+6. **Unusable attachments** — any attachment with a blank file name, no content, or a file name containing path separators or `..`. A file name reaching the MIME headers with separators in it could let a recipient's client write outside the folder it expects to save into, so those are rejected outright.
+7. **Total attachment size** — the combined attachment size against `EmailOptions.MaxTotalAttachmentBytes`, unless that is set to zero.
 
 All errors are collected and returned together — the validation does not stop at the first failure.
 
@@ -314,14 +366,20 @@ If the logging transaction fails, the error is logged to the application logger 
 | Logging mode | What is persisted |
 |-------------|-------------------|
 | `None` | Nothing — `EmailLogService` returns immediately |
-| `ExcludeContent` | From address, subject, all recipients (with type), send result (success/failure, provider, timestamp, server response, error message) |
+| `ExcludeContent` | From address, subject, all recipients (with type), attachment metadata, send result (success/failure, provider, timestamp, server response, error message) |
 | `FullLog` | Everything in `ExcludeContent`, plus the plain text body and HTML body. The HTML body is only stored when it differs from the plain body |
 
 See [Email setup — Logging modes](Email-Setup.md#logging-modes) for how to configure the logging mode.
 
+### Attachment logging
+
+Attachments are recorded as one `EmailAttachmentLog` row each, holding the file name, resolved MIME type and size in bytes. **Attachment content is never written to the database** — not even under `FullLog`. Because the row carries no content, attachments are logged under `ExcludeContent` as well, unlike the message body.
+
 ### Console provider and logging
 
 The console provider always outputs the email body (plain text) to the application logger, regardless of the logging mode. The logging mode only controls what is persisted to the database. If email body content is sensitive, be aware that console output will still contain it even with `ExcludeContent`.
+
+The console provider never builds a MIME message, so attachments cannot be delivered through it. It logs their names, types and sizes instead, so they are visible during development.
 
 ## Next steps
 

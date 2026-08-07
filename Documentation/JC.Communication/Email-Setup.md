@@ -59,6 +59,7 @@ public class AppDbContext : DataDbContext, IEmailDbContext
     public DbSet<EmailLog> EmailLogs { get; set; }
     public DbSet<EmailRecipientLog> EmailRecipientLogs { get; set; }
     public DbSet<EmailContentLog> EmailContentLogs { get; set; }
+    public DbSet<EmailAttachmentLog> EmailAttachmentLogs { get; set; }
     public DbSet<EmailSentLog> EmailSentLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -365,6 +366,7 @@ Only the brand name (set via the `EmailBranding` constructor) is required — ev
 | `Provider` | `EmailProvider` | `Microsoft` | All | The email provider to use |
 | `LoggingMode` | `EmailLoggingMode` | `ExcludeContent` | All | Controls what is persisted to the database |
 | `TimeoutMs` | `int` | `30000` | Microsoft, SmtpRelay, DirectSmtp | SMTP send timeout in milliseconds |
+| `MaxTotalAttachmentBytes` | `long` | `18874368` (18 MB) | All | Combined attachment size allowed per message. Exceeding it fails validation before sending. Set to `0` to disable the check. Providers cap the *encoded* message and base64 inflates content by roughly a third, so 18 MB encodes to around 24 MB — under the 25 MB limit used by Microsoft 365 and Gmail |
 | `Host` | `string` | `"smtp.office365.com"` | Microsoft, SmtpRelay, DirectSmtp | SMTP server hostname — validated at startup |
 | `Port` | `int` | `587` | Microsoft, SmtpRelay, DirectSmtp | SMTP server port (1–65535) — validated at startup |
 | `EnableSsl` | `bool` | `true` | Microsoft, SmtpRelay, DirectSmtp | Use StartTLS when connecting. Must be `true` for Microsoft |
@@ -400,11 +402,11 @@ builder.Services.ConfigureEmailBackgroundJobs(options =>
 | `MinimumRetentionRecords` | `ushort` | `10` | Minimum number of email logs to always retain, regardless of age |
 | `EmailLogCleanupChunkingValue` | `ushort` | `500` | Maximum number of email logs deleted per job execution |
 
-`EmailLogCleanupJob<TContext>` deletes `EmailLog` records older than `EmailLogRetentionMonths` together with their related `EmailRecipientLog`, `EmailContentLog`, and `EmailSentLog` records, in a single transaction. It is not self-executing — register it with [JC.BackgroundJobs](../JC.BackgroundJobs/Setup.md), using the non-generic `EmailLogCleanupJob` for your default context or a closed generic form (e.g. `EmailLogCleanupJob<AppDbContext>`) for a managed context.
+`EmailLogCleanupJob<TContext>` deletes `EmailLog` records older than `EmailLogRetentionMonths` together with their related `EmailRecipientLog`, `EmailContentLog`, `EmailAttachmentLog`, and `EmailSentLog` records, in a single transaction. It is not self-executing — register it with [JC.BackgroundJobs](../JC.BackgroundJobs/Setup.md), using the non-generic `EmailLogCleanupJob` for your default context or a closed generic form (e.g. `EmailLogCleanupJob<AppDbContext>`) for a managed context.
 
 ## 3. Apply migrations
 
-If using database logging (`AddEmail<TContext>` with `LoggingMode` other than `None`), the package introduces four tables: `EmailLogs`, `EmailRecipientLogs`, `EmailContentLogs`, and `EmailSentLogs`.
+If using database logging (`AddEmail<TContext>` with `LoggingMode` other than `None`), the package introduces five tables: `EmailLogs`, `EmailRecipientLogs`, `EmailContentLogs`, `EmailAttachmentLogs`, and `EmailSentLogs`.
 
 Generate and apply the migration:
 
@@ -412,6 +414,8 @@ Generate and apply the migration:
 dotnet ef migrations add AddEmailLogging --project YourApp
 dotnet ef database update --project YourApp
 ```
+
+> **Upgrading from a version before attachment support?** `EmailAttachmentLogs` is a new table. Add the `DbSet<EmailAttachmentLog>` to your context as shown above, then generate a migration for it. This applies whether or not you send attachments, because `ApplyEmailMappings` registers the entity either way.
 
 ## 4. Verify
 

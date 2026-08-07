@@ -115,6 +115,29 @@ Persisted log entry for email body content. Only created when `FullLog` is used.
 
 ---
 
+## EmailAttachmentLog
+
+**Namespace:** `JC.Communication.Logging.Models.Email`
+
+**Extends:** `LogModel`
+
+Persisted log entry describing a file attached to an outbound email. Many-to-one relationship with `EmailLog` — one row per attachment.
+
+Records metadata only. **Attachment content is never persisted**, under any `EmailLoggingMode`. Because the row carries no content, these entries are written under `ExcludeContent` as well as `FullLog`, unlike `EmailContentLog`.
+
+### Properties
+
+| Property | Type | Default | Access | Description |
+|----------|------|---------|--------|-------------|
+| `Id` | `string` | `Guid.NewGuid().ToString()` | get; private set; | Unique identifier for the attachment log entry. |
+| `EmailLogId` | `string` | — | get; set; | Foreign key to the parent `EmailLog`. Indexed, non-unique. |
+| `EmailLog` | `EmailLog` | — | get; set; | Navigation property to the parent email log entry. |
+| `FileName` | `string` | — | get; set; | The file name the attachment was sent under. Required, max length 512. |
+| `ContentType` | `string` | — | get; set; | The resolved MIME type the attachment was sent as. Required, max length 256. |
+| `SizeBytes` | `long` | — | get; set; | Size in bytes, before transfer encoding was applied. |
+
+---
+
 ## EmailSentLog
 
 **Namespace:** `JC.Communication.Logging.Models.Email`
@@ -184,6 +207,7 @@ Represents a single outbound email message with sender, recipients, subject, and
 | `Subject` | `string` | — | get | The email subject line. Defaults to `NoSubject` if the provided subject is null or empty. |
 | `PlainBody` | `string` | — | get | The plain text body of the email. |
 | `HtmlBody` | `string` | — | get | The HTML body. Defaults to `PlainBody` if not explicitly provided or if the provided value is null or empty. |
+| `Attachments` | `IReadOnlyList<EmailAttachment>` | `[]` | get | The files attached to the email. Populated via `WithAttachment` and `WithAttachments`. |
 
 ### Constructors
 
@@ -226,9 +250,45 @@ Creates an email message with separate HTML and plain text bodies, including CC 
 
 ### Methods
 
-#### ValidateEmailMessage()
+#### WithAttachment(EmailAttachment attachment)
+
+**Returns:** `EmailMessage`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `attachment` | `EmailAttachment` | — | The attachment to add. |
+
+Appends the attachment and returns the same message instance, so calls can be chained.
+
+#### WithAttachment(string fileName, byte[] content, string? contentType = null)
+
+**Returns:** `EmailMessage`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `fileName` | `string` | — | The file name shown to the recipient, including its extension. |
+| `content` | `byte[]` | — | The raw file content. |
+| `contentType` | `string?` | `null` | MIME type. Inferred from `fileName` when omitted. |
+
+Constructs an `EmailAttachment` from the arguments and appends it. Returns the same message instance.
+
+#### WithAttachments(IEnumerable\<EmailAttachment\> attachments)
+
+**Returns:** `EmailMessage`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `attachments` | `IEnumerable<EmailAttachment>` | — | The attachments to add. |
+
+Appends all supplied attachments and returns the same message instance.
+
+#### ValidateEmailMessage(long maxTotalAttachmentBytes = 0)
 
 **Returns:** `string?`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `maxTotalAttachmentBytes` | `long` | `0` | Combined attachment size allowed, in bytes. Zero or negative disables the check. The built-in providers pass `EmailOptions.MaxTotalAttachmentBytes`. |
 
 Validates the email message and returns all errors as a newline-separated string, or `null` if the message is valid. Checks are performed in order:
 
@@ -237,6 +297,8 @@ Validates the email message and returns all errors as a newline-separated string
 3. `PlainBody` is required — must not be empty or whitespace.
 4. All recipient addresses (To, CC, BCC) must not be empty/whitespace and must contain `@`. Invalid addresses are listed in the error.
 5. Duplicate addresses across To, CC, and BCC are detected using case-insensitive comparison. Duplicates are listed in the error.
+6. Each attachment must have a non-blank file name, non-empty content, and a file name free of `/`, `\` and `..`.
+7. The combined attachment size must not exceed `maxTotalAttachmentBytes`, when that is greater than zero.
 
 All errors are collected and returned together. Catches `NullReferenceException` internally as a safety net for null address collections.
 
@@ -251,6 +313,48 @@ Creates log entities excluding email body content. Builds an `EmailLog` with `Fr
 **Returns:** `(EmailLog Log, List<EmailRecipientLog> Recipients, EmailContentLog ContentLog)`
 
 Creates log entities including email body content. Extends `ToSafeLog` with an `EmailContentLog` containing the plain body. The HTML body (`HtmlBodyRaw`) is only stored when it differs from the plain body — if they are equal, `HtmlBodyRaw` is set to `null`.
+
+#### ToAttachmentLogs(string emailLogId)
+
+**Returns:** `List<EmailAttachmentLog>`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `emailLogId` | `string` | — | Identifier of the `EmailLog` these attachments belong to. |
+
+Creates one `EmailAttachmentLog` per attachment, carrying the file name, `ResolvedContentType` and `SizeBytes`. Returns an empty list when the message has no attachments. Metadata only — attachment content is never included, so this is safe to call under any `EmailLoggingMode`.
+
+This is a separate call rather than an addition to the `ToSafeLog`/`ToFullLog` tuples, which keeps those signatures unchanged for existing callers.
+
+---
+
+## EmailAttachment
+
+**Namespace:** `JC.Communication.Email.Models`
+
+Sealed record. A single file attached to an outbound email.
+
+Content is held in memory as `byte[]` and owned by the `EmailMessage`, so it stays valid across validation, sending and logging. There is no stream or file-path variant — read the bytes and pass them in.
+
+### Properties
+
+| Property | Type | Default | Access | Description |
+|----------|------|---------|--------|-------------|
+| `FileName` | `string` | — | get; init; | The file name shown to the recipient, including its extension. |
+| `Content` | `byte[]` | — | get; init; | The raw file content. |
+| `ContentType` | `string?` | `null` | get; init; | Explicit MIME type. When null, the type is inferred from `FileName`. |
+| `SizeBytes` | `long` | — | get | `Content.LongLength`. The size before transfer encoding is applied. |
+| `ResolvedContentType` | `string` | — | get | `ContentType` when supplied, otherwise the type inferred from `FileName` via MimeKit, falling back to `application/octet-stream` for unrecognised extensions. |
+
+### Constructors
+
+#### EmailAttachment(string FileName, byte[] Content, string? ContentType = null)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `FileName` | `string` | — | The file name shown to the recipient, including its extension. |
+| `Content` | `byte[]` | — | The raw file content. |
+| `ContentType` | `string?` | `null` | Optional MIME type. Inferred from `FileName` when omitted. |
 
 ---
 
@@ -428,7 +532,7 @@ Provides email sending capabilities. Inject via `IEmailService`. The concrete im
 
 ### Methods
 
-#### SendAsync(IEnumerable\<EmailRecipient\> recipients, string subject, string plainBody, string? htmlBody = null, IEnumerable\<EmailRecipient\>? ccRecipients = null, IEnumerable\<EmailRecipient\>? bccRecipients = null)
+#### SendAsync(IEnumerable\<EmailRecipient\> recipients, string subject, string plainBody, string? htmlBody = null, IEnumerable\<EmailRecipient\>? ccRecipients = null, IEnumerable\<EmailRecipient\>? bccRecipients = null, IEnumerable\<EmailAttachment\>? attachments = null)
 
 **Returns:** `Task<EmailSendResult>`
 
@@ -440,8 +544,9 @@ Provides email sending capabilities. Inject via `IEmailService`. The concrete im
 | `htmlBody` | `string?` | `null` | Optional HTML body. When `null`, the HTML body defaults to `plainBody` via the `EmailMessage` constructor. |
 | `ccRecipients` | `IEnumerable<EmailRecipient>?` | `null` | Optional carbon copy recipients. |
 | `bccRecipients` | `IEnumerable<EmailRecipient>?` | `null` | Optional blind carbon copy recipients. |
+| `attachments` | `IEnumerable<EmailAttachment>?` | `null` | Optional files to attach to the email. |
 
-Sends an email using the default from address read from `Communication:Email:DefaultFromAddress` configuration. Constructs an `EmailMessage` internally and delegates to the `SendAsync(EmailMessage, CancellationToken)` overload. Throws `InvalidOperationException` if the default from address is not configured.
+Sends an email using the default from address read from `Communication:Email:DefaultFromAddress` configuration. Constructs an `EmailMessage` internally, applies any attachments, and delegates to the `SendAsync(EmailMessage, CancellationToken)` overload. Throws `InvalidOperationException` if the default from address is not configured.
 
 ---
 
@@ -454,7 +559,9 @@ Sends an email using the default from address read from `Communication:Email:Def
 | `message` | `EmailMessage` | — | The fully constructed email message to send. |
 | `cancellationToken` | `CancellationToken` | `default` | Optional cancellation token. |
 
-Validates the message via `EmailMessage.ValidateEmailMessage()` before attempting to send. If validation fails, returns a failed `EmailSendResult` with the validation errors as the error message and logs the attempt. If validation passes, sends the email via the configured provider and logs the result. Both successful and failed attempts are logged.
+Validates the message via `EmailMessage.ValidateEmailMessage(EmailOptions.MaxTotalAttachmentBytes)` before attempting to send. If validation fails, returns a failed `EmailSendResult` with the validation errors as the error message and logs the attempt. If validation passes, sends the email via the configured provider and logs the result. Both successful and failed attempts are logged.
+
+Attachments are added to the MIME body by the shared message builder, so all three SMTP providers carry them. The `Console` provider never builds a MIME message and therefore cannot deliver attachments — it logs their names, types and sizes instead.
 
 ---
 
@@ -479,6 +586,8 @@ Handles persistence of email send attempts to the database. Inject via `EmailLog
 Persists an email send attempt to the database within a transaction. Returns immediately without persisting if `EmailLoggingMode` is `None`.
 
 When `ExcludeContent` is configured, creates an `EmailLog` (via `EmailMessage.ToSafeLog`), associated `EmailRecipientLog` entries, and an `EmailSentLog`. When `FullLog` is configured, additionally creates an `EmailContentLog` (via `EmailMessage.ToFullLog`).
+
+Under both modes, one `EmailAttachmentLog` per attachment is created via `EmailMessage.ToAttachmentLogs`. These hold metadata only, so they are not gated behind `FullLog` the way body content is.
 
 All entities are added with `saveNow: false` and saved in a single `SaveChangesAsync` call within a transaction. If the transaction fails, the error is logged to the application logger and the transaction is rolled back. The exception is not thrown — a failed log write does not affect the email send result.
 
@@ -691,4 +800,5 @@ Database context interface for email logging. Your application's `DbContext` mus
 | `EmailLogs` | `DbSet<EmailLog>` | get; set; | Email log entries containing sender and subject metadata. |
 | `EmailRecipientLogs` | `DbSet<EmailRecipientLog>` | get; set; | Recipient log entries linked to email logs. |
 | `EmailContentLogs` | `DbSet<EmailContentLog>` | get; set; | Content log entries containing email body content. Only populated when `FullLog` is used. |
+| `EmailAttachmentLogs` | `DbSet<EmailAttachmentLog>` | get; set; | Attachment log entries recording file name, MIME type and size. Metadata only — attachment content is never persisted. |
 | `EmailSentLogs` | `DbSet<EmailSentLog>` | get; set; | Send result log entries containing success/failure status and error details. |

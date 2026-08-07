@@ -36,7 +36,8 @@ public class EmailLogService
     /// Logs an email send attempt to the database within a transaction.
     /// Creates an <see cref="EmailLog"/>, associated <see cref="EmailRecipientLog"/> entries,
     /// an optional <see cref="EmailContentLog"/> (when using <see cref="EmailLoggingMode.FullLog"/>),
-    /// and an <see cref="EmailSentLog"/> recording the send result.
+    /// an <see cref="EmailAttachmentLog"/> per attachment, and an <see cref="EmailSentLog"/>
+    /// recording the send result.
     /// Does nothing if <see cref="EmailLoggingMode.None"/> is configured.
     /// </summary>
     /// <param name="message">The email message that was sent or attempted.</param>
@@ -60,6 +61,10 @@ public class EmailLogService
             (log, recipientLogs) = message.ToSafeLog();
         }
 
+        // Attachment logs hold metadata only, so they are recorded under both logging modes rather
+        // than being gated behind FullLog the way body content is.
+        var attachmentLogs = message.ToAttachmentLogs(log.Id);
+
         var sentLog = new EmailSentLog(log.Id, result);
 
         await _repos.BeginTransactionAsync(cancellationToken);
@@ -74,6 +79,10 @@ public class EmailLogService
             if(contentLog != null)
                 await _repos.GetRepository<EmailContentLog>()
                     .AddAsync(contentLog, saveNow: false, cancellationToken: cancellationToken);
+
+            if(attachmentLogs.Count > 0)
+                await _repos.GetRepository<EmailAttachmentLog>()
+                    .AddAsync(attachmentLogs, saveNow: false, cancellationToken: cancellationToken);
 
             await _repos.GetRepository<EmailSentLog>()
                 .AddAsync(sentLog, saveNow: false, cancellationToken: cancellationToken);

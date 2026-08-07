@@ -47,6 +47,14 @@ public sealed class EmailMessage
     /// </summary>
     public string HtmlBody { get; }
 
+    private readonly List<EmailAttachment> _attachments = [];
+
+    /// <summary>
+    /// The files attached to the email. Add to this using <see cref="WithAttachment(EmailAttachment)"/>
+    /// and its overloads. Defaults to empty.
+    /// </summary>
+    public IReadOnlyList<EmailAttachment> Attachments => _attachments;
+
     /// <summary>
     /// Creates an email message with a plain text body. The HTML body is set to the same value as the plain body.
     /// </summary>
@@ -106,11 +114,50 @@ public sealed class EmailMessage
 
 
     /// <summary>
-    /// Validates the email message for common issues including missing from address, missing body,
-    /// invalid recipient addresses (missing '@'), and duplicate recipients across To, CC, and BCC.
+    /// Attaches a file to the email.
     /// </summary>
+    /// <param name="attachment">The attachment to add.</param>
+    /// <returns>The same message, so calls can be chained.</returns>
+    public EmailMessage WithAttachment(EmailAttachment attachment)
+    {
+        _attachments.Add(attachment);
+        return this;
+    }
+
+    /// <summary>
+    /// Attaches a file to the email from its raw content.
+    /// </summary>
+    /// <param name="fileName">The file name shown to the recipient, including its extension.</param>
+    /// <param name="content">The raw file content.</param>
+    /// <param name="contentType">Optional MIME type. Inferred from <paramref name="fileName"/> when omitted.</param>
+    /// <returns>The same message, so calls can be chained.</returns>
+    public EmailMessage WithAttachment(string fileName, byte[] content, string? contentType = null)
+        => WithAttachment(new EmailAttachment(fileName, content, contentType));
+
+    /// <summary>
+    /// Attaches several files to the email.
+    /// </summary>
+    /// <param name="attachments">The attachments to add.</param>
+    /// <returns>The same message, so calls can be chained.</returns>
+    public EmailMessage WithAttachments(IEnumerable<EmailAttachment> attachments)
+    {
+        _attachments.AddRange(attachments);
+        return this;
+    }
+
+
+    /// <summary>
+    /// Validates the email message for common issues including missing from address, missing body,
+    /// invalid recipient addresses (missing '@'), duplicate recipients across To, CC, and BCC,
+    /// and unusable or oversized attachments.
+    /// </summary>
+    /// <param name="maxTotalAttachmentBytes">
+    /// The combined attachment size allowed, in bytes. Zero or a negative value disables the check.
+    /// Providers cap the encoded message rather than the raw bytes, and base64 inflates content by
+    /// roughly a third, so this limit should sit comfortably below the provider's advertised cap.
+    /// </param>
     /// <returns>A string containing all validation errors separated by newlines, or null if the message is valid.</returns>
-    public string? ValidateEmailMessage()
+    public string? ValidateEmailMessage(long maxTotalAttachmentBytes = 0)
     {
         var errors = string.Empty;
 
@@ -143,6 +190,14 @@ public sealed class EmailMessage
 
             if (duplicates.Count > 0)
                 errors = AppendError(errors, $"Duplicate recipients found: {string.Join(", ", duplicates)}");
+
+            foreach (var attachmentError in _attachments.Select(a => a.Validate()).Where(e => e != null))
+                errors = AppendError(errors, attachmentError!);
+
+            var totalAttachmentBytes = _attachments.Sum(a => a.SizeBytes);
+            if (maxTotalAttachmentBytes > 0 && totalAttachmentBytes > maxTotalAttachmentBytes)
+                errors = AppendError(errors,
+                    $"Attachments total {totalAttachmentBytes:N0} bytes, exceeding the {maxTotalAttachmentBytes:N0} byte limit.");
         }
         catch (NullReferenceException)
         {
@@ -209,6 +264,23 @@ public sealed class EmailMessage
 
         return (log, recipients, contentLog);
     }
+
+    /// <summary>
+    /// Creates log entries describing this message's attachments. Metadata only — attachment content
+    /// is never included, so this is safe to call under any <see cref="Options.EmailLoggingMode"/>.
+    /// </summary>
+    /// <param name="emailLogId">The identifier of the <see cref="EmailLog"/> these attachments belong to.</param>
+    /// <returns>One <see cref="EmailAttachmentLog"/> per attachment, or an empty list if there are none.</returns>
+    public List<EmailAttachmentLog> ToAttachmentLogs(string emailLogId)
+        => _attachments
+            .Select(a => new EmailAttachmentLog
+            {
+                EmailLogId = emailLogId,
+                FileName = a.FileName,
+                ContentType = a.ResolvedContentType,
+                SizeBytes = a.SizeBytes
+            })
+            .ToList();
 }
 
 /// <summary>

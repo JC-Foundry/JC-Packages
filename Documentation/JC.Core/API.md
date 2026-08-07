@@ -1115,6 +1115,8 @@ Trims the input, lowercases it, replaces all non-alphanumeric characters (except
 
 With `normaliseToDisplayName: false` (the default), PascalCase input has no word boundaries to split on, so `"MyText"` becomes `"mytext"`. With `normaliseToDisplayName: true`, the same input becomes `"my-text"`. Underscores are already treated as non-alphanumeric, so `"PENDING_APPROVAL"` becomes `"pending-approval"` either way.
 
+The display name normaliser is invoked with `splitDigits: false`, so digits stay attached to the word they follow and `"Version2"` yields `"version2"` rather than `"version-2"`. Slugs are typically persisted in URLs, so splitting them would break existing links.
+
 ---
 
 #### ToNormalisedSlug(this string value)
@@ -1142,15 +1144,18 @@ Converts the input to lowercase first, then applies the culture's `TextInfo.ToTi
 
 ---
 
-#### ToDisplayName(this string value)
+#### ToDisplayName(this string value, bool splitDigits = true)
 
 **Returns:** `string`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `value` | `string` | — | The string to convert into a display-friendly name. |
+| `splitDigits` | `bool` | `true` | Whether a digit adjoining a letter starts a new word, so that `"Address1"` becomes `"Address 1"`. Adjacent digits are kept together either way. |
 
-Converts an identifier-style string into human-readable text using the same normaliser as `EnumExtensions.ToDisplayName`. Replaces underscores with spaces, inserts a space before an uppercase letter that starts a new word, and capitalises the first letter of each word while lowercasing the rest. Returns an empty string if the input is null or empty.
+Converts an identifier-style string into human-readable text using the same normaliser as `EnumExtensions.ToDisplayName`. Underscores, hyphens, full stops and whitespace separate words; runs of them collapse to a single space and any at either end are discarded. Casing transitions open words too, and each word is capitalised. Returns an empty string if the input is null, empty or whitespace.
+
+Letters after a word's first are only lowercased when the input contains no lowercase letter at all, which is what allows acronyms in mixed-case input to survive.
 
 | Input | Output |
 |-------|--------|
@@ -1159,8 +1164,17 @@ Converts an identifier-style string into human-readable text using the same norm
 | `"user_first_name"` | `"User First Name"` |
 | `"PENDING_APPROVAL"` | `"Pending Approval"` |
 | `"hello world"` | `"Hello World"` |
+| `"my-text"` | `"My Text"` |
+| `"first.name"` | `"First Name"` |
+| `"XMLParser"` | `"XML Parser"` |
+| `"UserID"` | `"User ID"` |
+| `"PDF Export"` | `"PDF Export"` |
+| `"Address1"` | `"Address 1"` |
+| `"Address1"` with `splitDigits: false` | `"Address1"` |
 
-> **Intended for identifier-style input.** Because every character that does not start a word is lowercased, text that is already display-formatted loses its casing: `"PDF Export"` becomes `"Pdf Export"`, `"Order ID"` becomes `"Order Id"`, and `"iOS App"` becomes `"I Os App"`. Digits are not treated as word boundaries, so `"Version2Point0"` becomes `"Version2 Point0"`. Use `ToTitleCase` instead when the input is already prose.
+A hyphen or full stop flanked on both sides by a digit or a capital is retained rather than treated as a separator, and the token holding it is emitted verbatim — `"BT.23.9"`, `"2024-01-15"`, `"UTF-8"` and `"X-Ray"` all survive unchanged. Because the test is for capitals rather than for words, all-caps pairs such as `"PENDING-APPROVAL"` and `"CONFIG.VALUE"` are read as codes and preserved as well. Punctuation other than `_`, `-`, `.` and whitespace is never a separator, so a flags enum's `"Read, Write"` keeps its comma.
+
+> **Intended for identifier-style input.** Every word is capitalised, so prose loses its structure — `"order of operations"` becomes `"Order Of Operations"`. Use `ToTitleCase` when the input is already readable text. Word boundaries derive from casing alone, so an unbroken uppercase run cannot be split (`"XMLEXPORT"` gives `"Xmlexport"`) and a lowercase acronym prefix cannot be detected (`"iOS App"` gives `"I OS App"`).
 
 ---
 
@@ -1259,19 +1273,20 @@ Returns all members of the enum type as a list of `EnumOption` values, each carr
 
 ---
 
-#### ToDisplayName(this Enum value)
+#### ToDisplayName(this Enum value, bool splitDigits = true)
 
 **Returns:** `string`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `value` | `Enum` | — | The enum value to convert. |
+| `splitDigits` | `bool` | `true` | Whether a digit adjoining a letter starts a new word, so that `Version2` becomes "Version 2". Adjacent digits are kept together either way. |
 
-Converts an enum value's name to a human-readable string. Replaces underscores with spaces, inserts a space before an uppercase letter that starts a new word, and capitalises the first letter of each word while lowercasing the rest. Supports PascalCase (e.g. `InProgress` → "In Progress") and SCREAMING_CASE (e.g. `PENDING_APPROVAL` → "Pending Approval").
+Converts an enum value's name to a human-readable string. Underscore, hyphen, full stop and whitespace separators collapse to a single space, each casing transition opens a new word, and every word is capitalised. Supports PascalCase (e.g. `InProgress` → "In Progress") and SCREAMING_CASE (e.g. `PENDING_APPROVAL` → "Pending Approval").
 
-Runs of consecutive uppercase letters are split at the correct word boundary but are not preserved as acronyms — `XMLParser` produces "Xml Parser", not "XML Parser". Use a `[Description]` attribute with `GetDescription` when an acronym must keep its casing.
+Members whose names contain no lowercase letter have their trailing letters lowercased; mixed-case names keep their inner casing, so an acronym is preserved — `XMLParser` produces "XML Parser". An unbroken uppercase run carries no boundary to split on, so `XMLEXPORT` still produces "Xmlexport"; use a `[Description]` attribute with `GetDescription` in that case.
 
-Shares its implementation with `StringExtensions.ToDisplayName`.
+Shares its implementation with `StringExtensions.ToDisplayName`, which documents the full rule set including reference-code handling.
 
 ---
 

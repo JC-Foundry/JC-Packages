@@ -24,12 +24,18 @@ public static class EnumExtensions
     /// <summary>
     /// Converts an enum value to a display-friendly string by formatting its name.
     /// Replaces underscores with spaces, adds spaces between words in PascalCase,
-    /// and capitalises the first letter of each word.
+    /// and capitalises the first letter of each word. Acronyms such as those in
+    /// <c>XMLExport</c> keep their casing unless the member name is entirely uppercase.
     /// </summary>
     /// <param name="value">The enum value to be converted into a display-friendly string.</param>
+    /// <param name="splitDigits">
+    /// Whether a digit adjoining a letter starts a new word, so that <c>Version2</c> becomes 'Version 2'.
+    /// Adjacent digits are kept together either way. Set to <c>false</c> to leave digits attached
+    /// to the word they follow, giving 'Version2'.
+    /// </param>
     /// <returns>A formatted string representation of the enum value's name.</returns>
-    public static string ToDisplayName(this Enum value)
-        => InternalHelpers.ToDisplayName(value.ToString());
+    public static string ToDisplayName(this Enum value, bool splitDigits = true)
+        => InternalHelpers.ToDisplayName(value.ToString(), splitDigits);
 
     /// <summary>
     /// Retrieves the description of an enum value based on the DescriptionAttribute.
