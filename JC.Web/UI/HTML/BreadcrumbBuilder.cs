@@ -1,23 +1,31 @@
 using System.Net;
 using System.Text;
+using JC.Web.UI.Framework;
 
 namespace JC.Web.UI.HTML;
 
 /// <summary>
-/// Fluent builder for constructing Bootstrap 5 breadcrumb navigation.
+/// Fluent builder for constructing breadcrumb navigation using the configured UI framework's classes.
 /// The last item is always rendered as the active page.
 /// </summary>
+/// <remarks>
+/// Holds per-use state, so unlike <see cref="AlertHelper"/> and <see cref="HtmlHelper"/> this is
+/// constructed per trail rather than resolved as a singleton. Inject
+/// <see cref="IWebFrameworkDictionary"/> and pass it in.
+/// </remarks>
 /// <example>
 /// <code>
-/// var html = new BreadcrumbBuilder()
+/// var html = new BreadcrumbBuilder(dictionary)
 ///     .Add("Home", "/")
 ///     .Add("Products", "/products")
 ///     .Add("Widget")
 ///     .Build();
 /// </code>
 /// </example>
-public class BreadcrumbBuilder
+/// <param name="dictionary">The class dictionary for the configured framework.</param>
+public class BreadcrumbBuilder(IWebFrameworkDictionary dictionary)
 {
+    private readonly IWebFrameworkDictionary _dictionary = dictionary;
     private readonly List<(string Label, string? Url)> _items = new();
 
     /// <summary>
@@ -41,8 +49,17 @@ public class BreadcrumbBuilder
         if (_items.Count == 0)
             return string.Empty;
 
+        var classes = _dictionary.Breadcrumb;
+
         var sb = new StringBuilder();
-        sb.Append("<nav aria-label=\"breadcrumb\"><ol class=\"breadcrumb\">");
+        sb.Append("<nav aria-label=\"breadcrumb\"");
+
+        // Bootstrap styles the list rather than the nav, so the nav class is usually empty —
+        // emit the attribute only when a framework actually supplies one.
+        if (!string.IsNullOrWhiteSpace(classes.Nav))
+            sb.Append(" class=\"").Append(classes.Nav).Append('"');
+
+        sb.Append("><ol class=\"").Append(classes.List).Append("\">");
 
         for (var i = 0; i < _items.Count; i++)
         {
@@ -52,13 +69,13 @@ public class BreadcrumbBuilder
 
             if (isLast)
             {
-                sb.Append("<li class=\"breadcrumb-item active\" aria-current=\"page\">")
+                sb.Append("<li class=\"").Append(classes.ActiveItem).Append("\" aria-current=\"page\">")
                     .Append(encodedLabel)
                     .Append("</li>");
             }
             else
             {
-                sb.Append("<li class=\"breadcrumb-item\">");
+                sb.Append("<li class=\"").Append(classes.Item).Append("\">");
 
                 if (url != null)
                     sb.Append("<a href=\"").Append(WebUtility.HtmlEncode(url)).Append("\">").Append(encodedLabel).Append("</a>");

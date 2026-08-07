@@ -15,7 +15,7 @@ public class RateLimitingOptions
     public bool IsEnabled { get; set; } = true;
 
     /// <summary>
-    /// The rate limiting strategy to apply. Defaults to <see cref="RateLimitingStrategy.FixedWindow"/>.
+    /// The rate limiting strategy to apply. Defaults to <see cref="RateLimitingStrategy.SlidingWindow"/>.
     /// </summary>
     public RateLimitingStrategy Strategy { get; set; } = RateLimitingStrategy.SlidingWindow;
 

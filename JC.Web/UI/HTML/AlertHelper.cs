@@ -1,7 +1,9 @@
+using JC.Web.UI.Framework;
+
 namespace JC.Web.UI.HTML;
 
 /// <summary>
-/// Specifies the type of Bootstrap alert to render.
+/// Specifies the type of alert to render.
 /// </summary>
 public enum AlertType
 {
@@ -19,86 +21,73 @@ public enum AlertType
 }
 
 /// <summary>
-/// Static helper for rendering Bootstrap 5 alert components.
+/// Renders alert components using the configured UI framework's classes.
+/// Registered as a singleton by <c>AddUi</c> — inject it where alerts are built in code.
 /// </summary>
-public static class AlertHelper
+/// <param name="dictionary">The class dictionary for the configured framework.</param>
+public class AlertHelper(IWebFrameworkDictionary dictionary)
 {
     private const string DismissButton =
-        "<button type=\"button\" class=\"btn-close\" data-bs-dismiss=\"alert\" aria-label=\"Close\"></button>";
+        "<button type=\"button\" class=\"{0}\" data-bs-dismiss=\"alert\" aria-label=\"Close\"></button>";
 
     /// <summary>
-    /// Renders a Bootstrap success alert.
+    /// Renders a success alert.
     /// </summary>
     /// <param name="message">The alert message content (may contain HTML).</param>
     /// <param name="dismissible">Whether the alert can be dismissed. Defaults to <c>true</c>.</param>
     /// <returns>The rendered HTML string.</returns>
-    public static string Success(string message, bool dismissible = true)
-        => Alert(message, "alert-success", dismissible);
+    public string Success(string message, bool dismissible = true)
+        => ForType(AlertType.Success, message, dismissible);
 
     /// <summary>
-    /// Renders a Bootstrap warning alert.
+    /// Renders a warning alert.
     /// </summary>
     /// <param name="message">The alert message content (may contain HTML).</param>
     /// <param name="dismissible">Whether the alert can be dismissed. Defaults to <c>true</c>.</param>
     /// <returns>The rendered HTML string.</returns>
-    public static string Warning(string message, bool dismissible = true)
-        => Alert(message, "alert-warning", dismissible);
+    public string Warning(string message, bool dismissible = true)
+        => ForType(AlertType.Warning, message, dismissible);
 
     /// <summary>
-    /// Renders a Bootstrap danger alert.
+    /// Renders an error alert.
     /// </summary>
     /// <param name="message">The alert message content (may contain HTML).</param>
     /// <param name="dismissible">Whether the alert can be dismissed. Defaults to <c>true</c>.</param>
     /// <returns>The rendered HTML string.</returns>
-    public static string Error(string message, bool dismissible = true)
-        => Alert(message, "alert-danger", dismissible);
+    public string Error(string message, bool dismissible = true)
+        => ForType(AlertType.Error, message, dismissible);
 
     /// <summary>
-    /// Renders a Bootstrap info alert.
+    /// Renders an informational alert.
     /// </summary>
     /// <param name="message">The alert message content (may contain HTML).</param>
     /// <param name="dismissible">Whether the alert can be dismissed. Defaults to <c>true</c>.</param>
     /// <returns>The rendered HTML string.</returns>
-    public static string Info(string message, bool dismissible = true)
-        => Alert(message, "alert-info", dismissible);
+    public string Info(string message, bool dismissible = true)
+        => ForType(AlertType.Info, message, dismissible);
 
     /// <summary>
-    /// Renders a Bootstrap alert for the specified <see cref="AlertType"/>.
+    /// Renders an alert for the specified <see cref="AlertType"/>.
     /// </summary>
     /// <param name="type">The alert type.</param>
     /// <param name="message">The alert message content (may contain HTML).</param>
     /// <param name="dismissible">Whether the alert can be dismissed. Defaults to <c>true</c>.</param>
     /// <returns>The rendered HTML string.</returns>
-    public static string ForType(AlertType type, string message, bool dismissible = true)
-        => Alert(message, BootstrapClass(type), dismissible);
-
-    private static string Alert(string message, string cssClass, bool dismissible)
+    public string ForType(AlertType type, string message, bool dismissible = true)
     {
+        var classes = dictionary.Alert;
+
         var builder = new HtmlTagBuilder("div")
-            .AddClass("alert")
-            .AddClass(cssClass)
+            .AddClass(classes.Container)
+            .AddClass(classes.Variant(type))
             .AddAttribute("role", "alert");
 
-        if (dismissible)
-        {
-            builder.AddClass("alert-dismissible")
-                .AddClass("fade")
-                .AddClass("show")
-                .SetRawContent(message + DismissButton);
-        }
-        else
-        {
-            builder.SetRawContent(message);
-        }
+        if (!dismissible)
+            return builder.SetRawContent(message).Build();
 
-        return builder.Build();
+        return builder
+            .AddClass(classes.Dismissible)
+            .SetRawContent(message + string.Format(DismissButton, classes.CloseButton))
+            .Build();
     }
-
-    private static string BootstrapClass(AlertType type) => type switch
-    {
-        AlertType.Success => "alert-success",
-        AlertType.Warning => "alert-warning",
-        AlertType.Error => "alert-danger",
-        _ => "alert-info"
-    };
 }

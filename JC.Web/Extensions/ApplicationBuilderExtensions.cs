@@ -1,9 +1,12 @@
 using JC.Web.ClientProfiling.Middleware;
 using JC.Web.RateLimiting;
+using JC.Web.SEO.Middleware;
+using JC.Web.SEO.Models.Options;
 using JC.Web.Security.Middleware;
 using JC.Web.Security.Models;
 using JC.Web.Security.Services;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -259,6 +262,63 @@ public static class ApplicationBuilderExtensions
             return app;
 
         app.UseRateLimiter();
+
+        return app;
+    }
+
+    #endregion
+
+
+    #region SEO
+
+    /// <summary>
+    /// Serves the sitemap at the configured path (<c>/sitemap.xml</c> by default), splitting into
+    /// numbered files behind an index once the URL count exceeds the configured maximum.
+    /// Requires <see cref="ServiceCollectionExtensions.AddSitemap(IServiceCollection, IConfiguration?, Action{SitemapOptions}?)"/>.
+    /// </summary>
+    /// <param name="app">The application builder.</param>
+    /// <returns>The application builder for chaining.</returns>
+    /// <remarks>
+    /// Register this <b>before</b> <see cref="UseBotFilter"/>. The bot filter blocks every detected
+    /// crawler by default, and a sitemap exists solely for crawlers — the other way round, the
+    /// search engines it was written for receive a 403.
+    /// </remarks>
+    public static IApplicationBuilder UseSitemap(this IApplicationBuilder app)
+    {
+        app.UseMiddleware<SitemapMiddleware>();
+        return app;
+    }
+
+    /// <summary>
+    /// Serves robots.txt at the configured path (<c>/robots.txt</c> by default).
+    /// Requires <see cref="ServiceCollectionExtensions.AddRobots(IServiceCollection, IConfiguration?, Action{RobotsOptions}?)"/>.
+    /// </summary>
+    /// <param name="app">The application builder.</param>
+    /// <returns>The application builder for chaining.</returns>
+    /// <remarks>
+    /// Register this <b>before</b> <see cref="UseBotFilter"/>, for the same reason as the sitemap.
+    /// A robots.txt crawlers cannot read tells them nothing, and some treat the failure as
+    /// permission to crawl everything.
+    /// </remarks>
+    public static IApplicationBuilder UseRobots(this IApplicationBuilder app)
+    {
+        app.UseMiddleware<RobotsMiddleware>();
+        return app;
+    }
+
+    /// <summary>
+    /// Adds both SEO endpoints to the pipeline: the sitemap and robots.txt.
+    /// </summary>
+    /// <param name="app">The application builder.</param>
+    /// <returns>The application builder for chaining.</returns>
+    /// <remarks>
+    /// Place before <see cref="UseBotFilter"/> or <see cref="UseWebDefaults"/>, both of which
+    /// register the bot filter.
+    /// </remarks>
+    public static IApplicationBuilder UseSeo(this IApplicationBuilder app)
+    {
+        app.UseSitemap();
+        app.UseRobots();
 
         return app;
     }

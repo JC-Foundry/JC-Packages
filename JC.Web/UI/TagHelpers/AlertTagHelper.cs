@@ -4,11 +4,12 @@ using Microsoft.AspNetCore.Razor.TagHelpers;
 namespace JC.Web.UI.TagHelpers;
 
 /// <summary>
-/// Tag helper that renders a Bootstrap 5 alert component.
+/// Tag helper that renders an alert component using the configured UI framework's classes.
 /// Usage: <c>&lt;alert type="Success" message="Saved successfully!" /&gt;</c>
 /// </summary>
+/// <param name="alerts">The alert renderer, resolved from the container.</param>
 [HtmlTargetElement("alert", TagStructure = TagStructure.WithoutEndTag)]
-public class AlertTagHelper : TagHelper
+public class AlertTagHelper(AlertHelper alerts) : TagHelper
 {
     /// <summary>Gets or sets the alert type. Defaults to <see cref="AlertType.Info"/>.</summary>
     [HtmlAttributeName("type")]
@@ -33,6 +34,6 @@ public class AlertTagHelper : TagHelper
 
         output.TagName = null;
         output.TagMode = TagMode.StartTagAndEndTag;
-        output.Content.SetHtmlContent(AlertHelper.ForType(Type, Message, Dismissible));
+        output.Content.SetHtmlContent(alerts.ForType(Type, Message, Dismissible));
     }
 }

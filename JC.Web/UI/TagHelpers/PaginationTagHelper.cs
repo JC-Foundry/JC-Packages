@@ -6,11 +6,13 @@ using Microsoft.AspNetCore.Razor.TagHelpers;
 namespace JC.Web.UI.TagHelpers;
 
 /// <summary>
-/// Tag helper that renders Bootstrap-compatible pagination from an <see cref="IPagination{T}"/> model.
+/// Tag helper that renders pagination from an <see cref="IPagination{T}"/> model, using the
+/// configured UI framework's classes.
 /// Usage: <c>&lt;pagination model="Model.Items" href-format="/items?page={0}" /&gt;</c>
 /// </summary>
+/// <param name="html">The HTML element builder, resolved from the container.</param>
 [HtmlTargetElement("pagination", TagStructure = TagStructure.WithoutEndTag)]
-public class PaginationTagHelper : TagHelper
+public class PaginationTagHelper(HtmlHelper html) : TagHelper
 {
     /// <summary>Gets or sets the pagination model containing page metadata.</summary>
     [HtmlAttributeName("model")]
@@ -71,7 +73,7 @@ public class PaginationTagHelper : TagHelper
             output.Attributes.SetAttribute("class", ContainerClass);
 
         var sb = new StringBuilder();
-        sb.Append("<ul class=\"pagination\">");
+        sb.Append("<ul class=\"").Append(html.PaginationListClass).Append("\">");
 
         // First page
         if (ShowFirstLast)
@@ -107,14 +109,14 @@ public class PaginationTagHelper : TagHelper
     private string BuildPageItem(string text, int page, bool isActive = false, bool isDisabled = false)
     {
         var href = isDisabled ? "#" : string.Format(HrefFormat, page);
-        var link = HtmlHelper.PaginationLink(text, href, isActive: isActive);
-        return HtmlHelper.PaginationItem(link, isActive: isActive, isDisabled: isDisabled);
+        var link = html.PaginationLink(text, href, isActive: isActive);
+        return html.PaginationItem(link, isActive: isActive, isDisabled: isDisabled);
     }
 
-    private static string BuildEllipsis()
+    private string BuildEllipsis()
     {
-        var link = HtmlHelper.PaginationLink("&hellip;", "#");
-        return HtmlHelper.PaginationItem(link, isDisabled: true);
+        var link = html.PaginationLink("&hellip;", "#");
+        return html.PaginationItem(link, isDisabled: true);
     }
 
     private (int Start, int End) CalculatePageRange()

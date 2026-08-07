@@ -48,8 +48,10 @@ Required when encrypted cookies are enabled (the default):
 
 ```json
 {
-  "Cookies": {
-    "DataProtection_Path": "/path/to/keys"
+  "Web": {
+    "Cookies": {
+      "DataProtection_Path": "/path/to/keys"
+    }
   }
 }
 ```
@@ -170,7 +172,7 @@ builder.Services.AddWebDefaults(
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `configuration` | `IConfiguration?` | `null` | Application configuration. Required when `useEncryptedCookies` is `true` — reads `Cookies:DataProtection_Path` |
+| `configuration` | `IConfiguration?` | `null` | Application configuration. Required when `useEncryptedCookies` is `true` — reads `Web:Cookies:DataProtection_Path` |
 | `useEncryptedCookies` | `bool` | `true` | Registers `EncryptedCookieService` alongside `CookieService` as keyed services, and configures Data Protection key storage |
 | `configureHeaderFilter` | `Action<SecurityHeaderOptions>?` | `null` | Callback to configure security header options |
 | `configureCookieFilter` | `Action<CookieDefaultOptions>?` | `null` | Callback to configure global cookie defaults |
@@ -271,12 +273,14 @@ public class MyService(
 
 Unkeyed `ICookieService` injection always resolves to the standard (unencrypted) service.
 
-Requires `Cookies:DataProtection_Path` in configuration. The directory is created if it doesn't exist. Data Protection keys are persisted to this path.
+Requires `Web:Cookies:DataProtection_Path` in configuration. The directory is created if it doesn't exist. Data Protection keys are persisted to this path.
 
 ```json
 {
-  "Cookies": {
-    "DataProtection_Path": "/path/to/keys"
+  "Web": {
+    "Cookies": {
+      "DataProtection_Path": "/path/to/keys"
+    }
   }
 }
 ```

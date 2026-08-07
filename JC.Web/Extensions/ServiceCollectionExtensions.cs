@@ -3,9 +3,16 @@ using JC.Web.ClientProfiling.Helpers;
 using JC.Web.ClientProfiling.Models.Options;
 using JC.Web.ClientProfiling.Services;
 using JC.Web.RateLimiting;
+using JC.Web.SEO.Helpers;
+using JC.Web.SEO.Middleware;
+using JC.Web.SEO.Models.Options;
+using JC.Web.SEO.Services;
 using JC.Web.Security.Helpers;
 using JC.Web.Security.Models.Options;
 using JC.Web.Security.Services;
+using JC.Web.UI;
+using JC.Web.UI.Framework;
+using JC.Web.UI.HTML;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
@@ -13,6 +20,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace JC.Web.Extensions;
 
@@ -32,6 +40,7 @@ public static class ServiceCollectionExtensions
     /// <param name="configureCookieFilter">Optional callback to configure <see cref="CookieDefaultOptions"/>.</param>
     /// <param name="configureBotFilter">Optional callback to configure <see cref="BotFilterOptions"/>.</param>
     /// <param name="configureClientIp">Optional callback to configure <see cref="ClientIpOptions"/>.</param>
+    /// <param name="uiFramework">The selected UI framework tag helpers use. Defaults to bootstrap</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddWebDefaults(this IServiceCollection services,
         IConfiguration? configuration = null,
@@ -39,10 +48,12 @@ public static class ServiceCollectionExtensions
         Action<SecurityHeaderOptions>? configureHeaderFilter = null,
         Action<CookieDefaultOptions>? configureCookieFilter = null,
         Action<BotFilterOptions>? configureBotFilter = null,
-        Action<ClientIpOptions>? configureClientIp = null)
+        Action<ClientIpOptions>? configureClientIp = null,
+        UIFramework uiFramework = UIFramework.Bootstrap)
     {
         services.AddSecurityDefaults(configuration, useEncryptedCookies, configureHeaderFilter, configureCookieFilter);
         services.AddClientProfiling(configureBotFilter, configureClientIp);
+        services.AddUi(uiFramework);
 
         return services;
     }
@@ -60,6 +71,7 @@ public static class ServiceCollectionExtensions
     /// <param name="configureBotFilter">Optional callback to configure <see cref="BotFilterOptions"/>.</param>
     /// <param name="configureGeoLocation">Optional callback to configure <see cref="GeoLocationOptions"/>.</param>
     /// <param name="configureClientIp">Optional callback to configure <see cref="ClientIpOptions"/>.</param>
+    /// <param name="uiFramework">The selected UI framework tag helpers use. Defaults to bootstrap</param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddWebDefaults<TGeoService>(this IServiceCollection services,
         IConfiguration? configuration = null,
@@ -68,11 +80,13 @@ public static class ServiceCollectionExtensions
         Action<CookieDefaultOptions>? configureCookieFilter = null,
         Action<BotFilterOptions>? configureBotFilter = null,
         Action<GeoLocationOptions>? configureGeoLocation = null,
-        Action<ClientIpOptions>? configureClientIp = null)
+        Action<ClientIpOptions>? configureClientIp = null,
+        UIFramework uiFramework = UIFramework.Bootstrap)
         where TGeoService : class, IGeoLocationProvider
     {
         services.AddSecurityDefaults(configuration, useEncryptedCookies, configureHeaderFilter, configureCookieFilter);
         services.AddClientProfiling<TGeoService>(configureBotFilter, configureGeoLocation, configureClientIp);
+        services.AddUi(uiFramework);
 
         return services;
     }
@@ -157,7 +171,7 @@ public static class ServiceCollectionExtensions
     /// Use <c>[FromKeyedServices(ICookieService.StandardCookieDIKey)]</c> or
     /// <c>[FromKeyedServices(ICookieService.EncryptedCookieDIKey)]</c> to select a specific implementation.
     /// Unkeyed <c>ICookieService</c> injection still resolves to the plain <see cref="CookieService"/> in this mode.
-    /// Requires the <c>Cookies:DataProtection_Path</c> configuration key.
+    /// Requires the <c>Web:Cookies:DataProtection_Path</c> configuration key.
     /// </para>
     /// </summary>
     /// <param name="services">The service collection to register into.</param>
@@ -166,7 +180,7 @@ public static class ServiceCollectionExtensions
     /// <param name="configure">Optional callback to configure <see cref="CookieDefaultOptions"/>.</param>
     /// <returns>The service collection for chaining.</returns>
     /// <exception cref="InvalidOperationException">
-    /// Thrown if <paramref name="useEncryptedCookies"/> is <c>true</c> and <c>Cookies:DataProtection_Path</c> is missing from configuration.
+    /// Thrown if <paramref name="useEncryptedCookies"/> is <c>true</c> and <c>Web:Cookies:DataProtection_Path</c> is missing from configuration.
     /// </exception>
     public static IServiceCollection AddCookieServices(
         this IServiceCollection services,
@@ -205,7 +219,7 @@ public static class ServiceCollectionExtensions
             throw new InvalidOperationException(
                 $"Encrypted cookies require a Data Protection key storage path. " +
                 $"Set the '{EncryptedCookieService.DataProtectionConfigKey}' configuration key " +
-                $"(e.g. in appsettings.json: {{ \"Cookies\": {{ \"DataProtection_Path\": \"/path/to/keys\" }} }}), " +
+                $"(e.g. in appsettings.json: {{ \"Web\": {{ \"Cookies\": {{ \"DataProtection_Path\": \"/path/to/keys\" }} }} }}), " +
                 $"or set useEncryptedCookies to false.");
 
         var directory = new DirectoryInfo(dataProtectionPath);
@@ -384,9 +398,261 @@ public static class ServiceCollectionExtensions
             RateLimitPartitionBy.Endpoint =>
                 context.Request.Path.ToString(),
             RateLimitPartitionBy.ClientIpAndEndpoint =>
-                $"{ClientIpResolver.Resolve(context)}:{context.Request.Path}",
-            _ => ClientIpResolver.Resolve(context)
+                $"{ResolveClientIp(context)}:{context.Request.Path}",
+            _ => ResolveClientIp(context)
         };
+    }
+
+    /// <summary>
+    /// Resolves the client IP for rate limit partitioning, honouring
+    /// <see cref="ClientIpOptions.TrustProxyHeaders"/>.
+    /// </summary>
+    /// <remarks>
+    /// Behind a reverse proxy, <c>RemoteIpAddress</c> is the proxy's own address, so partitioning on
+    /// it alone puts every visitor into a single bucket and turns a per-client limit into a
+    /// site-wide one. Reading the same option the request metadata middleware uses keeps the
+    /// partition key and <see cref="ClientProfiling.Models.RequestMetadata.ClientIp"/> consistent
+    /// for a given request.
+    /// </remarks>
+    private static string ResolveClientIp(HttpContext context)
+    {
+        var ipOptions = context.RequestServices?.GetService<IOptions<ClientIpOptions>>()?.Value
+                        ?? new ClientIpOptions();
+
+        return ClientIpResolver.Resolve(context, ipOptions.TrustProxyHeaders);
+    }
+
+    #endregion
+
+
+    #region UI
+
+    /// <summary>
+    /// Registers the UI framework services and JC.Web's own class dictionary.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="framework">
+    /// The framework tag helpers and builders render for. May combine flags, in which case the most
+    /// specific is used. Defaults to <see cref="UIFramework.Bootstrap"/>.
+    /// </param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddUi(this IServiceCollection services,
+        UIFramework framework = UIFramework.Bootstrap)
+    {
+        services.TryAddSingleton<UIFrameworkService>(
+            _ => new UIFrameworkService(framework));
+
+        // Bootstrap is the only dictionary implemented so far. Tailwind and CustomJCTailwind become
+        // additional switch arms here once theirs exist; nothing else in the package changes.
+        services.AddFrameworkDictionary<IWebFrameworkDictionary>(_ => new BootstrapDictionary());
+
+        // Stateless renderers, so a singleton each. The builders that accumulate state
+        // (BreadcrumbBuilder, TableBuilder<T>) are constructed per use and take the dictionary
+        // directly instead.
+        services.TryAddSingleton<AlertHelper>();
+        services.TryAddSingleton<HtmlHelper>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers a package's CSS class dictionary, selecting the implementation from the framework
+    /// resolved by <see cref="UIFrameworkService"/>.
+    /// </summary>
+    /// <typeparam name="TDictionary">The package's dictionary contract.</typeparam>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="factory">
+    /// Returns the implementation for the resolved framework. Called once, on first resolution.
+    /// </param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// Each package registers its own dictionary through this method, so adding a tag helper to a
+    /// package layered above JC.Web never requires changing JC.Web. Every dictionary is driven by
+    /// the same single framework choice, so they cannot disagree.
+    /// <para>
+    /// Requires <see cref="AddUi"/> to have been called, since the factory is handed the framework
+    /// held by <see cref="UIFrameworkService"/>.
+    /// </para>
+    /// </remarks>
+    public static IServiceCollection AddFrameworkDictionary<TDictionary>(this IServiceCollection services,
+        Func<UIFramework, TDictionary> factory)
+        where TDictionary : class, IFrameworkDictionary
+    {
+        services.TryAddSingleton(sp =>
+            factory(sp.GetRequiredService<UIFrameworkService>().Framework));
+
+        return services;
+    }
+
+    #endregion
+    
+    
+    #region SEO
+
+    /// <summary>
+    /// Registers sitemap generation. Discovered Razor Page routes, registered
+    /// <see cref="ISitemapUrlProvider"/> implementations, and explicitly configured URLs are merged
+    /// into a single sitemap served by <see cref="ApplicationBuilderExtensions.UseSitemap"/>.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configure">Optional callback to configure <see cref="SitemapOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddSitemap(this IServiceCollection services,
+        Action<SitemapOptions>? configure = null)
+        => services.AddSitemap(null, configure);
+
+    /// <summary>
+    /// Registers sitemap generation, binding <see cref="SitemapOptions.ConfigSection"/> from
+    /// configuration before applying <paramref name="configure"/>.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configuration">Application configuration, bound from <c>Web:SEO:Sitemap</c>. May be null to skip binding.</param>
+    /// <param name="configure">Optional callback applied after binding, so code overrides configuration.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddSitemap(this IServiceCollection services,
+        IConfiguration? configuration,
+        Action<SitemapOptions>? configure = null)
+    {
+        if (configuration is not null)
+            services.Configure<SitemapOptions>(configuration.GetSection(SitemapOptions.ConfigSection));
+
+        if (configure is not null)
+            services.Configure(configure);
+        else if (configuration is null)
+            services.Configure<SitemapOptions>(_ => { });
+
+        // Constructed here rather than resolved lazily, so the timestamp is the application's
+        // start time rather than whenever the first crawler happened to arrive.
+        services.TryAddSingleton(new SitemapStartTime());
+        services.TryAddScoped<SitemapUrlAggregator>();
+
+        // Lets robots.txt tell whether a sitemap is actually being served.
+        services.TryAddSingleton<SitemapMarker>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers an <see cref="ISitemapUrlProvider"/> supplying URLs that route discovery cannot
+    /// resolve, such as database-backed content behind a parameterised route.
+    /// </summary>
+    /// <typeparam name="TProvider">The provider implementation.</typeparam>
+    /// <param name="services">The service collection to register into.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// Registered scoped, so providers may depend on a DbContext. Call once per provider — multiple
+    /// providers are all invoked and their results merged.
+    /// </remarks>
+    public static IServiceCollection AddSitemapProvider<TProvider>(this IServiceCollection services)
+        where TProvider : class, ISitemapUrlProvider
+    {
+        services.AddScoped<ISitemapUrlProvider, TProvider>();
+        return services;
+    }
+
+    /// <summary>
+    /// Registers robots.txt generation, served by <see cref="ApplicationBuilderExtensions.UseRobots"/>.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configure">Optional callback to configure <see cref="RobotsOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddRobots(this IServiceCollection services,
+        Action<RobotsOptions>? configure = null)
+        => services.AddRobots(null, configure);
+
+    /// <summary>
+    /// Registers robots.txt generation, binding <see cref="RobotsOptions.ConfigSection"/> from
+    /// configuration before applying <paramref name="configure"/>.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configuration">Application configuration, bound from <c>Web:SEO:Robots</c>. May be null to skip binding.</param>
+    /// <param name="configure">Optional callback applied after binding, so code overrides configuration.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// Keeping rules in configuration lets a staging environment disallow everything through its own
+    /// appsettings file rather than a branch in startup.
+    /// </remarks>
+    public static IServiceCollection AddRobots(this IServiceCollection services,
+        IConfiguration? configuration,
+        Action<RobotsOptions>? configure = null)
+    {
+        if (configuration is not null)
+            services.Configure<RobotsOptions>(configuration.GetSection(RobotsOptions.ConfigSection));
+
+        if (configure is not null)
+            services.Configure(configure);
+        else if (configuration is null)
+            services.Configure<RobotsOptions>(_ => { });
+
+        // The robots middleware reads sitemap options to build its Sitemap: directive, so these
+        // must resolve even when AddSitemap was never called.
+        services.Configure<SitemapOptions>(_ => { });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers site-wide defaults for <see cref="SeoBuilder"/> and the <c>&lt;seo-meta&gt;</c> tag helper.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configure">Optional callback to configure <see cref="SeoMetaOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddSeoMeta(this IServiceCollection services,
+        Action<SeoMetaOptions>? configure = null)
+        => services.AddSeoMeta(null, configure);
+
+    /// <summary>
+    /// Registers site-wide SEO meta defaults, binding <see cref="SeoMetaOptions.ConfigSection"/>
+    /// from configuration before applying <paramref name="configure"/>.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configuration">Application configuration, bound from <c>Web:SEO:Meta</c>. May be null to skip binding.</param>
+    /// <param name="configure">Optional callback applied after binding, so code overrides configuration.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddSeoMeta(this IServiceCollection services,
+        IConfiguration? configuration,
+        Action<SeoMetaOptions>? configure = null)
+    {
+        if (configuration is not null)
+            services.Configure<SeoMetaOptions>(configuration.GetSection(SeoMetaOptions.ConfigSection));
+
+        if (configure is not null)
+            services.Configure(configure);
+        else if (configuration is null)
+            services.Configure<SeoMetaOptions>(_ => { });
+
+        return services;
+    }
+
+    /// <summary>
+    /// Convenience registration for the whole SEO area — sitemap, robots.txt and meta defaults.
+    /// Equivalent to calling <see cref="AddSitemap(IServiceCollection, IConfiguration?, Action{SitemapOptions}?)"/>,
+    /// <see cref="AddRobots(IServiceCollection, IConfiguration?, Action{RobotsOptions}?)"/> and
+    /// <see cref="AddSeoMeta(IServiceCollection, IConfiguration?, Action{SeoMetaOptions}?)"/>.
+    /// </summary>
+    /// <param name="services">The service collection to register into.</param>
+    /// <param name="configuration">Application configuration, bound from <c>Web:SEO</c>. May be null to skip binding.</param>
+    /// <param name="sitemap">Optional callback to configure <see cref="SitemapOptions"/>.</param>
+    /// <param name="robots">Optional callback to configure <see cref="RobotsOptions"/>.</param>
+    /// <param name="meta">Optional callback to configure <see cref="SeoMetaOptions"/>.</param>
+    /// <returns>The service collection for chaining.</returns>
+    /// <remarks>
+    /// SEO is opt-in and deliberately absent from <see cref="AddWebDefaults(IServiceCollection, IConfiguration?, bool, Action{SecurityHeaderOptions}?, Action{CookieDefaultOptions}?, Action{BotFilterOptions}?, Action{ClientIpOptions}?)"/>.
+    /// Internal tools and line-of-business applications have no use for it, and its configuration is
+    /// specific enough per application that folding it into the defaults would bloat them.
+    /// Register the three parts individually when an application needs only some of them.
+    /// </remarks>
+    public static IServiceCollection AddSeo(this IServiceCollection services,
+        IConfiguration? configuration = null,
+        Action<SitemapOptions>? sitemap = null,
+        Action<RobotsOptions>? robots = null,
+        Action<SeoMetaOptions>? meta = null)
+    {
+        services.AddSitemap(configuration, sitemap);
+        services.AddRobots(configuration, robots);
+        services.AddSeoMeta(configuration, meta);
+
+        return services;
     }
 
     #endregion

@@ -35,7 +35,7 @@ namespace JC.Web.Security.Services;
 /// <b>With encryption</b> (default, <c>useEncryptedCookies: true</c>):<br/>
 /// Both implementations are registered as <b>keyed services</b>. Use <see cref="StandardCookieDIKey"/>
 /// and <see cref="EncryptedCookieDIKey"/> with the <c>[FromKeyedServices]</c> attribute to inject the desired implementation.
-/// Requires the <c>Cookies:DataProtection_Path</c> configuration key.
+/// Requires the <c>Web:Cookies:DataProtection_Path</c> configuration key.
 /// </para>
 /// <example>
 /// <code>
@@ -43,7 +43,7 @@ namespace JC.Web.Security.Services;
 /// builder.Services.AddCookieServices(builder.Configuration);
 ///
 /// // appsettings.json
-/// // { "Cookies": { "DataProtection_Path": "/app/keys" } }
+/// // { "Web": { "Cookies": { "DataProtection_Path": "/app/keys" } } }
 ///
 /// // Injection — unencrypted
 /// public class PreferenceService(

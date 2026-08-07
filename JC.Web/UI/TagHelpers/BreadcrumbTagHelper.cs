@@ -1,3 +1,4 @@
+using JC.Web.UI.Framework;
 using JC.Web.UI.HTML;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 
@@ -16,8 +17,9 @@ namespace JC.Web.UI.TagHelpers;
 /// &lt;/breadcrumb&gt;
 /// </code>
 /// </example>
+/// <param name="dictionary">The class dictionary for the configured framework.</param>
 [HtmlTargetElement("breadcrumb")]
-public class BreadcrumbTagHelper : TagHelper
+public class BreadcrumbTagHelper(IWebFrameworkDictionary dictionary) : TagHelper
 {
     internal const string CrumbListKey = nameof(BreadcrumbTagHelper) + ".Crumbs";
 

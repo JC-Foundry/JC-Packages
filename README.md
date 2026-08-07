@@ -248,8 +248,10 @@ Registers Hangfire with SQL Server storage. Reads the `HangfireConnection` conne
 
 ```json
 {
-  "Cookies": {
-    "DataProtection_Path": "/path/to/keys"
+  "Web": {
+    "Cookies": {
+      "DataProtection_Path": "/path/to/keys"
+    }
   }
 }
 ```

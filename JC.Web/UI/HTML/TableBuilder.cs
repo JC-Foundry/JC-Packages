@@ -1,24 +1,31 @@
 using System.Net;
 using System.Text;
+using JC.Web.UI.Framework;
 
 namespace JC.Web.UI.HTML;
 
 /// <summary>
-/// Fluent builder for rendering Bootstrap HTML tables from a collection of items.
-/// Cell content is HTML-encoded to prevent XSS.
+/// Fluent builder for rendering HTML tables from a collection of items, using the configured UI
+/// framework's classes. Cell content is HTML-encoded to prevent XSS.
 /// </summary>
 /// <typeparam name="T">The type of items in the table.</typeparam>
+/// <remarks>
+/// Holds per-use state and is generic, so it is constructed per table rather than resolved as a
+/// singleton. Inject <see cref="IWebFrameworkDictionary"/> and pass it in.
+/// </remarks>
 /// <example>
 /// <code>
-/// var html = new TableBuilder&lt;User&gt;()
+/// var html = new TableBuilder&lt;User&gt;(dictionary)
 ///     .AddColumn("Name", u => u.Name)
 ///     .AddColumn("Email", u => u.Email)
 ///     .AddColumn("Age", u => u.Age, cssClass: "text-end")
-///     .Build(users, "table table-striped table-hover");
+///     .Build(users);
 /// </code>
 /// </example>
-public class TableBuilder<T>
+/// <param name="dictionary">The class dictionary for the configured framework.</param>
+public class TableBuilder<T>(IWebFrameworkDictionary dictionary)
 {
+    private readonly IWebFrameworkDictionary _dictionary = dictionary;
     private readonly List<Column> _columns = new();
 
     /// <summary>
@@ -51,11 +58,14 @@ public class TableBuilder<T>
     /// Builds and returns the complete HTML table from the provided items.
     /// </summary>
     /// <param name="items">The collection of items to render as table rows.</param>
-    /// <param name="tableClass">CSS classes for the <c>&lt;table&gt;</c> element. Defaults to <c>"table"</c>.</param>
+    /// <param name="tableClass">
+    /// CSS classes for the <c>&lt;table&gt;</c> element. Falls back to the configured framework's
+    /// table class when null or whitespace.
+    /// </param>
     /// <returns>The rendered HTML table string.</returns>
     public string Build(IEnumerable<T> items, string? tableClass = null)
     {
-        var css = string.IsNullOrWhiteSpace(tableClass) ? "table" : tableClass;
+        var css = string.IsNullOrWhiteSpace(tableClass) ? _dictionary.Table.Table : tableClass;
 
         var sb = new StringBuilder();
         sb.Append("<table class=\"").Append(css).Append("\">");

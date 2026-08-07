@@ -22,7 +22,7 @@ public class EncryptedCookieService(
     IOptions<CookieDefaultOptions> defaults,
     ILogger<EncryptedCookieService> logger) : ICookieService
 {
-    internal const string DataProtectionConfigKey = "Cookies:DataProtection_Path";
+    internal const string DataProtectionConfigKey = "Web:Cookies:DataProtection_Path";
     private readonly CookieDefaultOptions _defaults = defaults.Value;
 
     private HttpContext GetHttpContext() =>

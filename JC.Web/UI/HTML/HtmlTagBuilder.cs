@@ -48,32 +48,18 @@ public class HtmlTagBuilder
     }
 
     /// <summary>
-    /// Adds the <c>active</c> CSS class to the tag, commonly used for Bootstrap active states.
-    /// </summary>
-    /// <returns>The builder instance for chaining.</returns>
-    public HtmlTagBuilder AddActiveAttribute()
-    {
-        _classes.Add("active");
-        return this;
-    }
-
-    /// <summary>
     /// Adds the <c>aria-current="page"</c> attribute, indicating the current page in navigation.
     /// </summary>
     /// <returns>The builder instance for chaining.</returns>
+    /// <remarks>
+    /// This is an ARIA attribute rather than a CSS class, so it is identical across frameworks and
+    /// stays on the builder. State <i>classes</i> come from
+    /// <see cref="Framework.IWebFrameworkDictionary.State"/> and are applied through
+    /// <see cref="AddClass"/>.
+    /// </remarks>
     public HtmlTagBuilder AddCurrentPageAttribute()
     {
         _attributes[ActiveKey] = "page";
-        return this;
-    }
-
-    /// <summary>
-    /// Adds the <c>disabled</c> CSS class to the tag.
-    /// </summary>
-    /// <returns>The builder instance for chaining.</returns>
-    public HtmlTagBuilder AddDisabledClass()
-    {
-        _classes.Add("disabled");
         return this;
     }
 
