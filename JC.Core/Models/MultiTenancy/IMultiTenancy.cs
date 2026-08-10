@@ -9,7 +9,4 @@ public interface IMultiTenancy
 {
     /// <summary>Gets or sets the tenant identifier this entity belongs to.</summary>
     string? TenantId { get; set; }
-
-    /// <summary>Gets or sets the navigation property to the <see cref="Tenant"/> entity.</summary>
-    Tenant? Tenant { get; set; }
 }

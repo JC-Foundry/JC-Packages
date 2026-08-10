@@ -17,11 +17,6 @@ public class SavedFileMap : IEntityTypeConfiguration<SavedFile>
         builder.Property(f => f.FileName).IsRequired().HasMaxLength(256);
         builder.Property(f => f.Extension).IsRequired().HasMaxLength(64);
         builder.Property(f => f.FolderName).IsRequired().HasMaxLength(256);
-        
-        builder.HasOne(f => f.Tenant)
-            .WithMany()
-            .HasForeignKey(f => f.TenantId)
-            .OnDelete(DeleteBehavior.SetNull);
 
         //Covers the lookup every read, save and delete goes through
         builder.HasIndex(f => new { f.TenantId, f.FolderName, f.FileName });

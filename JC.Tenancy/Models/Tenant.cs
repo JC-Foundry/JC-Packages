@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using JC.Core.Models.Auditing;
 
-namespace JC.Core.Models.MultiTenancy;
+namespace JC.Tenancy.Models;
 
 /// <summary>
 /// Represents a tenant in a multi-tenancy system. Extends <see cref="AuditModel"/> for full audit trail support.

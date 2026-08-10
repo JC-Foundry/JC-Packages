@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <PackageId>JC.Tenancy</PackageId>
+        <Version>6.0.0</Version>
+        <Description>TBD</Description>
+        <PackageTags>$(PackageTags);TBD</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+    
+    <!-- Deliberately no FrameworkReference on ASP.NET Core. Tenant scope is established through a
+         scoped factory rather than middleware, so the engine works unchanged in a request, a
+         background job or a console application. -->
+    <ItemGroup>
+      <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' == 'true'">
+        <ProjectReference Include="..\JC.Core\JC.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' != 'true'">
+        <PackageReference Include="JC.Core" />
+    </ItemGroup>
+    <!-- The README ships in the package: it is the landing page on a feed, and the
+         project's front page on GitHub. Update rather than Include - the SDK's default
+         globs already pick .md up as None. -->
+    <ItemGroup>
+        <None Update="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+</Project>

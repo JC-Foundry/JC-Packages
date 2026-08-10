@@ -1,4 +1,4 @@
-# JC.Identity v6 Refactor — Identity & Tenancy Boundary Design
+﻿# JC.Identity v6 Refactor — Identity & Tenancy Boundary Design
 
 > **Status:** Initial design / working document  
 > **Target:** JC Packages v6  
@@ -139,14 +139,21 @@ The exact dependency graph must be validated during implementation. Circular dep
 
 `JC.Core` should contain **small, foundational contracts** that can be consumed without installing a complete identity or tenancy engine.
 
-Likely responsibilities:
+Responsibilities:
 
-- `IUserInfo`;
-- `IApplicationUser`;
-- `IdentityAuthority`;
+- `IUserInfo` — **pinned to Core**, see below;
+- `IdentityAuthority` — **pinned to Core**, see below;
 - `IMultiTenancy`;
 - possibly `ITenantInfo`;
 - possibly `ITenantContext`.
+
+`IApplicationUser` was originally placed here. It moves to `JC.Identity.Shared` (§8): nothing in Core consumes it, and it is only meaningful to the two identity authorities.
+
+**Two types cannot move out of Core, whatever the boundary argument.**
+
+`IUserInfo` is consumed *inside* Core — `RepositoryContext` resolves it to stamp audit fields, and `AuditService` reads `UserId` and `Username` from it with `IUserInfo.MissingUserInfoId` as the fallback. Moving it would make Core depend on the identity package and invert the dependency graph this whole design rests on.
+
+`IdentityAuthority` follows it. §11 places the enum **on** `IUserInfo`, and a Core type cannot expose a property typed from a package Core does not reference. Either the enum stays in Core, or §11 is wrong about where the property lives — and §11 is right, so the enum stays.
 
 Core should **not** implement:
 
@@ -221,7 +228,86 @@ and still have full application tenancy.
 
 ---
 
-# 8. Future JC.CAP.Base — Boundary Only
+# 8. JC.Identity.Shared Responsibilities
+
+`JC.Identity` and a future `JC.CAP` both answer the same question — *who is the current user?* — from different authorities. Today the machinery that answers it lives entirely inside `JC.Identity` and is welded to ASP.NET Identity, so `JC.CAP` would have to reimplement it or depend on a package it has no business depending on.
+
+`JC.Identity.Shared` is that machinery, extracted.
+
+> **The shared identity runtime: everything needed to turn an authenticated principal into an `IUserInfo`, independent of who authenticated them.**
+
+It is deliberately **not** an abstractions-only package. It ships working code.
+
+## 8.1 Responsibilities
+
+- `IApplicationUser` — the authoritative user-record contract (§12, §13);
+- the default `IUserInfo` implementation;
+- the middleware that projects claims onto `IUserInfo`;
+- the claim-type constants both authorities emit and read;
+- account-state contracts shared by both authorities.
+
+## 8.2 It must not contain
+
+- ASP.NET Identity types — no `IdentityUser`, `UserManager`, `SignInManager`, `IdentityOptions`;
+- `BaseUser` or `BaseRole`;
+- CAP protocol, session or API concerns;
+- tenancy mechanics — those are `JC.Tenancy`'s (§7);
+- authentication itself. Establishing *that* a principal is authenticated belongs to `JC.Identity` or `JC.CAP`. This package only projects the result.
+
+## 8.3 Dependency direction
+
+```text
+JC.Core
+    ↓
+JC.Identity.Shared
+    ↓                ↓
+JC.Identity     future JC.CAP
+```
+
+`JC.Identity.Shared` and `JC.Tenancy` are **siblings**. Neither depends on the other. An application can take tenancy without identity, or identity without tenancy.
+
+## 8.4 Why IUserInfo does not move here
+
+`IUserInfo` stays in `JC.Core`, because Core consumes it directly — `RepositoryContext` resolves it to stamp audit fields and `AuditService` reads `UserId` and `Username` from it, falling back to `IUserInfo.MissingUserInfoId`. Moving it would make `JC.Core` depend on `JC.Identity.Shared` and invert the whole graph.
+
+The consequence is that **`IdentityAuthority` also stays in Core** (§11). A type in Core cannot expose a property typed from a package Core does not reference, and §11 places `IdentityAuthority` on `IUserInfo`.
+
+So the split is:
+
+```text
+JC.Core                  contract + the enum on it
+    IUserInfo
+    IdentityAuthority
+
+JC.Identity.Shared       the implementation and the pipeline that fills it
+    UserInfo
+    UserInfoMiddleware
+    DefaultClaims
+    IApplicationUser
+```
+
+## 8.5 Two extraction problems to solve
+
+Both are recorded from the Phase 1 inventory (§65) and are prerequisites, not consequences.
+
+**The `IUserInfo` implementation is welded to ASP.NET Identity.** Its useful constructors take `BaseUser` and `IEnumerable<BaseRole>`. The property surface is authority-agnostic; the constructors are not. The move is therefore a **split** — the implementation goes to Shared, and the `BaseUser`-shaped construction stays in `JC.Identity` as a mapper or extension.
+
+**The claims middleware needs `IOptions<IdentityOptions>`.** It reads `ClaimsIdentity.EmailClaimType`, `UserIdClaimType` and `RoleClaimType` from ASP.NET Identity to know which claims to look for. Moving it unchanged would drag ASP.NET Identity into Shared and defeat the package. Those three claim-type names must be abstracted behind a small options contract that `JC.Identity` satisfies from `IdentityOptions` and `JC.CAP` satisfies from its own token shape.
+
+## 8.6 Relationship to JC.CAP.Base
+
+`JC.Identity.Shared` and the future `JC.CAP.Base` (§9) are **distinct packages on different axes**:
+
+| | Shared between | Concerns |
+|---|---|---|
+| `JC.Identity.Shared` | `JC.Identity`, `JC.CAP` | Current-user runtime — contracts, projection, claims |
+| `JC.CAP.Base` | CAP, the Portal, consuming `.Data` packages | CAP integration domain — user-to-tenant maps, app role assignment |
+
+`JC.CAP.Base` may depend on `JC.Identity.Shared`. The reverse must never hold.
+
+---
+
+# 9. Future JC.CAP.Base — Boundary Only
 
 This document does **not** design `JC.CAP.Base` completely.
 
@@ -242,7 +328,7 @@ These types must not require ASP.NET Identity.
 
 ---
 
-# 9. IUserInfo — Runtime Authenticated Identity
+# 10. IUserInfo — Runtime Authenticated Identity
 
 `IUserInfo` already belongs in `JC.Core`.
 
@@ -262,7 +348,7 @@ This avoids introducing multiple competing current-user abstractions.
 
 ---
 
-# 10. IdentityAuthority
+# 11. IdentityAuthority
 
 Add a simple identity ownership enum.
 
@@ -312,7 +398,7 @@ If authentication-method metadata is ever required, that should be a separate co
 
 ---
 
-# 11. IApplicationUser — Authoritative User Record Contract
+# 12. IApplicationUser — Authoritative User Record Contract
 
 Introduce a Core-level `IApplicationUser`.
 
@@ -342,7 +428,7 @@ The two contracts can expose overlapping properties while still modelling differ
 
 ---
 
-# 12. IApplicationUser Shape
+# 13. IApplicationUser Shape
 
 The intent is for `IApplicationUser` to represent the broad authoritative user shape currently exposed through `BaseUser` / ASP.NET Identity without forcing consumers to reference ASP.NET Identity.
 
@@ -379,7 +465,7 @@ This makes it suitable for:
 
 ---
 
-# 13. BaseUser
+# 14. BaseUser
 
 `BaseUser` remains in `JC.Identity`.
 
@@ -391,18 +477,41 @@ Conceptually:
 BaseUser
     : IdentityUser
     : IApplicationUser
-    : IMultiTenancy
 ```
-
-Explicit `IMultiTenancy` participation is preferred over property-name discovery.
 
 `BaseUser` must not move to `JC.Core`.
 
 A future CAP SSO consuming application should not need `BaseUser`.
 
+## 14.1 BaseUser must NOT implement IMultiTenancy
+
+> **Hard rule. This was tried and reverted, and the reason is not obvious from reading the code.**
+
+An earlier draft of this document proposed `BaseUser : IMultiTenancy`, on the grounds that explicit participation is cleaner than property-name discovery. **That is wrong and must not be reinstated.**
+
+`ApplyTenantQueryFilters` discovers entities by `typeof(IMultiTenancy).IsAssignableFrom(...)` and installs a **global query filter**. Applied to the user entity, that filter applies to every read ASP.NET Identity performs — which means `UserManager` and `SignInManager` cannot resolve a user during authentication, because authentication happens *before* any tenant scope exists. Login breaks, and with it everything that depends on a signed-in user.
+
+Today `BaseUser` therefore carries a plain `TenantId` column and is **not** covered by automatic tenant filtering. This is deliberate, not an oversight.
+
+The tenant reaches the runtime by a different route:
+
+```text
+BaseUser.TenantId          persisted column, no query filter
+    ↓ claims factory
+tenant claim
+    ↓ claims middleware
+IUserInfo.TenantId
+    ↓
+ITenantContext             scopes everything else
+```
+
+Anyone tidying `BaseUser` toward "correct" interface participation will break every consuming application's login. If a future change makes user-level tenant filtering genuinely necessary, it must come with an explicit exemption for the Identity resolution path, and it must be proven against `SignInManager` before merge.
+
+The same caution applies to any entity ASP.NET Identity itself queries during authentication.
+
 ---
 
-# 14. IdentityTenantId
+# 15. IdentityTenantId
 
 `IApplicationUser` should expose:
 
@@ -435,7 +544,7 @@ Do not create a schema migration merely to rename the existing persisted `Tenant
 
 ---
 
-# 15. IUserInfo.TenantId
+# 16. IUserInfo.TenantId
 
 `IUserInfo.TenantId` should mean:
 
@@ -457,7 +566,7 @@ Therefore `IApplicationUser.IdentityTenantId` and `IUserInfo.TenantId` must not 
 
 ---
 
-# 16. CAP Tenant vs Application Tenant
+# 17. CAP Tenant vs Application Tenant
 
 This distinction must be respected even though full CAP construction is outside this document.
 
@@ -484,7 +593,7 @@ Using CAP SSO does **not** automatically mean the consuming application uses CAP
 
 ---
 
-# 17. Future CAP Application Tenant Mapping
+# 18. Future CAP Application Tenant Mapping
 
 Included only because v6 contracts must support it.
 
@@ -529,7 +638,7 @@ The mapping implementation is future CAP work; v6 only needs to preserve a compa
 
 ---
 
-# 18. Null Tenant Semantics
+# 19. Null Tenant Semantics
 
 Null tenancy is intentional existing behaviour.
 
@@ -555,7 +664,7 @@ There should be no synthetic persisted "Null Tenant" row.
 
 ---
 
-# 19. IMultiTenancy
+# 20. IMultiTenancy
 
 `IMultiTenancy` should remain in `JC.Core`.
 
@@ -578,7 +687,7 @@ Use the current real key type during implementation.
 
 ---
 
-# 20. Remove Concrete Tenant Navigation from IMultiTenancy
+# 21. Remove Concrete Tenant Navigation from IMultiTenancy
 
 Moving `Tenant` to `JC.Tenancy` means Core should no longer require:
 
@@ -601,7 +710,7 @@ When Tenant exists in the same EF model, `JC.Tenancy` may optionally configure a
 
 ---
 
-# 21. Tenant and TenantSettings Move
+# 22. Tenant and TenantSettings Move
 
 The concrete persisted tenancy types should move from:
 
@@ -632,7 +741,7 @@ Only consumers that need the tenancy engine install `JC.Tenancy`.
 
 ---
 
-# 22. Existing Tenant Model
+# 23. Existing Tenant Model
 
 The current Tenant model already includes concepts such as:
 
@@ -654,7 +763,7 @@ These do not need to be the same type.
 
 ---
 
-# 23. TenantSettings
+# 24. TenantSettings
 
 `TenantSettings` are generic and consumer-defined.
 
@@ -678,41 +787,58 @@ The runtime model should avoid forcing consumers to manipulate raw persisted JSO
 
 ---
 
-# 24. ITenantInfo
+# 25. ITenantInfo
 
-Introduce/formalise a read-only runtime tenant-information abstraction.
+> **Earlier drafts of this document split tenant data (`ITenantInfo`) from operational tenant scope
+> (`ITenantContext`). That split was wrong and has been removed. They are one concept, described
+> twice.**
 
-Potentially:
+There is only ever one tenant a given operation is running against, and everything you would want
+to know about it belongs to that same answer. A separate context type wrapping a nullable info type
+adds a layer whose only content is a null check.
+
+`ITenantInfo` is therefore both:
+
+> **Which application tenant is this operation running against, and what do we know about it?**
+
+It is registered **scoped**, and is the tenancy counterpart of `IUserInfo`: same lifetime, same
+"resolved once per scope" behaviour, same ability to be set explicitly for work that has no user.
+
+Shape:
 
 ```text
 ITenantInfo
-├── Id
+├── TenantId          the operational scope; settable
+├── HasTenant         false in the null partition
+├── IsSetup
 ├── Name
 ├── Description
 ├── Domain
 ├── MaxUsers
 ├── ExpiryDateUtc
-├── GetSetting(...)
-└── GetSettings(...)
+├── IsExpired         reported, never enforced
+├── SetTenant(Tenant?)
+├── GetSetting(key)
+├── GetSetting<T>(key, default)
+└── GetSettings()
 ```
 
-Exact fields should follow the actual current Tenant model.
+Audit fields are deliberately absent — no runtime requirement has appeared for them.
 
-Audit fields probably do not belong unless a runtime requirement appears.
+**Resolution is two-tier, and the tiers matter.** `TenantId` is set when the scope is created and
+costs nothing, because the EF query filters read it on every single query. Everything else describes
+the persisted `Tenant` and is resolved from the cache the first time it is read, so an application
+that never reads tenant metadata never pays for the lookup. Assigning `TenantId` discards whatever
+was resolved for the previous tenant.
 
-`Tenant` may implement `ITenantInfo`.
+`Tenant` does **not** implement `ITenantInfo`. The persisted entity and the runtime scope are
+different things: one is a row, the other is a question about the current operation.
 
 ---
 
-# 25. ITenantContext
+# 26. Establishing Tenant Scope
 
-Introduce a separate operational tenant scope.
-
-Meaning:
-
-> **Which application tenant is this operation currently running against?**
-
-It must not require an authenticated user.
+Scope must be establishable with no authenticated user, and by the same mechanism everywhere.
 
 Valid callers include:
 
@@ -723,22 +849,27 @@ Valid callers include:
 - tests;
 - maintenance tooling.
 
-The context cares about tenant scope only.
+**There is no tenancy middleware.** `ITenantInfo` is registered as a scoped factory that reads
+`IUserInfo.TenantId` where an identity package is present, and starts in the null partition where
+one is not. That choice is what keeps `JC.Tenancy` free of any ASP.NET Core dependency, and means a
+background job and a request establish scope by identical means rather than by parallel mechanisms
+that can drift.
 
-Possible shape:
+Explicit scope, for work with no user or work deliberately crossing tenants:
 
 ```text
-ITenantContext
-└── Current : ITenantInfo?
+SetTenantInfoForTenant(tenantId)      set the scope's tenant
+SetTenantInfoForTenant(tenant)        set it from an already-loaded record
+CreateScopeForTenant(tenantId)        a new scope, already scoped
+CreateAsyncScopeForTenant(tenantId)   the same, for async disposal
 ```
 
-or equivalent.
-
-Exact API remains open.
+These mirror the identity equivalents in `JC.Identity.Shared` deliberately. A job needing both an
+actor and a tenant establishes the user, then the tenant.
 
 ---
 
-# 26. IUserInfo vs ITenantContext
+# 27. IUserInfo vs ITenantInfo
 
 These concepts must remain distinct.
 
@@ -746,7 +877,7 @@ These concepts must remain distinct.
 IUserInfo.TenantId
 = tenant assigned to the current authenticated user
 
-ITenantContext
+ITenantInfo
 = tenant this operation is currently scoped to
 ```
 
@@ -757,23 +888,37 @@ IUserInfo.TenantId
     ↓
 initialises
     ↓
-ITenantContext
+ITenantInfo
 ```
 
 But they are not permanently coupled.
 
-Examples where context may differ:
+Examples where scope may differ:
 
 - SystemAdmin operates another tenant;
 - background job runs for a chosen tenant;
 - infrastructure task runs cross-tenant;
 - app explicitly changes tenant scope.
 
-Tenant-aware EF filtering should use `ITenantContext`, not `IUserInfo` directly.
+Tenant-aware EF filtering follows `ITenantInfo`, never `IUserInfo` directly — reaching for the user
+would tie filtering to there being a user at all, which §26 exists to avoid.
+
+**But the filters do not read `ITenantInfo` directly either.** They bind to `ITenantScopedContext`
+on the DbContext, which delegates to it:
+
+```csharp
+public string? CurrentTenantId => _tenantInfo.TenantId;
+```
+
+That indirection is an EF Core constraint, not a preference. EF caches the compiled model per
+context type, and makes a specific allowance for a captured `DbContext` in a query filter — it
+re-reads that context's members against the *active* instance on every query. No such allowance
+exists for an arbitrary service. A filter closing over the scoped `ITenantInfo` would bake whichever
+tenant happened to warm the model into every later request, silently and across tenants.
 
 ---
 
-# 27. Default Tenant Scope
+# 28. Default Tenant Scope
 
 Null is a valid tenant partition.
 
@@ -797,7 +942,7 @@ This preserves existing non-tenant/single-partition behaviour.
 
 ---
 
-# 28. Tenant Scope Initialisation
+# 29. Tenant Scope Initialisation
 
 Authenticated request:
 
@@ -823,7 +968,7 @@ No fake user should be required.
 
 ---
 
-# 29. DbContext Integration
+# 30. DbContext Integration
 
 `JC.Tenancy` must plug into:
 
@@ -861,7 +1006,7 @@ All participating contexts use the same operational tenant scope.
 
 ---
 
-# 30. No Automatic Tenant DbSet Everywhere
+# 31. No Automatic Tenant DbSet Everywhere
 
 `DataDbContext` should not automatically expose a Tenant DbSet.
 
@@ -878,7 +1023,7 @@ Do not implement "Tenant table may not exist, silently no-op" magic.
 
 ---
 
-# 31. ITenantStore
+# 32. ITenantStore
 
 `JC.Tenancy` should expose `ITenantStore`.
 
@@ -898,7 +1043,7 @@ Exact CRUD API should follow JC Packages conventions without becoming unnecessar
 
 ---
 
-# 32. Tenant Mutation Rule
+# 33. Tenant Mutation Rule
 
 Tenant mutations should go through:
 
@@ -920,7 +1065,7 @@ Document this explicitly.
 
 ---
 
-# 33. Tenant Caching
+# 34. Tenant Caching
 
 Tenant runtime information should be automatically cached.
 
@@ -940,7 +1085,7 @@ Exact default TTL remains open.
 
 ---
 
-# 34. Tenant Cache Invalidation
+# 35. Tenant Cache Invalidation
 
 `ITenantStore` should invalidate affected cache entries when:
 
@@ -957,7 +1102,7 @@ That is acceptable and documented.
 
 ---
 
-# 35. Tenant Source Is Local Application Data
+# 36. Tenant Source Is Local Application Data
 
 `JC.Tenancy` should not be designed around CAP as a tenant source.
 
@@ -969,7 +1114,7 @@ A CAP-authenticated application that uses JC.Tenancy still uses a local applicat
 
 ---
 
-# 36. Tenant Scope Switching
+# 37. Tenant Scope Switching
 
 The engine should support explicit tenant scope changes.
 
@@ -998,7 +1143,7 @@ ITenantInfo = null
 
 ---
 
-# 37. Cross-Tenant Access
+# 38. Cross-Tenant Access
 
 Current `AllTenants()` behaviour is safe and role-gated.
 
@@ -1017,7 +1162,7 @@ The word `Unsafe` should be unavoidable for APIs bypassing normal permission che
 
 ---
 
-# 38. Query-Level Bypass
+# 39. Query-Level Bypass
 
 Support query-level access.
 
@@ -1045,7 +1190,7 @@ Valid unsafe use cases:
 
 ---
 
-# 39. Scope-Level Bypass
+# 40. Scope-Level Bypass
 
 Support scoped/context-level control too.
 
@@ -1064,7 +1209,7 @@ Documentation should make that risk obvious.
 
 ---
 
-# 40. Configurable Tenant Filtering
+# 41. Configurable Tenant Filtering
 
 Default behaviour should remain:
 
@@ -1085,7 +1230,7 @@ Default remains automatic and safe.
 
 ---
 
-# 41. Safe Bypass Authorisation
+# 42. Safe Bypass Authorisation
 
 If tenancy mechanics move out of `JC.Identity`, `JC.Tenancy` should ideally not hard-code:
 
@@ -1100,19 +1245,32 @@ Potential future mechanisms:
 - application policy;
 - Identity-supplied default adapter.
 
-This remains to be designed.
+**Resolved.** `ITenantBypassAuthoriser` lives in `JC.Tenancy`, with a default implementation that
+matches the current user against role *names* held in `TenantOptions.BypassRoles`.
+
+Names rather than a constant, because `JC.Tenancy` and the identity packages are siblings and
+neither may reference the other — and because an application on a different identity authority will
+have its own word for the same idea. An application on JC.Identity configures `SystemAdmin`; the
+decision stays with whoever owns the role.
+
+It denies when no roles are configured and denies when no user resolves, so an application that has
+not considered cross-tenant access has not accidentally granted it.
 
 The safe API must remain safe.
 
-The unsafe API explicitly bypasses this mechanism.
+The unsafe API explicitly bypasses this mechanism, and is named `AllTenantsUnsafe` so that nobody
+reaches it by accident.
 
 ---
 
-# 42. SystemRoles
+# 43. SystemRoles
 
-`SystemRoles` remain valid in `JC.Identity`.
+`SystemRoles` now live in `JC.Identity.Shared`, not `JC.Identity` — a future `JC.CAP` needs the same
+role vocabulary, and neither package should reimplement it. Applications on local Identity see no
+change beyond the namespace.
 
-They define generic high-level roles for an application that owns local Identity.
+They define generic high-level roles for an application whose identity comes from one of the JC
+identity packages.
 
 Examples:
 
@@ -1125,7 +1283,7 @@ Future CAP administrative roles are a separate security domain.
 
 ---
 
-# 43. Application Roles vs CAP Roles
+# 44. Application Roles vs CAP Roles
 
 Full CAP role design is intentionally deferred.
 
@@ -1147,7 +1305,7 @@ Whether CAP `SystemAdmin` can deliberately imply application access remains unre
 
 ---
 
-# 44. BaseUser Remains Tenant-Aware
+# 45. BaseUser Remains Tenant-Aware
 
 `BaseUser` should keep tenancy.
 
@@ -1155,26 +1313,30 @@ The refactor is not removing tenancy capability from local Identity users.
 
 Instead:
 
-- `BaseUser` remains tenant-aware;
+- `BaseUser` remains tenant-aware **in its data**;
 - JC.Identity integrates with JC.Tenancy;
 - filtering/persistence mechanics move out of Identity;
 - tenancy contracts remain reusable elsewhere.
 
+**Tenant-aware and tenant-filtered are different things, and `BaseUser` is only the first.** It carries and persists a tenant, and that tenant flows into claims and `IUserInfo`. It is not subject to automatic tenant query filtering, and must not become so — see §14.1 for why that breaks authentication.
+
 ---
 
-# 45. Likely JC.Identity → JC.Tenancy Dependency
+# 46. Likely JC.Identity → JC.Tenancy Dependency
 
 Likely direction:
 
 ```text
 JC.Identity
-    ↓
-JC.Tenancy
-    ↓
-JC.Core
+    ↓                    ↓
+JC.Identity.Shared   JC.Tenancy
+    ↓                    ↓
+         JC.Core
 ```
 
-This is acceptable even if an app uses only the null tenant.
+`JC.Identity` depends on both. `JC.Identity.Shared` and `JC.Tenancy` are siblings and must not depend on each other — that independence is what lets an application take tenancy without identity, or a future `JC.CAP` take the identity runtime without tenancy.
+
+The `JC.Identity → JC.Tenancy` edge is acceptable even if an app uses only the null tenant.
 
 The architecture matters more than avoiding one package dependency.
 
@@ -1182,7 +1344,7 @@ Exact activation/configuration remains to be designed.
 
 ---
 
-# 46. IdentityDataDbContext Refactor
+# 47. IdentityDataDbContext Refactor
 
 Re-read and classify current `IdentityDataDbContext` responsibilities.
 
@@ -1206,7 +1368,7 @@ rather than:
 
 ---
 
-# 47. DataDbContext Refactor
+# 48. DataDbContext Refactor
 
 `DataDbContext` should be able to participate in tenancy independently from Identity.
 
@@ -1220,7 +1382,7 @@ Potential work:
 
 ---
 
-# 48. Multi-DbContext Compatibility
+# 49. Multi-DbContext Compatibility
 
 This refactor must respect v4 architecture.
 
@@ -1243,7 +1405,7 @@ Strong integration tests are required.
 
 ---
 
-# 49. Background Jobs
+# 50. Background Jobs
 
 Tenant context must work without authenticated HTTP users.
 
@@ -1261,7 +1423,7 @@ Cross-tenant jobs should use explicit bypass APIs.
 
 ---
 
-# 50. Authentication and Tenant Scope
+# 51. Authentication and Tenant Scope
 
 Local Identity:
 
@@ -1289,7 +1451,7 @@ This common pipeline is a core reason tenancy must not live inside `JC.Identity`
 
 ---
 
-# 51. Future CAP SSO — Explicitly Out of Scope
+# 52. Future CAP SSO — Explicitly Out of Scope
 
 Do **not** fully design or implement the following as part of this refactor:
 
@@ -1313,7 +1475,7 @@ These topics may only be referenced where they prove a v6 boundary requirement.
 
 ---
 
-# 52. Authentication Refresh — Future Verification
+# 53. Authentication Refresh — Future Verification
 
 One future CAP issue should be recorded:
 
@@ -1336,7 +1498,7 @@ v6 only needs contracts that can be repopulated cleanly later.
 
 ---
 
-# 53. CAP Compile-Time Integration Constraint
+# 54. CAP Compile-Time Integration Constraint
 
 CAP integrates consuming applications through development-time/compile-time work.
 
@@ -1360,7 +1522,7 @@ The v6 Identity/Tenancy refactor only needs to make this possible cleanly.
 
 ---
 
-# 54. One Authoritative Tenant Store
+# 55. One Authoritative Tenant Store
 
 Many DbContexts may be tenant-filtered.
 
@@ -1370,7 +1532,7 @@ Do not support multiple independent Tenant tables for one application tenancy do
 
 ---
 
-# 55. Persistence / Migration Considerations
+# 56. Persistence / Migration Considerations
 
 Potential breaking migration concerns:
 
@@ -1405,7 +1567,7 @@ should remain persisted as-is unless a real schema reason requires otherwise.
 
 ---
 
-# 56. Backward Data Safety
+# 57. Backward Data Safety
 
 Existing user and tenant data must be preserved.
 
@@ -1426,7 +1588,7 @@ Manually review generated EF migrations.
 
 ---
 
-# 57. Tenant Foreign Keys
+# 58. Tenant Foreign Keys
 
 Removing concrete Tenant navigation from `IMultiTenancy` changes relationship assumptions.
 
@@ -1441,9 +1603,32 @@ Do not force impossible cross-context relationships.
 
 Document migration implications.
 
+## 58.1 This has already happened once
+
+`SavedFile` in `JC.FileStorage` carried a `Tenant` navigation with `[ForeignKey(nameof(TenantId))]`,
+mapped as:
+
+```csharp
+builder.HasOne(f => f.Tenant)
+    .WithMany()
+    .HasForeignKey(f => f.TenantId)
+    .OnDelete(DeleteBehavior.SetNull);
+```
+
+Removing the navigation from `IMultiTenancy` removed both. Two consequences worth stating plainly:
+
+- the foreign-key constraint disappears from the schema — a real migration, not a no-op rename;
+- `OnDelete(SetNull)` went with it, so deleting a tenant no longer nulls `TenantId` on that tenant's
+  saved files. Nothing replaces that behaviour automatically, and orphaned rows now keep pointing at
+  a tenant that no longer exists.
+
+Whether `JC.Tenancy` should offer opt-in FK configuration for entities that share a model with
+`Tenant` is exactly the question this section raises. `JC.FileStorage` is the first concrete case to
+answer it against, and the answer decides whether that delete behaviour comes back.
+
 ---
 
-# 58. Tenant Expiry / Domain / MaxUsers
+# 59. Tenant Expiry / Domain / MaxUsers
 
 Tenant currently contains fields such as:
 
@@ -1464,7 +1649,7 @@ Do not accidentally turn all Tenant metadata into universal tenancy-engine enfor
 
 ---
 
-# 59. Tenant Settings Runtime API
+# 60. Tenant Settings Runtime API
 
 Desired direction:
 
@@ -1485,7 +1670,7 @@ Do not over-design before auditing current real uses.
 
 ---
 
-# 60. Cache Configuration
+# 61. Cache Configuration
 
 Potential initial options:
 
@@ -1501,7 +1686,7 @@ Distributed caching/invalidation should not be introduced unless a real deployme
 
 ---
 
-# 61. Direct Database Changes
+# 62. Direct Database Changes
 
 Document clearly:
 
@@ -1517,7 +1702,7 @@ Do not increase framework complexity solely to protect callers from intentionall
 
 ---
 
-# 62. Testing Requirements
+# 63. Testing Requirements
 
 The refactor should introduce strong automated coverage.
 
@@ -1568,7 +1753,7 @@ Verify:
 
 ---
 
-# 63. Documentation Required for v6
+# 64. Documentation Required for v6
 
 Create a dedicated migration guide.
 
@@ -1610,41 +1795,85 @@ Document:
 
 ---
 
-# 64. Re-Audit Every Current JC.Identity Type
+# 65. Re-Audit Every Current JC.Identity Type
 
-Before implementation, classify every current public/internal type/member:
+This audit is **complete**. Every type in the current `JC.Identity` (14 source files) and every
+tenancy type in `JC.Core` has been read and classified into one of:
 
 ```text
 Stay in JC.Identity
-Move to JC.Core
+Move to JC.Identity.Shared
 Move to JC.Tenancy
+Stay in JC.Core
 Replace/deprecate
 Needs discussion
 ```
 
-Specifically verify:
+The classification is the source of truth for the implementation order in §74. Where a type is
+split rather than moved whole, the split is stated in the notes.
 
-- `BaseUser`;
-- `BaseRole`;
-- `IdentityDataDbContext`;
-- current Tenant DbSet;
-- current automatic query filters;
-- `AllTenants`;
-- user-info implementation;
-- claims middleware;
-- roles;
-- seeding;
-- options;
-- DI extensions;
-- 2FA support;
-- password-change support;
-- account enable/disable handling;
-- tenant-aware Identity services;
-- docs/examples.
+## 65.1 Classification
+
+| Type / member | Currently in | Classification | Notes |
+|---|---|---|---|
+| `BaseUser` | `Models/BaseUser.cs` | Stay in JC.Identity | Extends `IdentityUser`. Will implement `IApplicationUser` from Shared. **Must not implement `IMultiTenancy`** — see §14.1. |
+| `BaseRole` | `Models/BaseRole.cs` | Stay in JC.Identity | Extends `IdentityRole`. Nothing shareable — one added `Description`. |
+| `IdentityDataDbContext<TUser, TRole>` | `Data/IdentityDataDbContext.cs` | Stay in JC.Identity | Extends `IdentityDbContext` and cannot leave. The `Tenants` DbSet, the `Tenant` mapping and `CurrentTenantId` all move or change — see the three rows below. |
+| `IdentityDataDbContext.Tenants` DbSet | `Data/IdentityDataDbContext.cs` | Move to JC.Tenancy | Tenant storage becomes the tenancy context's job — decisions 17 and 18. |
+| `Tenant` mapping in `OnModelCreating` | `Data/IdentityDataDbContext.cs` | Move to JC.Tenancy | Key, lengths and the `Domain` index ship with the entity. |
+| `IdentityDataDbContext.CurrentTenantId` | `Data/IdentityDataDbContext.cs` | Replace | Becomes a member of a tenancy contract instead of a property found by name. See the `ApplyTenantQueryFilters` row. |
+| `ApplyTenantQueryFilters(ModelBuilder, DbContext)` | `Extensions/QueryExtensions.cs` | Move to JC.Tenancy | Also **replace** its internals: it resolves the tenant via `Expression.Property(contextConstant, "CurrentTenantId")` — a string. A context that misspells the property compiles and silently filters nothing. Must bind to a contract. |
+| `AllTenants<T>(IQueryable<T>, IUserInfo)` | `Extensions/QueryExtensions.cs` | Move to JC.Tenancy | Carries an unresolved dependency on `SystemRoles.SystemAdmin` — see §65.2. |
+| `UserInfo` | `Models/UserInfo.cs` | **Split** | The `IUserInfo` property surface moves to Shared. The two constructors taking `BaseUser` and `IEnumerable<BaseRole>` weld it to ASP.NET Identity and stay in JC.Identity as a derived type. |
+| `UserInfoMiddleware` | `Middleware/UserInfoMiddleware.cs` | Move to JC.Identity.Shared | Blocked on one dependency: it resolves `IOptions<IdentityOptions>` purely to read three claim-type names (`EmailClaimType`, `UserIdClaimType`, `RoleClaimType`). Abstract that source first. |
+| `DefaultClaims` | `Authentication/DefaultClaims.cs` | Move to JC.Identity.Shared | Twelve `const string` claim types, no dependencies. Written by the factory, read by the middleware; CAP needs the same names. |
+| `DefaultClaimsPrincipalFactory<TUser, TRole>` | `Authentication/DefaultClaimsPrincipalFactory.cs` | Stay in JC.Identity | Derives from `UserClaimsPrincipalFactory<TUser, TRole>` and takes `UserManager`, `RoleManager` and `IdentityOptions`. Local-login only by construction — CAP receives claims, it does not mint them. |
+| `SystemRoles` | `Authentication/SystemRoles.cs` | Move to JC.Identity.Shared | Constants plus a reflection helper; no dependencies. See §65.2 for the consequence for JC.Tenancy. |
+| `IdentityMiddleware` | `Middleware/IdentityMiddleware.cs` | Move to JC.Identity.Shared | Depends only on `IUserInfo`, its own options and ASP.NET Core HTTP. No ASP.NET Identity reference at all — it moves as-is. |
+| `IdentityMiddlewareOptions` | `Models/Options/IdentityMiddlewareOptions.cs` | Move to JC.Identity.Shared | Plain options object. Moves with the middleware it configures. |
+| `IdentityHelper` | `Helpers/IdentityHelper.cs` | Move to JC.Identity.Shared | 2FA support: authenticator URI and key formatting. `UrlEncoder` and string building only. Not DI-registered — consumers construct it. |
+| `AddIdentity<TUser, TRole, TContext>` (both overloads) | `Extensions/ServiceCollectionExtensions.cs` | Stay in JC.Identity | Calls `AddEntityFrameworkStores` and `AddDefaultTokenProviders`. |
+| `AddIdentityBase<TUser, TRole, TUserInfo>` (both overloads) | `Extensions/ServiceCollectionExtensions.cs` | **Split, and rename** | The parts registering `IUserInfo` and the middleware options belong to Shared; the claims-factory registration stays. The name is now actively misleading once a Shared package exists — see §65.2. |
+| `UseUserInfo` | `Extensions/ApplicationBuilderExtensions.cs` | Move to JC.Identity.Shared | Moves with `UserInfoMiddleware`. |
+| `UseIdentityMiddleware` | `Extensions/ApplicationBuilderExtensions.cs` | Move to JC.Identity.Shared | Moves with `IdentityMiddleware`. |
+| `UseIdentity` | `Extensions/ApplicationBuilderExtensions.cs` | Stay in JC.Identity | Composed entry point. Keeps its current order — authentication, user info, authorisation, identity rules. |
+| `SeedRolesAsync<TRoles, TRole>` | `Extensions/ApplicationBuilderExtensions.cs` | Stay in JC.Identity | Needs `RoleManager<TRole>`. |
+| `SeedDefaultAdminAsync<TUser, TRole, TContext>` | `Extensions/ApplicationBuilderExtensions.cs` | Stay in JC.Identity, **change** | Needs `UserManager<TUser>`, so it stays — but its `setupTenancy` branch writes `Tenant` rows straight through `context.Tenants` and calls `SaveChangesAsync`. That must go through `ITenantStore`, or the seed silently bypasses cache invalidation — decisions 18 and 19. |
+| `ConfigureAdminAndRolesAsync<…>` | `Extensions/ApplicationBuilderExtensions.cs` | Stay in JC.Identity | Composes the two seeders above. |
+| `IUserInfo` | `JC.Core/Models/IUserInfo.cs` | **Stay in JC.Core** | Cannot move. `RepositoryContext` and `AuditService` consume it inside Core; moving it inverts the dependency. |
+| `IdentityAuthority` | new, `JC.Core` | Stay in JC.Core | §11 places the enum **on** `IUserInfo`, so it must sit where `IUserInfo` sits. |
+| `IApplicationUser` | new | Move to JC.Identity.Shared | Not Core. It is an identity-store contract, and Core does not consume it (§5, §8.4). |
+| `IMultiTenancy` | `JC.Core/Models/MultiTenancy/IMultiTenancy.cs` | Stay in JC.Core | Any package must be able to mark an entity tenant-scoped without referencing JC.Tenancy — decision 11. |
+| `Tenant` | `JC.Core/Models/MultiTenancy/Tenant.cs` | Move to JC.Tenancy | Concrete entity with EF-shaped members and JSON settings helpers. |
+| `TenantSettings` | `JC.Core/Models/MultiTenancy/Tenant.cs` | Move to JC.Tenancy | Declared in the same file as `Tenant`; moves with it. |
+
+## 65.2 What the audit turned up that the design had not accounted for
+
+Four items came out of the classification rather than going into it.
+
+**`AllTenants` breaks the sibling rule.** It bypasses the tenant filter when
+`userInfo.IsInRole(SystemRoles.SystemAdmin)`. `SystemRoles` is classified into Shared;
+`AllTenants` is classified into JC.Tenancy. Decision 37 says the two are siblings that must not
+depend on each other, so JC.Tenancy cannot reach that constant. The system-admin bypass has to be
+expressed on the tenancy side — as configuration, or as a member of the tenant context — not as a
+role-name string borrowed from identity.
+
+**`AddIdentityBase` is now the wrong name.** It predates this design and means "register JC.Identity
+without registering ASP.NET Identity". With a `JC.Identity.Shared` package in the picture, a reader
+will take it for that package's registration call, which it is not. Rename before the package
+ships, while it is only a rename.
+
+**`UserInfo` cannot move whole.** Its two constructors take `BaseUser` and `IEnumerable<BaseRole>`.
+The properties are the shareable part; the constructors are not.
+
+**`IUserInfo` is mutable and the middleware depends on that.** Every member is `{ get; set; }` and
+`UserInfoMiddleware` resolves the scoped instance and assigns to it field by field. The interface is
+documented as a read-only contract; it is not one. Any move or reshape has to keep the
+populate-then-freeze behaviour working, or replace it deliberately.
 
 ---
 
-# 65. Re-Audit Real Consumers
+# 66. Re-Audit Real Consumers
 
 Test against actual consuming applications.
 
@@ -1671,7 +1900,7 @@ For each consumer identify:
 
 ---
 
-# 66. Likely Breaking Changes
+# 67. Likely Breaking Changes
 
 Treat this work as intentionally breaking.
 
@@ -1697,7 +1926,7 @@ Do not preserve an incorrect boundary merely to shorten migration notes.
 
 ---
 
-# 67. What Should Not Change Without Separate Reason
+# 68. What Should Not Change Without Separate Reason
 
 This refactor is not a redesign of all JC.Identity capabilities.
 
@@ -1719,7 +1948,7 @@ The primary change is **boundary hardening**, not feature replacement.
 
 ---
 
-# 68. Roles — Intentionally Open
+# 69. Roles — Intentionally Open
 
 Current accepted principles:
 
@@ -1743,7 +1972,7 @@ Do not accidentally resolve these during this v6 refactor.
 
 ---
 
-# 69. Future JC.CAP Compatibility Goal
+# 70. Future JC.CAP Compatibility Goal
 
 After v6, a future `JC.CAP` should ideally be able to:
 
@@ -1761,39 +1990,52 @@ If v6 establishes these foundations, later CAP work may not require another ecos
 
 ---
 
-# 70. Proposed v6 Architecture
+# 71. Proposed v6 Architecture
 
 ```text
 JC.Core
 │
-├── IUserInfo
-├── IApplicationUser
-├── IdentityAuthority
+├── IUserInfo            [pinned — Core consumes it]
+├── IdentityAuthority    [pinned — lives on IUserInfo]
 ├── IMultiTenancy
-├── ITenantInfo?       [placement to confirm]
-└── ITenantContext?    [placement to confirm]
+├── ITenantInfo?         [placement to confirm]
+└── ITenantContext?      [placement to confirm]
         │
         ├──────────────────────────┐
         ▼                          ▼
-JC.Tenancy                   JC.Identity
+JC.Tenancy                   JC.Identity.Shared
 │                            │
-├── Tenant                   ├── BaseUser
-├── TenantSettings           ├── BaseRole
-├── ITenantStore             ├── ASP.NET Identity
-├── tenant cache             ├── local roles
-├── tenant context impl      ├── password/2FA/security
-├── EF tenant filters        ├── Identity DbContext integration
-├── tenant switching         └── populates IUserInfo
-└── safe/unsafe bypass
-        │
-        └──────── future ────────→ JC.CAP / JC.CAP.Base
+├── Tenant                   ├── IApplicationUser
+├── TenantSettings           ├── UserInfo (IUserInfo impl)
+├── ITenantStore             ├── UserInfoMiddleware
+├── tenant cache             ├── IdentityMiddleware + options
+├── tenant context impl      ├── DefaultClaims, SystemRoles
+├── EF tenant filters        └── IdentityHelper (2FA)
+├── tenant switching                │
+└── safe/unsafe bypass              ├──────────────┐
+        │                           ▼              ▼
+        │                        JC.Identity    future JC.CAP
+        │                        │              │
+        │                        ├── BaseUser   ├── CAP SSO
+        │                        ├── BaseRole   ├── CAP user DTOs
+        │                        ├── ASP.NET Identity
+        │                        ├── local roles
+        │                        ├── password/2FA/security
+        │                        └── Identity DbContext integration
+        │                                       │
+        └──────────── both may use ─────────────┘
+
+                     future JC.CAP.Base  →  may depend on JC.Identity.Shared
+                                            never the reverse
 ```
+
+`JC.Identity.Shared` and `JC.Tenancy` are siblings on Core. `JC.Identity` depends on both; a future `JC.CAP` depends on `JC.Identity.Shared` and optionally `JC.Tenancy`, and on neither `JC.Identity` nor ASP.NET Identity.
 
 Conceptual only; final package references must be validated.
 
 ---
 
-# 71. Current Decisions
+# 72. Current Decisions
 
 Treat these as current working decisions unless implementation proves them wrong.
 
@@ -1804,6 +2046,7 @@ Treat these as current working decisions unless implementation proves them wrong
 5. Authority means who owns/supplies identity, not login method.
 6. Add read-only `IApplicationUser`.
 7. `BaseUser` stays in JC.Identity and implements it.
+
 8. `IApplicationUser.IdentityTenantId` differs from `IUserInfo.TenantId`.
 9. Existing BaseUser `TenantId` persistence remains; expose `IdentityTenantId => TenantId`.
 10. `IUserInfo.TenantId` means consuming-application tenant.
@@ -1832,9 +2075,66 @@ Treat these as current working decisions unless implementation proves them wrong
 33. CAP roles and app roles are separate domains.
 34. Full JC.CAP construction is outside this refactor.
 
+### Added after the Phase 1 inventory
+
+35. A third package, `JC.Identity.Shared`, holds the identity runtime common to `JC.Identity` and a future `JC.CAP` — `IApplicationUser`, the `IUserInfo` implementation, the claims middleware and the claim-type constants.
+36. `JC.Identity.Shared` ships working code, not abstractions only.
+37. `JC.Identity.Shared` and `JC.Tenancy` are siblings on Core and must not depend on each other.
+38. `JC.Identity.Shared` and `JC.CAP.Base` are distinct packages on different axes. `JC.CAP.Base` may depend on `JC.Identity.Shared`; never the reverse.
+39. `IUserInfo` stays in `JC.Core` because Core consumes it internally. It cannot move.
+40. `IdentityAuthority` stays in `JC.Core` because it lives on `IUserInfo`.
+41. `IApplicationUser` moves to `JC.Identity.Shared`, not `JC.Core`.
+42. **`BaseUser` must not implement `IMultiTenancy`.** A global query filter on the user entity breaks `UserManager` and `SignInManager`, because authentication resolves a user before a tenant scope exists. See §14.1.
+43. The `IUserInfo` implementation must be split on extraction — the properties move, the `BaseUser`-shaped constructors stay in `JC.Identity`.
+44. The claims middleware's dependency on `IOptions<IdentityOptions>` must be abstracted before the middleware can move.
+45. The tenant filter's string-based `CurrentTenantId` lookup must be replaced with a contract, not relocated.
+46. Identity's admin seeding must stop writing `Tenant` rows directly and go through `ITenantStore`.
+
+### Added while implementing Phases 2–4
+
+47. Types moved into `JC.Identity.Shared` take `JC.Identity.Shared.*` namespaces, so a future
+    `JC.CAP` never imports a `JC.Identity` namespace. Consumers update their usings; v6 is breaking
+    anyway.
+48. `IdentityAuthority` lives in `JC.Core.Enums` and its zero value is `None`, so an unset authority
+    reads as "no authentication took place" rather than silently claiming to be local.
+49. `IUserInfo.Authority` is supplied by `IdentityClaimTypeOptions`, not by the concrete type's
+    constructors, and the claims middleware stamps it only on the authenticated branch — an
+    anonymous request keeps `None`.
+50. The `IUserInfo` implementation splits as `UserInfoBase` (Shared) and `UserInfo` (JC.Identity).
+    The derived type keeps the name, so existing consumer code and the default type argument are
+    unaffected.
+51. `AddIdentityBase` becomes `AddIdentityServices` (JC.Identity) and `AddSharedIdentityServices`
+    (Shared). Removed outright — no `[Obsolete]` forwarders.
+52. JC.Identity's claim types are copied from `IdentityOptions` by an `IConfigureOptions<>`, never
+    eagerly at registration, so a consumer customising `ClaimsIdentity` afterwards is still honoured.
+53. Both packages ship a supported way to establish ambient identity and tenant scope outside a
+    request — `UserInfoExtensions` and `TenantInfoExtensions`. Constructing an `IUserInfo` or
+    `ITenantInfo` and passing it around cannot work, because both are scoped and populated in place.
+54. **`ITenantContext` and `ITenantInfo` are one concept.** Merged into `ITenantInfo`. See §25.
+55. `JC.Tenancy` owns tenant filtering outright. Core keeps `IMultiTenancy` only — marking an entity
+    tenant-scoped stays free, while filtering costs a reference to the package that does the
+    filtering.
+56. `ITenantInfo` is registered as a scoped factory, not populated by middleware, so `JC.Tenancy`
+    takes no ASP.NET Core dependency and scope is established identically in requests, jobs and
+    console applications.
+57. The filters bind to `ITenantScopedContext` on the DbContext, never to `ITenantInfo` directly.
+    An EF Core model-caching constraint, explained in §27.
+58. `ApplyTenantFilters` is a no-op where a model holds no tenant-scoped entities, and **throws** at
+    model build where it holds some but the context cannot say which tenant is current. Silently
+    returning every tenant's rows is not an available outcome.
+59. Cross-tenant access goes through `ITenantBypassAuthoriser`, configured by role name. See §42.
+60. `AddTenancy<TContext>` is constrained to `ITenantDbContext` and throws on a second registration,
+    enforcing one authoritative tenant store per application.
+61. `ITenantStore` follows the suite's established CRUD shape — `Try*` methods returning
+    `TenantValidationResponse`, over `IRepositoryManager` — and enforces unique tenant name and
+    unique domain on add, update and restore.
+62. Neither identity package references `JC.Tenancy`, and `JC.Tenancy` references no identity
+    package. This resolves the open question about a `JC.Identity → JC.Tenancy` edge: there isn't
+    one. Tenant filtering is wired by the consuming application, per DbContext.
+
 ---
 
-# 72. Open Questions
+# 73. Open Questions
 
 ## Contract placement
 
@@ -1889,51 +2189,196 @@ Treat these as current working decisions unless implementation proves them wrong
 
 - deliberately defer full CAP role design.
 
+## Status of the questions above
+
+Several are now answered, and the answers are recorded as decisions in §72 rather than repeated here.
+
+- **Contract placement** — answered. Decision 55: all tenancy contracts in `JC.Tenancy`, only
+  `IMultiTenancy` in Core. `ITenantInfo` and `ITenantContext` merged (decision 54).
+- **Safe bypass authorisation** — answered. Decision 59 and §42.
+- **`IApplicationUser` exact property list** — answered. Fifteen members, verified against
+  `BaseUser` and `IdentityUser`; `IdentityTenantId` projects the existing column and is `[NotMapped]`,
+  so no migration.
+- **`IdentityAuthority` naming** — answered. Decision 48.
+- **Cache** — partly answered. `IMemoryCache`, five-minute default lifetime, invalidated by every
+  store write. Concurrency and multi-instance behaviour are untouched and remain open.
+- **Tenant policy** — unchanged and still open. `ITenantInfo.IsExpired` reports; nothing enforces
+  expiry, domain rules or user limits.
+- **EF integration** — mostly answered by decisions 55–58 and 60. Migration ownership is untouched.
+
+## Still open, going into the next session
+
+**`IdentityClaimTypeOptions.Authority` still defaults to `Local`.** JC.Identity does not set it
+explicitly in its `IConfigureOptions<>`, so anything calling `AddSharedIdentityServices` without
+configuring — a future `JC.CAP` among them — silently reports local authority. One line in each
+place closes it: default to `None`, and have JC.Identity state `Local` outright.
+
+**`IdentityClaimTypeOptions` is now misnamed.** It carries an authority, which is not a claim type.
+Rename before anything depends on it.
+
+**Tenant cache concurrency.** Two scopes missing simultaneously will both load. Harmless, but
+undecided — and distributed invalidation across instances is entirely unaddressed.
+
+**Soft-delete semantics for tenants.** `TryDeleteAsync` soft-deletes and `TryRestoreAsync`
+revalidates, because a name freed by a delete can be claimed while the tenant is away. Whether a
+restore *should* be able to fail on a name clash, rather than forcing a rename first, is worth a
+second look.
+
+**Documentation is stale.** `Documentation/JC.Identity/API.md`, `Guide.md` and `Setup.md`,
+`JC.Identity/README.md` and `Documentation-Writing-Guide.md` all still describe the pre-v6
+namespaces and `AddIdentityBase`. Phase 7 work, but the volume is now significant.
+
+**Packaging is incomplete for both new packages.** `JC.Identity.Shared` and `JC.Tenancy` both carry
+`Description: TBD`, neither has a `README.md`, and neither has a Central Package Management entry.
+`dotnet pack` fails `NU5039` on the missing readme; a build with `UseLocalProjectReferences` off
+fails `NU1010` on the missing versions.
+
+## Raised by the Phase 1 inventory
+
+**Claim-type source.** `UserInfoMiddleware` reads `EmailClaimType`, `UserIdClaimType` and
+`RoleClaimType` from `IOptions<IdentityOptions>`. Shared cannot take that dependency. Options:
+a small options object in Shared with defaults matching ASP.NET Identity's, which JC.Identity
+overrides from `IdentityOptions` at registration; or a narrow interface Shared defines and each
+authority implements. Which?
+
+**`SystemAdmin` bypass across the sibling boundary.** `AllTenants` needs the bypass check but
+JC.Tenancy cannot reference `SystemRoles` in Shared (§65.2). This is the same question as *Safe
+bypass authorisation* above, now with a concrete forcing case — the answer chosen there must work
+for `AllTenants` on day one, not later.
+
+**Is JC.Tenancy a required or optional dependency of JC.Identity?** §71 has JC.Identity depending
+on both siblings. But the only thing in JC.Identity that needs tenancy is `SeedDefaultAdminAsync`
+when `setupTenancy: true` — an opt-in flag. A hard package reference for an opt-in path pulls
+tenancy into every single-tenant Identity app. Alternatives: keep the reference and accept it;
+move tenant seeding out to a JC.Tenancy extension; or resolve `ITenantStore` optionally from the
+service provider, as JC.FileStorage now does for its ASP.NET seam.
+
+This is no longer hypothetical. The seeding block is already commented out, which leaves
+`setupTenancy` and `defaultTenantConfigKey` as dead parameters on both `SeedDefaultAdminAsync` and
+`ConfigureAdminAndRolesAsync` — and `setupTenancy` still silently suppresses the `Admin` role
+assignment. Whichever answer is chosen also decides whether those two parameters survive at all.
+
+**Does `IUserInfo` stay mutable?** §65.2 records that it is mutable today and that
+`UserInfoMiddleware` depends on that. Decide before the middleware moves: keep populate-then-freeze
+as-is, or replace it with a factory that constructs a finished instance. The second is cleaner and
+breaks every consumer that assigns to `IUserInfo`.
+
+**What is `AddIdentityBase` renamed to?** And do the current names stay as `[Obsolete]` forwarders
+for one version, or break outright at 6.0.0?
+
+**What is the split `UserInfo`'s derived type called?** The base moves to Shared; the type in
+JC.Identity carrying the `BaseUser` constructors needs a name, and `UserInfo` is taken.
+
+**Does Shared register `IdentityHelper`?** It is not DI-registered today — consumers construct it
+with a `UrlEncoder`. Moving it is a chance to register it; leaving it unregistered is also a
+defensible answer.
+
 ---
 
-# 73. Suggested Implementation Order
+# 74. Suggested Implementation Order
 
-## Phase 1 — Inventory
+## Phase 1 — Inventory — **complete**
 
-- classify every JC.Identity type/member;
-- identify all tenancy mechanics;
-- find current consumers;
-- record current EF/schema assumptions.
+- ~~classify every JC.Identity type/member~~ — §65;
+- ~~identify all tenancy mechanics~~ — §65.1;
+- record current EF/schema assumptions — see the `CurrentTenantId` and `ApplyTenantQueryFilters`
+  rows in §65.1;
+- find current consumers — §66, still outstanding.
+
+The blocking questions the inventory raised are in §73 under *Raised by the Phase 1 inventory*.
+Several of them — the claim-type source, the `SystemAdmin` bypass, `IUserInfo` mutability — must be
+answered before Phase 3, not during it.
 
 ## Phase 2 — Core contracts
 
-- `IdentityAuthority`;
-- `IApplicationUser`;
-- refine `IMultiTenancy`;
-- decide tenant-contract placement.
+- ~~`IdentityAuthority` in JC.Core~~ — added as `JC.Core.Models.IdentityAuthority`, exposed as
+  `IUserInfo.Authority`, defaulting to `Local`;
+- ~~refine `IMultiTenancy`~~ — reduced to `TenantId`; the concrete `Tenant` navigation is gone;
+- ~~decide tenant-contract placement~~ — all of it in JC.Tenancy, none in Core. `IMultiTenancy`
+  stays in Core so an entity can be *marked* tenant-scoped for free; declaring a context tenant-scoped
+  costs a JC.Tenancy reference, which is the package you are already using if you want filtering.
+  `ITenantInfo` and `ITenantContext` are merged — they were one concept described twice;
+- ~~replace the string-based `CurrentTenantId` lookup with a contract the filter binds to~~ —
+  `ITenantScopedContext`.
 
-## Phase 3 — JC.Tenancy
+`IApplicationUser` moves out of this phase — it belongs to JC.Identity.Shared (decision 41), so it
+lands in Phase 3.
 
-- create package;
-- move Tenant/TenantSettings;
-- add ITenantStore;
-- add tenant cache;
-- add tenant context;
-- move filtering mechanics;
-- support multiple participating DbContexts;
-- support one Tenant-storage owner.
+## Phase 3 — JC.Identity.Shared — **complete**
 
-## Phase 4 — JC.Identity adaptation
+Done before JC.Tenancy. It was the smaller extraction, it has no dependency on tenancy, and it
+proves the boundary while JC.Identity is otherwise unchanged.
 
-- BaseUser implements new contracts;
+- ~~create package~~;
+- ~~add `IApplicationUser`; `BaseUser` implements it~~ — `IdentityTenantId` projects the existing
+  `TenantId` column and is `[NotMapped]`, so no migration;
+- ~~move `DefaultClaims`, `SystemRoles`, `IdentityHelper`, `IdentityMiddleware` and its options~~ —
+  moved as-is;
+- ~~abstract the claim-type source, then move `UserInfoMiddleware`~~ — `IdentityClaimTypeOptions`,
+  populated from `IdentityOptions` by an `IConfigureOptions<>` so the copy happens after the
+  consuming application has configured Identity;
+- ~~split `UserInfo`~~ — `UserInfoBase` in Shared, `UserInfo : UserInfoBase` in JC.Identity;
+- ~~move `UseUserInfo` and `UseIdentityMiddleware`; `UseIdentity` stays and composes them~~;
+- ~~split and rename `AddIdentityBase`~~ — now `AddSharedIdentityServices` in Shared and
+  `AddIdentityServices` in JC.Identity. Removed outright rather than left as `[Obsolete]`
+  forwarders; see §73.
+
+Added beyond the original list: `UserInfoExtensions`, giving a supported way to establish an
+ambient identity outside an HTTP request — `PopulateFrom`, `SetUserInfoForUser`,
+`CreateScopeForUser` and `CreateAsyncScopeForUser`. The projecting constructors already implied
+such a path existed (they set `IsSetup`, which suppresses the claims middleware) but nothing
+provided one, and because `IUserInfo` is scoped and populated in place, a constructed instance can
+never become the ambient one. This is what §50 asks for: a background job can now take attribution
+without a fake user.
+
+Namespaces on the moved types were rebranded to `JC.Identity.Shared.*`, so that a future JC.CAP
+never imports a `JC.Identity` namespace.
+
+JC.Identity behaves identically and still owns tenancy. Nothing about tenant filtering has moved.
+
+## Phase 4 — JC.Tenancy
+
+- ~~create package~~;
+- ~~move Tenant/TenantSettings~~;
+- ~~add ITenantStore~~ — `Try*` methods returning `TenantValidationResponse`, over
+  `IRepositoryManager`, with unique name and unique domain enforced on add, update and restore;
+- ~~add tenant cache~~ — `IMemoryCache`, short default lifetime, invalidated by every store write;
+- ~~add tenant context~~ — merged into `ITenantInfo`, registered as a scoped factory rather than
+  populated by middleware, so JC.Tenancy needs no ASP.NET Core dependency and behaves identically in
+  a request, a background job and a console application. `TenantId` resolves eagerly because the
+  filters read it on every query; the rest of the tenant resolves from cache on first read;
+- ~~move filtering mechanics, binding to the Phase 2 contract rather than a property name~~ —
+  `ApplyTenantFilters` binds to `ITenantScopedContext.CurrentTenantId`. A no-op where the model holds
+  no tenant-scoped entities, and a startup failure where it holds some but the context cannot say
+  which tenant is current — silently returning every tenant's rows is the one outcome not on offer;
+- ~~move `AllTenants`, with the bypass expressed without `SystemRoles`~~ — takes an
+  `ITenantBypassAuthoriser`, with `AllTenantsUnsafe()` alongside it. The default authoriser matches
+  configured role *names*, so the sibling boundary holds and a non-Identity authority can use its own;
+- ~~support multiple participating DbContexts~~ — any context implementing `ITenantScopedContext`
+  and calling `ApplyTenantFilters`;
+- ~~support one Tenant-storage owner~~ — `AddTenancy<TContext>` constrains to `ITenantDbContext` and
+  throws on a second registration.
+
+Note the dependency that did *not* appear: nothing in JC.Tenancy references an identity package, and
+nothing in JC.Identity references JC.Tenancy.
+
+## Phase 5 — JC.Identity adaptation
+
 - preserve TenantId storage;
 - populate IdentityAuthority.Local;
-- remove ownership of tenancy mechanics;
+- remove ownership of tenancy mechanics — drop the `Tenants` DbSet and the `Tenant` mapping;
+- route `SeedDefaultAdminAsync`'s tenant creation through `ITenantStore`;
+- confirm `BaseUser` still does **not** implement `IMultiTenancy` (§14.1) — verify login end to end;
 - preserve local Identity behaviour.
 
-## Phase 5 — Consumer migration
+## Phase 6 — Consumer migration
 
 - migrate real apps;
 - validate null tenancy;
 - validate multiple DbContexts;
 - validate CAP itself as a JC.Identity consumer.
 
-## Phase 6 — Hardening
+## Phase 7 — Hardening
 
 - tests;
 - migration review;
@@ -1943,7 +2388,7 @@ Treat these as current working decisions unless implementation proves them wrong
 
 ---
 
-# 74. Design Principle for v6
+# 75. Design Principle for v6
 
 > **Do foundational breaking work now when it produces a cleaner identity boundary for years to come.**
 
@@ -1971,7 +2416,7 @@ JC.CAP
 
 ---
 
-# 75. Definition of Success
+# 76. Definition of Success
 
 The refactor succeeds if, after v6:
 
@@ -1990,7 +2435,7 @@ The refactor succeeds if, after v6:
 
 ---
 
-# 76. Final Note
+# 77. Final Note
 
 This is an **initial architecture/refactor design**, not a locked specification.
 

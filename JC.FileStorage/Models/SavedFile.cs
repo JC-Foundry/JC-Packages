@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 using JC.Core.Models.Auditing;
 using JC.Core.Models.MultiTenancy;
 
@@ -13,8 +12,6 @@ public class SavedFile : AuditModel, IMultiTenancy
     
     [MaxLength(36)]
     public string? TenantId { get; set; }
-    [ForeignKey(nameof(TenantId))]
-    public Tenant? Tenant { get; set; }
     
     [Required]
     [MaxLength(256)]

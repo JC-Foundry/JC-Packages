@@ -1,17 +1,24 @@
 using JC.Core.Models;
-using JC.Identity.Authentication;
+using JC.Identity.Shared.Authentication;
+using JC.Identity.Shared.Models.Options;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace JC.Identity.Middleware;
+namespace JC.Identity.Shared.Middleware;
 
 /// <summary>
 /// Middleware that populates <see cref="IUserInfo"/> from the current <see cref="System.Security.Claims.ClaimsPrincipal"/>
 /// on first request per scope. Assigns system user constants for unauthenticated requests.
 /// </summary>
+/// <remarks>
+/// Authority-agnostic: the three identity claim types come from
+/// <see cref="IdentityClaimTypeOptions"/> and the rest from <see cref="DefaultClaims"/>, so
+/// whichever package authenticated the user, the projection is the same.
+/// <see cref="IUserInfo.Authority"/> comes from those same options, so each authority declares
+/// itself once at registration rather than in every construction path.
+/// </remarks>
 public class UserInfoMiddleware(RequestDelegate next, ILogger<UserInfoMiddleware> logger)
 {
     /// <summary>
@@ -22,7 +29,7 @@ public class UserInfoMiddleware(RequestDelegate next, ILogger<UserInfoMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         var userInfo = (IUserInfo)context.RequestServices.GetRequiredService(typeof(IUserInfo));
-        var io = context.RequestServices.GetRequiredService<IOptions<IdentityOptions>>();
+        var claimTypes = context.RequestServices.GetRequiredService<IOptions<IdentityClaimTypeOptions>>().Value;
 
         if (!userInfo.IsSetup)
         {
@@ -42,9 +49,11 @@ public class UserInfoMiddleware(RequestDelegate next, ILogger<UserInfoMiddleware
             }
             else
             {
+                userInfo.Authority = claimTypes.Authority;
+                
                 userInfo.Username = context.User.Identity?.Name ?? IUserInfo.UNKNOWN_USER_NAME;
-                userInfo.Email = context.User.FindFirst(io.Value.ClaimsIdentity.EmailClaimType)?.Value ?? IUserInfo.UNKNOWN_USER_EMAIL;
-                userInfo.UserId = context.User.FindFirst(io.Value.ClaimsIdentity.UserIdClaimType)?.Value ?? IUserInfo.UNKNOWN_USER_ID;
+                userInfo.Email = context.User.FindFirst(claimTypes.EmailClaimType)?.Value ?? IUserInfo.UNKNOWN_USER_EMAIL;
+                userInfo.UserId = context.User.FindFirst(claimTypes.UserIdClaimType)?.Value ?? IUserInfo.UNKNOWN_USER_ID;
 
                 userInfo.EmailConfirmed = string.Equals(context.User.FindFirst(DefaultClaims.EmailConfirmed)?.Value, "true", StringComparison.OrdinalIgnoreCase);
                 userInfo.PhoneNumber = context.User.FindFirst(DefaultClaims.PhoneNumber)?.Value;
@@ -59,7 +68,7 @@ public class UserInfoMiddleware(RequestDelegate next, ILogger<UserInfoMiddleware
 
                 var tenantId = context.User.FindFirst(DefaultClaims.TenantId)?.Value;
                 if (!string.IsNullOrEmpty(tenantId)) userInfo.TenantId = tenantId;
-                
+
                 userInfo.MultiTenancyEnabled = !string.IsNullOrEmpty(userInfo.TenantId);
                 userInfo.DisplayName = context.User.FindFirst(DefaultClaims.DisplayName)?.Value;
                 userInfo.LastLoginUtc = DateTime.TryParse(context.User.FindFirst(DefaultClaims.LastLoginUtc)?.Value, out var lastLoginUtc) ? lastLoginUtc : null;
@@ -68,7 +77,7 @@ public class UserInfoMiddleware(RequestDelegate next, ILogger<UserInfoMiddleware
 
                 userInfo.Claims = context.User.Claims.ToList().AsReadOnly();
                 userInfo.Roles = userInfo.Claims
-                    .Where(c => c.Type == io.Value.ClaimsIdentity.RoleClaimType)
+                    .Where(c => c.Type == claimTypes.RoleClaimType)
                     .Select(c => c.Value)
                     .ToList()
                     .AsReadOnly();
@@ -76,7 +85,7 @@ public class UserInfoMiddleware(RequestDelegate next, ILogger<UserInfoMiddleware
                 logger.LogDebug("UserInfo populated for {UserId} ({Username}), tenant: {TenantId}, enabled: {IsEnabled}.",
                     userInfo.UserId, userInfo.Username, userInfo.TenantId ?? "none", userInfo.IsEnabled);
             }
-
+            
             userInfo.IsSetup = true;
         }
 

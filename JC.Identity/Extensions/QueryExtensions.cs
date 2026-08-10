@@ -1,6 +1,6 @@
 using System.Linq.Expressions;
 using JC.Core.Models;
-using JC.Identity.Authentication;
+using JC.Identity.Shared.Authentication;
 using Microsoft.EntityFrameworkCore;
 using JC.Core.Models.MultiTenancy;
 

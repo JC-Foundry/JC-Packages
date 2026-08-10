@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using JC.Identity.Models;
+using JC.Identity.Shared.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 

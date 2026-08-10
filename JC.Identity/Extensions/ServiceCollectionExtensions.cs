@@ -1,13 +1,15 @@
 using JC.Core.Models;
 using JC.Identity.Authentication;
 using JC.Identity.Data;
-using JC.Identity.Models.Options;
 using JC.Identity.Models;
+using JC.Identity.Shared.Extensions;
+using JC.Identity.Shared.Models.Options;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace JC.Identity.Extensions;
 
@@ -43,7 +45,7 @@ public static class ServiceCollectionExtensions
             .AddDefaultTokenProviders();
 
         ConfigureIdentityCookie(services, configureCookie);
-        services.AddIdentityBase<TUser, TRole, UserInfo>(configureMiddleware);
+        services.AddIdentityServices<TUser, TRole, UserInfo>(configureMiddleware);
 
         return services;
     }
@@ -77,7 +79,7 @@ public static class ServiceCollectionExtensions
             .AddDefaultTokenProviders();
 
         ConfigureIdentityCookie(services, configureCookie);
-        services.AddIdentityBase<TUser, TRole, TUserInfo>(configureMiddleware);
+        services.AddIdentityServices<TUser, TRole, TUserInfo>(configureMiddleware);
 
         return services;
     }
@@ -97,8 +99,8 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers only the JC.Identity services (authentication, authorisation, <see cref="IUserInfo"/>,
-    /// claims principal factory, middleware options, and tenant repository) without registering ASP.NET Core Identity.
+    /// Registers only the JC.Identity services — authentication, authorisation, the shared identity
+    /// runtime and the claims principal factory — without registering ASP.NET Core Identity.
     /// Use this when ASP.NET Core Identity has already been registered separately.
     /// </summary>
     /// <typeparam name="TUser">The user entity type, extending <see cref="BaseUser"/>.</typeparam>
@@ -107,7 +109,11 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The service collection to register into.</param>
     /// <param name="configureMiddleware">Optional callback to configure <see cref="IdentityMiddlewareOptions"/>.</param>
     /// <returns>The service collection for chaining.</returns>
-    public static IServiceCollection AddIdentityBase<TUser, TRole, TUserInfo>(
+    /// <remarks>
+    /// Replaces <c>AddIdentityBase</c>, which was renamed in v6: with a JC.Identity.Shared package
+    /// in the picture, the old name read as that package's registration call, which it never was.
+    /// </remarks>
+    public static IServiceCollection AddIdentityServices<TUser, TRole, TUserInfo>(
         this IServiceCollection services,
         Action<IdentityMiddlewareOptions>? configureMiddleware = null)
         where TUser : BaseUser
@@ -117,18 +123,8 @@ public static class ServiceCollectionExtensions
         services.AddAuthorization();
         services.AddAuthentication();
 
-        // Register IUserInfo as scoped (per-request)
-        services.TryAddScoped<IUserInfo, TUserInfo>();
-
-        // Configure middleware options
-        if (configureMiddleware != null)
-        {
-            services.Configure(configureMiddleware);
-        }
-        else
-        {
-            services.Configure<IdentityMiddlewareOptions>(_ => { });
-        }
+        services.AddSharedIdentityServices<TUserInfo>(configureMiddleware);
+        services.AddIdentityClaimTypes();
 
         // Replace default claims principal factory with our custom one
         services.AddScoped<IUserClaimsPrincipalFactory<TUser>, DefaultClaimsPrincipalFactory<TUser, TRole>>();
@@ -146,13 +142,40 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The service collection to register into.</param>
     /// <param name="configureMiddleware">Optional callback to configure <see cref="IdentityMiddlewareOptions"/>.</param>
     /// <returns>The service collection for chaining.</returns>
-    public static IServiceCollection AddIdentityBase<TUser, TRole>(
+    public static IServiceCollection AddIdentityServices<TUser, TRole>(
         this IServiceCollection services,
         Action<IdentityMiddlewareOptions>? configureMiddleware = null)
         where TUser : BaseUser
         where TRole : BaseRole
     {
-        services.AddIdentityBase<TUser, TRole, UserInfo>(configureMiddleware);
+        services.AddIdentityServices<TUser, TRole, UserInfo>(configureMiddleware);
         return services;
+    }
+
+    /// <summary>
+    /// Points the shared claim-type options at whatever ASP.NET Identity is actually configured to
+    /// use, so that a consumer customising <c>IdentityOptions.ClaimsIdentity</c> keeps working.
+    /// </summary>
+    /// <remarks>
+    /// Registered as <see cref="IConfigureOptions{TOptions}"/> rather than copied inline, because at
+    /// registration time <c>IdentityOptions</c> has not been configured yet — the consuming
+    /// application's own <c>Configure&lt;IdentityOptions&gt;</c> calls may come afterwards. Copying
+    /// eagerly would capture the defaults and silently discard any customisation.
+    /// </remarks>
+    private static void AddIdentityClaimTypes(this IServiceCollection services)
+        => services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<IdentityClaimTypeOptions>,
+            ConfigureClaimTypesFromIdentityOptions>());
+
+    private sealed class ConfigureClaimTypesFromIdentityOptions(IOptions<IdentityOptions> identityOptions)
+        : IConfigureOptions<IdentityClaimTypeOptions>
+    {
+        public void Configure(IdentityClaimTypeOptions options)
+        {
+            var claims = identityOptions.Value.ClaimsIdentity;
+
+            options.UserIdClaimType = claims.UserIdClaimType;
+            options.EmailClaimType = claims.EmailClaimType;
+            options.RoleClaimType = claims.RoleClaimType;
+        }
     }
 }

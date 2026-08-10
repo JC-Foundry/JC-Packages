@@ -1,25 +1,32 @@
-using JC.Identity.Authentication;
 using JC.Identity.Data;
-using JC.Identity.Middleware;
 using JC.Identity.Models;
-using JC.Core.Models.MultiTenancy;
+using JC.Identity.Shared.Authentication;
+using JC.Identity.Shared.Extensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace JC.Identity.Extensions;
 
+/// <summary>
+/// Extension methods for <see cref="IApplicationBuilder"/> wiring up local ASP.NET Identity and
+/// seeding its roles and default administrator.
+/// </summary>
 public static class ApplicationBuilderExtensions
 {
-    public static IApplicationBuilder UseUserInfo(this IApplicationBuilder app)
-        => app.UseMiddleware<UserInfoMiddleware>();
-
-    public static IApplicationBuilder UseIdentityMiddleware(this IApplicationBuilder app)
-        => app.UseMiddleware<IdentityMiddleware>();
-
+    /// <summary>
+    /// Adds the full local Identity pipeline in the required order: authentication, then the user
+    /// info projection, then authorisation, then the identity business rules.
+    /// </summary>
+    /// <param name="app">The application builder.</param>
+    /// <returns>The application builder for chaining.</returns>
+    /// <remarks>
+    /// The order matters in both directions. <c>UseUserInfo</c> must follow authentication because
+    /// it reads the principal's claims, and must precede <c>UseIdentityMiddleware</c> because that
+    /// enforces rules against what it produced.
+    /// </remarks>
     public static IApplicationBuilder UseIdentity(this IApplicationBuilder app)
     {
         app.UseAuthentication();
@@ -154,24 +161,24 @@ public static class ApplicationBuilderExtensions
         if (existingAdmin != null)
             return app;
 
-        Tenant? tenant = null;
-        if (setupTenancy)
-        {
-            var tenantName = config[defaultTenantConfigKey] ?? "Default Tenant";
-            var context = scope.ServiceProvider.GetRequiredService<TContext>();
-            tenant = await context.Tenants.FirstOrDefaultAsync(t => t.Name == tenantName);
-
-            if (tenant == null)
-            {
-                tenant = new Tenant
-                {
-                    Name = tenantName,
-                    Description = "Default system tenant"
-                };
-                await context.Tenants.AddAsync(tenant);
-                await context.SaveChangesAsync();
-            }
-        }
+        // Tenant? tenant = null;
+        // if (setupTenancy)
+        // {
+        //     var tenantName = config[defaultTenantConfigKey] ?? "Default Tenant";
+        //     var context = scope.ServiceProvider.GetRequiredService<TContext>();
+        //     tenant = await context.Tenants.FirstOrDefaultAsync(t => t.Name == tenantName);
+        //
+        //     if (tenant == null)
+        //     {
+        //         tenant = new Tenant
+        //         {
+        //             Name = tenantName,
+        //             Description = "Default system tenant"
+        //         };
+        //         await context.Tenants.AddAsync(tenant);
+        //         await context.SaveChangesAsync();
+        //     }
+        // }
 
         var admin = new TUser
         {
@@ -180,7 +187,7 @@ public static class ApplicationBuilderExtensions
             EmailConfirmed = true,
             DisplayName = displayName ?? "System Administrator",
             IsEnabled = true,
-            TenantId = tenant?.Id
+            TenantId = null //tenant?.Id
         };
 
         var result = await userManager.CreateAsync(admin, password);

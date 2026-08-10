@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace JC.Identity.Authentication;
+namespace JC.Identity.Shared.Authentication;
 
 /// <summary>
 /// Defines built-in system roles. Designed to be extended by consuming applications

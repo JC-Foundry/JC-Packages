@@ -14,11 +14,11 @@
     </ItemGroup>
 
     <ItemGroup Condition="'$(UseLocalProjectReferences)' == 'true'">
-        <ProjectReference Include="..\JC.Core\JC.Core.csproj" />
+        <ProjectReference Include="..\JC.Identity.Shared\JC.Identity.Shared.csproj" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(UseLocalProjectReferences)' != 'true'">
-        <PackageReference Include="JC.Core" />
+        <PackageReference Include="JC.Identity.Shared" versionOverride="6.0.0"/>
     </ItemGroup>
     <!-- The README ships in the package: it is the landing page on a feed, and the
          project's front page on GitHub. Update rather than Include - the SDK's default

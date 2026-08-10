@@ -1,16 +1,21 @@
 using JC.Core.Models;
-using JC.Identity.Models.Options;
+using JC.Identity.Shared.Models.Options;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace JC.Identity.Middleware;
+namespace JC.Identity.Shared.Middleware;
 
 /// <summary>
 /// Middleware that enforces identity business rules: disabled account redirection,
 /// password change enforcement, and optional 2FA enforcement. Skips static files,
 /// unauthenticated requests, and excluded paths.
 /// </summary>
+/// <remarks>
+/// Reads <see cref="IUserInfo"/> only, so the rules apply identically whichever authority
+/// authenticated the user. It must run after <see cref="UserInfoMiddleware"/> has populated that
+/// instance.
+/// </remarks>
 public class IdentityMiddleware(RequestDelegate next, IOptions<IdentityMiddlewareOptions> options, ILogger<IdentityMiddleware> logger)
 {
     private readonly IdentityMiddlewareOptions _options = options.Value;

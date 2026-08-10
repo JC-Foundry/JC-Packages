@@ -1,109 +1,48 @@
-using System.Security.Claims;
-using JC.Core.Models;
+using JC.Core.Enums;
+using JC.Identity.Shared.Models;
 
 namespace JC.Identity.Models;
 
+
 /// <summary>
-/// Default <see cref="IUserInfo"/> implementation populated per-request by <see cref="JC.Identity.Middleware.UserInfoMiddleware"/>.
-/// Provides system and unknown user constants for unauthenticated/fallback scenarios.
+/// The local ASP.NET Identity <see cref="JC.Core.Models.IUserInfo"/>, projecting a
+/// <see cref="BaseUser"/> onto the shared user-info surface.
 /// </summary>
-public class UserInfo : IUserInfo
+public class UserInfo : UserInfoBase
 {
-    /// <inheritdoc />
-    public string UserId { get; set; } = IUserInfo.SYSTEM_USER_ID;
-
-    /// <inheritdoc />
-    public string Username { get; set; } = IUserInfo.SYSTEM_USER_NAME;
-
-    /// <inheritdoc />
-    public string Email { get; set; } = IUserInfo.SYSTEM_USER_EMAIL;
-
-    /// <inheritdoc />
-    public bool EmailConfirmed { get; set; }
-
-    /// <inheritdoc />
-    public string? PhoneNumber { get; set; }
-
-    /// <inheritdoc />
-    public bool PhoneNumberConfirmed { get; set; }
-
-    /// <inheritdoc />
-    public bool TwoFactorEnabled { get; set; }
-
-    /// <inheritdoc />
-    public bool LockoutEnabled { get; set; }
-
-    /// <inheritdoc />
-    public DateTime? LockoutEnd { get; set; }
-
-    /// <inheritdoc />
-    public int AccessFailedCount { get; set; }
-
-    /// <inheritdoc />
-    public string? TenantId { get; set; }
-
-    /// <inheritdoc />
-    public string? DisplayName { get; set; }
-
-    /// <inheritdoc />
-    public DateTime? LastLoginUtc { get; set; }
-
-    /// <inheritdoc />
-    public bool IsEnabled { get; set; }
-
-    /// <inheritdoc />
-    public bool RequiresPasswordChange { get; set; }
-
-    /// <inheritdoc />
-    public bool IsSetup { get; set; }
-
-    /// <inheritdoc />
-    public bool MultiTenancyEnabled { get; set; }
-
-    /// <inheritdoc />
-    public IReadOnlyList<string> Roles { get; set; } = [];
-
-    /// <inheritdoc />
-    public IReadOnlyList<Claim> Claims { get; set; } = [];
-
-    /// <inheritdoc />
-    public bool IsInRole(string role)
-    {
-        if(string.IsNullOrEmpty(role))
-            return false;
-
-        return Roles.Contains(role) || Claims.Any(c => c.Type == ClaimTypes.Role && c.Value == role);
-    }
-
+    /// <summary>
+    /// Initialises an unpopulated instance for dependency injection to activate. The claims
+    /// middleware fills it in per request.
+    /// </summary>
     public UserInfo()
     {
+        Authority = IdentityAuthority.Local;
     }
-
+    
+    /// <summary>
+    /// Initialises an instance projected from a user entity and their role names.
+    /// </summary>
+    /// <param name="user">The user entity to project.</param>
+    /// <param name="roles">The user's role names. Null and empty entries are discarded.</param>
+    /// <remarks>
+    /// Adds the two things the base constructor deliberately leaves alone:
+    /// <see cref="UserInfoBase.TenantId"/>, because for local Identity the tenant owning the record
+    /// and the user's application tenant are the same value; and
+    /// <see cref="UserInfoBase.Authority"/>, which this package can state outright.
+    /// </remarks>
     public UserInfo(BaseUser user, IEnumerable<string?> roles)
+        : base(user, roles)
     {
-        UserId = user.Id;
-        Username = user.UserName ?? IUserInfo.UNKNOWN_USER_NAME;
-        Email = user.Email ?? IUserInfo.UNKNOWN_USER_EMAIL;
-        EmailConfirmed = user.EmailConfirmed;
-        PhoneNumber = user.PhoneNumber;
-        PhoneNumberConfirmed = user.PhoneNumberConfirmed;
-        
-        TwoFactorEnabled = user.TwoFactorEnabled;
-        LockoutEnabled = user.LockoutEnabled;
-        LockoutEnd = user.LockoutEnd?.DateTime;
-        AccessFailedCount = user.AccessFailedCount;
-        
+        //Sets tenant ID as this is on the BaseUser
         TenantId = user.TenantId;
-        DisplayName = user.DisplayName;
-        LastLoginUtc = user.LastLoginUtc;
-        IsEnabled = user.IsEnabled;
-        
-        RequiresPasswordChange = user.RequirePasswordChange;
-
-        Roles = roles.Where(r => !string.IsNullOrEmpty(r)).ToList()!;
-        IsSetup = true;
+        Authority = IdentityAuthority.Local;
     }
 
+    /// <summary>
+    /// Initialises an instance projected from a user entity and their role entities.
+    /// </summary>
+    /// <param name="user">The user entity to project.</param>
+    /// <param name="roles">The user's roles.</param>
     public UserInfo(BaseUser user, IEnumerable<BaseRole> roles)
         : this(user, roles.Select(r => r.Name))
     {

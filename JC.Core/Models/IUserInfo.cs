@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using JC.Core.Enums;
+
 // ReSharper disable InconsistentNaming
 
 namespace JC.Core.Models;
@@ -30,6 +32,12 @@ public interface IUserInfo
     public const string UNKNOWN_USER_EMAIL = "<UNKNOWN@EMAIL>";
     
     
+    /// <summary>
+    /// Gets which authority authenticated the current user and supplied their identity.
+    /// Implementations other than local ASP.NET Identity must set this explicitly.
+    /// </summary>
+    IdentityAuthority Authority { get; set; }
+
     /// <summary>Gets the unique identifier of the current user.</summary>
     string UserId { get; set; }
 

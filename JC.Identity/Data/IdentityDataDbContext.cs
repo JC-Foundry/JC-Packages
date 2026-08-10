@@ -5,7 +5,6 @@ using JC.Core.Models.Auditing;
 using JC.Core.Services;
 using JC.Identity.Extensions;
 using JC.Identity.Models;
-using JC.Core.Models.MultiTenancy;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -45,8 +44,8 @@ public class IdentityDataDbContext<TUser, TRole> : IdentityDbContext<TUser, TRol
     /// <inheritdoc />
     public DbSet<AuditEntry> AuditEntries { get; set; }
     
-    /// <summary>Gets the set of tenants.</summary>
-    public DbSet<Tenant> Tenants => Set<Tenant>();
+    // <summary>Gets the set of tenants.</summary>
+    // public DbSet<Tenant> Tenants => Set<Tenant>();
 
     /// <inheritdoc cref="SaveChangesAsync" />
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -73,14 +72,14 @@ public class IdentityDataDbContext<TUser, TRole> : IdentityDbContext<TUser, TRol
             entity.Property(e => e.TenantId).HasMaxLength(36);
         });
 
-        modelBuilder.Entity<Tenant>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasMaxLength(36);
-            entity.Property(e => e.Name).IsRequired().HasMaxLength(256);
-            entity.Property(e => e.Domain).HasMaxLength(256);
-            entity.HasIndex(e => e.Domain);
-        });
+        // modelBuilder.Entity<Tenant>(entity =>
+        // {
+        //     entity.HasKey(e => e.Id);
+        //     entity.Property(e => e.Id).HasMaxLength(36);
+        //     entity.Property(e => e.Name).IsRequired().HasMaxLength(256);
+        //     entity.Property(e => e.Domain).HasMaxLength(256);
+        //     entity.HasIndex(e => e.Domain);
+        // });
 
         modelBuilder.ApplyTenantQueryFilters(this);
     }
