@@ -1,3 +1,4 @@
+using JC.Core.Enums;
 using JC.Core.Models;
 using JC.Identity.Authentication;
 using JC.Identity.Data;
@@ -153,8 +154,9 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Points the shared claim-type options at whatever ASP.NET Identity is actually configured to
-    /// use, so that a consumer customising <c>IdentityOptions.ClaimsIdentity</c> keeps working.
+    /// Points the shared projection options at whatever ASP.NET Identity is actually configured to
+    /// use, so that a consumer customising <c>IdentityOptions.ClaimsIdentity</c> keeps working, and
+    /// states this package's authority.
     /// </summary>
     /// <remarks>
     /// Registered as <see cref="IConfigureOptions{TOptions}"/> rather than copied inline, because at
@@ -163,19 +165,23 @@ public static class ServiceCollectionExtensions
     /// eagerly would capture the defaults and silently discard any customisation.
     /// </remarks>
     private static void AddIdentityClaimTypes(this IServiceCollection services)
-        => services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<IdentityClaimTypeOptions>,
-            ConfigureClaimTypesFromIdentityOptions>());
+        => services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<IdentityProjectionOptions>,
+            ConfigureProjectionFromIdentityOptions>());
 
-    private sealed class ConfigureClaimTypesFromIdentityOptions(IOptions<IdentityOptions> identityOptions)
-        : IConfigureOptions<IdentityClaimTypeOptions>
+    private sealed class ConfigureProjectionFromIdentityOptions(IOptions<IdentityOptions> identityOptions)
+        : IConfigureOptions<IdentityProjectionOptions>
     {
-        public void Configure(IdentityClaimTypeOptions options)
+        public void Configure(IdentityProjectionOptions options)
         {
             var claims = identityOptions.Value.ClaimsIdentity;
 
             options.UserIdClaimType = claims.UserIdClaimType;
             options.EmailClaimType = claims.EmailClaimType;
             options.RoleClaimType = claims.RoleClaimType;
+
+            // Stated here rather than defaulted in Shared: the option defaults to None so that an
+            // authority which never declares itself cannot silently pass as local.
+            options.Authority = IdentityAuthority.Local;
         }
     }
 }

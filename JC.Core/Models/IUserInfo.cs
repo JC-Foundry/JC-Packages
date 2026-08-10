@@ -76,6 +76,9 @@ public interface IUserInfo
 
     /// <summary>Gets the UTC date and time of the user's last login.</summary>
     DateTime? LastLoginUtc { get; set; }
+    
+    /// <summary>Gets the UTC date and time of the user's registration.</summary>
+    DateTime? RegistrationUtc { get; set; }
 
     /// <summary>Gets whether the user account is enabled.</summary>
     bool IsEnabled { get; set; }
@@ -101,4 +104,23 @@ public interface IUserInfo
     /// <param name="role">The role name to check.</param>
     /// <returns><c>true</c> if the user is in the role; otherwise <c>false</c>.</returns>
     bool IsInRole(string role);
+
+
+    static IUserInfo SystemUser<T>() 
+        where T : IUserInfo, new()
+        => new T
+        {
+            UserId = SYSTEM_USER_ID, 
+            Username = SYSTEM_USER_NAME, 
+            Email = SYSTEM_USER_EMAIL
+        };
+    
+    static IUserInfo UnknownUser<T>() 
+        where T : IUserInfo, new()
+        => new T
+        {
+            UserId = UNKNOWN_USER_ID, 
+            Username = UNKNOWN_USER_NAME, 
+            Email = UNKNOWN_USER_EMAIL
+        };
 }

@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using JC.Core.Models;
 using JC.Core.Models.MultiTenancy;
-using JC.Identity.Shared.Models;
 using Microsoft.AspNetCore.Identity;
 
 namespace JC.Identity.Models;
@@ -20,23 +20,31 @@ public class BaseUser : IdentityUser, IApplicationUser
     
     /// <inheritdoc cref="IApplicationUser.IdentityTenantId" />
     /// <remarks>
-    /// A projection of <see cref="TenantId"/>, so the existing column is reused and no migration is
-    /// needed. Not mapped: it has no setter and is not a column of its own.
+    /// Reads and writes <see cref="TenantId"/>, so the existing column carries the value and no
+    /// migration is needed. Not mapped: it is a second way to reach that column, not a column of
+    /// its own.
     /// </remarks>
     [NotMapped]
-    public string? IdentityTenantId => TenantId;
+    public string? IdentityTenantId
+    {
+        get => TenantId;
+        set => TenantId = value;
+    }
 
-    /// <summary>Gets or sets the user's display name.</summary>
+    /// <inheritdoc/>
     [MaxLength(256)]
     public string? DisplayName { get; set; }
 
-    /// <summary>Gets or sets the UTC date and time of the user's last login.</summary>
+    /// <inheritdoc/>
     public DateTime? LastLoginUtc { get; set; }
+    
+    /// <inheritdoc/>
+    public DateTime? RegistrationUtc { get; set; }
 
 
-    /// <summary>Gets or sets whether the user account is enabled.</summary>
+    /// <inheritdoc/>
     public bool IsEnabled { get; set; } = true;
 
-    /// <summary>Gets or sets whether the user must change their password on next login.</summary>
+    /// <inheritdoc/>
     public bool RequirePasswordChange { get; set; }
 }

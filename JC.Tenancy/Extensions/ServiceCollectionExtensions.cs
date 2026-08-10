@@ -64,6 +64,8 @@ public static class ServiceCollectionExtensions
         // TryAdd, so an application can register its own authorisation rule instead.
         services.TryAddScoped<ITenantBypassAuthoriser, RoleTenantBypassAuthoriser>();
 
+        services.TryAddScoped<TenantSeeder>();
+
         services.AddScoped<ITenantInfo>(sp =>
         {
             var tenantInfo = new TenantInfo(sp.GetRequiredService<TenantCache>())

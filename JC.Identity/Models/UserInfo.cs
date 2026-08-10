@@ -14,9 +14,13 @@ public class UserInfo : UserInfoBase
     /// Initialises an unpopulated instance for dependency injection to activate. The claims
     /// middleware fills it in per request.
     /// </summary>
+    /// <remarks>
+    /// Leaves <see cref="UserInfoBase.Authority"/> at <see cref="IdentityAuthority.None"/>: the
+    /// middleware stamps it only once a principal is authenticated, so an anonymous request does
+    /// not name an authority that never ran.
+    /// </remarks>
     public UserInfo()
     {
-        Authority = IdentityAuthority.Local;
     }
     
     /// <summary>

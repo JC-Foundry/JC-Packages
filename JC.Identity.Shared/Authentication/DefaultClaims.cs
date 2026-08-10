@@ -37,6 +37,9 @@ public class DefaultClaims
 
     /// <summary>The UTC date and time of the user's last login.</summary>
     public const string LastLoginUtc = "last_login_utc";
+    
+    /// <summary>The UTC date and time of the user's registration.</summary>'
+    public const string RegistrationUtc = "registration_utc";
 
     /// <summary>Whether the user account is enabled.</summary>
     public const string IsEnabled = "is_enabled";

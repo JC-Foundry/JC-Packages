@@ -2083,7 +2083,9 @@ Treat these as current working decisions unless implementation proves them wrong
 38. `JC.Identity.Shared` and `JC.CAP.Base` are distinct packages on different axes. `JC.CAP.Base` may depend on `JC.Identity.Shared`; never the reverse.
 39. `IUserInfo` stays in `JC.Core` because Core consumes it internally. It cannot move.
 40. `IdentityAuthority` stays in `JC.Core` because it lives on `IUserInfo`.
-41. `IApplicationUser` moves to `JC.Identity.Shared`, not `JC.Core`.
+41. ~~`IApplicationUser` moves to `JC.Identity.Shared`, not `JC.Core`.~~ **Reversed in Phase 5 — see
+    decision 63.** It lives in `JC.Core`, because `JC.Tenancy` needs it and may not reference
+    `JC.Identity.Shared`.
 42. **`BaseUser` must not implement `IMultiTenancy`.** A global query filter on the user entity breaks `UserManager` and `SignInManager`, because authentication resolves a user before a tenant scope exists. See §14.1.
 43. The `IUserInfo` implementation must be split on extraction — the properties move, the `BaseUser`-shaped constructors stay in `JC.Identity`.
 44. The claims middleware's dependency on `IOptions<IdentityOptions>` must be abstracted before the middleware can move.
@@ -2131,6 +2133,52 @@ Treat these as current working decisions unless implementation proves them wrong
 62. Neither identity package references `JC.Tenancy`, and `JC.Tenancy` references no identity
     package. This resolves the open question about a `JC.Identity → JC.Tenancy` edge: there isn't
     one. Tenant filtering is wired by the consuming application, per DbContext.
+
+### Added while implementing Phase 5
+
+63. **Decision 41 is reversed. `IApplicationUser` lives in `JC.Core`, not `JC.Identity.Shared`.**
+    Decision 41 was made before anything outside the identity packages needed the contract. Assigning
+    a tenant to a user record does, and `JC.Tenancy` may not reference `JC.Identity.Shared` under the
+    sibling rule (decision 37), so Core is the only place both can see it. §5's argument that
+    "nothing in Core consumes it" no longer decides the question — what decides it is that two
+    siblings need it and only Core is visible to both.
+64. **`IApplicationUser` is read/write.** Every member is `{ get; set; }`, reversing the read-only
+    intent in §13. It is a description of how the suite *stores* a user, and storage is not a
+    one-way concern — the same reasoning that already made `IUserInfo` mutable. `BaseUser`
+    satisfies the write side by routing `IdentityTenantId` to its existing `TenantId` column, so the
+    read-only projection becomes a two-way one and the schema is unchanged.
+65. **`TenantSeeder`, a concrete class with no interface.** Kept separate from `ITenantStore`
+    because seeding is startup work and the store is a CRUD boundary, not because any authority
+    needs to override it. An earlier draft of this decision justified the split by supposing a
+    future `JC.CAP` would substitute a seeder that refuses — that reasoning was wrong and is
+    withdrawn. §17 already says it: an application tenant belongs to the application, and CAP has no
+    view on it. A CAP-authenticated application seeds its own default tenant exactly as any other
+    does. With no second implementation in prospect, there is nothing for an interface to abstract.
+    Two overloads: one creating the tenant alone, one also assigning it to a user.
+66. **Identity seeds the administrator; tenancy gives it a tenant.** `SeedDefaultAdminAsync` and
+    `ConfigureAdminAndRolesAsync` return `TUser?` — the created *or existing* administrator, `null`
+    only where creation was attempted and failed. Returning the existing account is what makes the
+    follow-on tenant assignment idempotent: a first run that created the user but failed the tenant
+    step corrects itself on the next start.
+67. **`setupTenancy` is gone, replaced by `assignAdminRole`.** The old flag had drifted into
+    controlling something it did not name — with the tenant block commented out it did nothing
+    *except* silently suppress the `Admin` role. The replacement says what it does and defaults to
+    `true`. `defaultTenantConfigKey` is removed outright; the tenant name is now an argument to
+    `SeedDefaultTenantAsync`.
+68. **`ConfigureAdminAndRolesAsync` and `SeedDefaultAdminAsync` lose their `TContext` type
+    parameter.** It existed only to reach `context.Tenants`. With tenant seeding gone from
+    JC.Identity nothing uses it, and an unused constrained type parameter forces every caller to
+    name a context for no reason.
+69. **`IdentityClaimTypeOptions` is renamed `IdentityProjectionOptions`**, and its `Authority`
+    defaults to `None` rather than `Local`. Both were flagged in §73; the name was wrong because the
+    type carries an authority as well as claim types, and the default was wrong because it let an
+    authority that never declares itself pass as local. JC.Identity now states `Local` in its
+    `IConfigureOptions`, and `UserInfo`'s parameterless constructor no longer stamps it — so an
+    anonymous request keeps `None`, which is what decision 49 always intended.
+70. **`IdentityDataDbContext` does not filter by tenant.** A tenant-scoped application derives from
+    it, implements `ITenantScopedContext` and calls `ApplyTenantFilters` itself. This is decision 62
+    made concrete, and it is what lets a single-tenant Identity application avoid JC.Tenancy
+    entirely.
 
 ---
 
@@ -2208,13 +2256,11 @@ Several are now answered, and the answers are recorded as decisions in §72 rath
 
 ## Still open, going into the next session
 
-**`IdentityClaimTypeOptions.Authority` still defaults to `Local`.** JC.Identity does not set it
-explicitly in its `IConfigureOptions<>`, so anything calling `AddSharedIdentityServices` without
-configuring — a future `JC.CAP` among them — silently reports local authority. One line in each
-place closes it: default to `None`, and have JC.Identity state `Local` outright.
+~~**`IdentityClaimTypeOptions.Authority` still defaults to `Local`.**~~ Closed in Phase 5 —
+decision 69. Defaults to `None`; JC.Identity states `Local` in its `IConfigureOptions`.
 
-**`IdentityClaimTypeOptions` is now misnamed.** It carries an authority, which is not a claim type.
-Rename before anything depends on it.
+~~**`IdentityClaimTypeOptions` is now misnamed.**~~ Closed in Phase 5 — renamed
+`IdentityProjectionOptions` (decision 69).
 
 **Tenant cache concurrency.** Two scopes missing simultaneously will both load. Harmless, but
 undecided — and distributed invalidation across instances is entirely unaddressed.
@@ -2246,17 +2292,12 @@ JC.Tenancy cannot reference `SystemRoles` in Shared (§65.2). This is the same q
 bypass authorisation* above, now with a concrete forcing case — the answer chosen there must work
 for `AllTenants` on day one, not later.
 
-**Is JC.Tenancy a required or optional dependency of JC.Identity?** §71 has JC.Identity depending
-on both siblings. But the only thing in JC.Identity that needs tenancy is `SeedDefaultAdminAsync`
-when `setupTenancy: true` — an opt-in flag. A hard package reference for an opt-in path pulls
-tenancy into every single-tenant Identity app. Alternatives: keep the reference and accept it;
-move tenant seeding out to a JC.Tenancy extension; or resolve `ITenantStore` optionally from the
-service provider, as JC.FileStorage now does for its ASP.NET seam.
-
-This is no longer hypothetical. The seeding block is already commented out, which leaves
-`setupTenancy` and `defaultTenantConfigKey` as dead parameters on both `SeedDefaultAdminAsync` and
-`ConfigureAdminAndRolesAsync` — and `setupTenancy` still silently suppresses the `Admin` role
-assignment. Whichever answer is chosen also decides whether those two parameters survive at all.
+~~**Is JC.Tenancy a required or optional dependency of JC.Identity?**~~ **Closed in Phase 5:
+neither — there is no reference at all.** The middle option won. Tenant seeding moved out to
+JC.Tenancy as `TenantSeeder`, Identity's seeder returns the administrator it created, and the
+consuming application joins the two. `setupTenancy` and `defaultTenantConfigKey` did not survive,
+and nor did the `TContext` type parameter that existed only to reach `context.Tenants`. See
+decisions 63–68.
 
 **Does `IUserInfo` stay mutable?** §65.2 records that it is mutable today and that
 `UserInfoMiddleware` depends on that. Decide before the middleware moves: keep populate-then-freeze
@@ -2362,14 +2403,25 @@ JC.Identity behaves identically and still owns tenancy. Nothing about tenant fil
 Note the dependency that did *not* appear: nothing in JC.Tenancy references an identity package, and
 nothing in JC.Identity references JC.Tenancy.
 
-## Phase 5 — JC.Identity adaptation
+## Phase 5 — JC.Identity adaptation — **complete**
 
-- preserve TenantId storage;
-- populate IdentityAuthority.Local;
-- remove ownership of tenancy mechanics — drop the `Tenants` DbSet and the `Tenant` mapping;
-- route `SeedDefaultAdminAsync`'s tenant creation through `ITenantStore`;
-- confirm `BaseUser` still does **not** implement `IMultiTenancy` (§14.1) — verify login end to end;
-- preserve local Identity behaviour.
+- ~~preserve TenantId storage~~ — the column is untouched; `IdentityTenantId` now reads *and writes*
+  it, so there is still no migration;
+- ~~populate IdentityAuthority.Local~~ — stated once, by JC.Identity's `IConfigureOptions`, rather
+  than in `UserInfo`'s constructor. The option now defaults to `None`, so an anonymous request and an
+  authority that never declares itself both report "nobody authenticated" instead of "local";
+- ~~remove ownership of tenancy mechanics~~ — `JC.Identity/Extensions/QueryExtensions.cs` deleted
+  outright, and `IdentityDataDbContext` has lost `CurrentTenantId`, the filter call and the
+  commented-out `Tenants` DbSet and `Tenant` mapping. It is now an Identity context with an audit
+  trail and nothing tenant-shaped in it;
+- ~~route `SeedDefaultAdminAsync`'s tenant creation through `ITenantStore`~~ — **superseded.** This
+  bullet predates decision 62 and assumed a `JC.Identity → JC.Tenancy` edge that decision 62 says
+  does not exist. Resolved the other way instead: Identity's seeder returns the administrator, and
+  JC.Tenancy's `TenantSeeder` gives that administrator a tenant. See decisions 63–68;
+- ~~confirm `BaseUser` still does **not** implement `IMultiTenancy`~~ — confirmed. It implements
+  `IApplicationUser` only. End-to-end login verification against a consuming application is Phase 6;
+- ~~preserve local Identity behaviour~~ — with one deliberate change: the `setupTenancy` flag is
+  gone, and with it the branch that silently suppressed the `Admin` role. See decision 67.
 
 ## Phase 6 — Consumer migration
 

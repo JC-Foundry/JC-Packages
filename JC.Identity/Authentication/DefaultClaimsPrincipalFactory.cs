@@ -7,8 +7,8 @@ using Microsoft.Extensions.Options;
 namespace JC.Identity.Authentication;
 
 /// <summary>
-/// Custom claims principal factory that extends the default identity claims with all 12
-/// <see cref="DefaultClaims"/> from the user entity.
+/// Custom claims principal factory that extends the default identity claims with every
+/// <see cref="DefaultClaims"/> value from the user entity.
 /// </summary>
 /// <typeparam name="TUser">The user type, extending <see cref="BaseUser"/>.</typeparam>
 /// <typeparam name="TRole">The role type, extending <see cref="BaseRole"/>.</typeparam>
@@ -36,6 +36,7 @@ public class DefaultClaimsPrincipalFactory<TUser, TRole>(
         defaultClaims.AddClaim(new Claim(DefaultClaims.TenantId, user.TenantId ?? ""));
         defaultClaims.AddClaim(new Claim(DefaultClaims.DisplayName, user.DisplayName ?? ""));
         defaultClaims.AddClaim(new Claim(DefaultClaims.LastLoginUtc, user.LastLoginUtc?.ToString("O") ?? ""));
+        defaultClaims.AddClaim(new Claim(DefaultClaims.RegistrationUtc, user.RegistrationUtc?.ToString("O") ?? ""));
         defaultClaims.AddClaim(new Claim(DefaultClaims.IsEnabled, user.IsEnabled.ToString()));
         
         defaultClaims.AddClaim(new Claim(DefaultClaims.RequirePasswordChange, user.RequirePasswordChange.ToString()));

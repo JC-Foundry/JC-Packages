@@ -28,7 +28,7 @@ public static class UserInfoExtensions
     /// <returns>The same instance, for chaining.</returns>
     /// <remarks>
     /// Deliberately does not set <see cref="IUserInfo.TenantId"/>, as
-    /// <see cref="IApplicationUser.IdentityTenantId"/> does not inherently mean the user's
+    /// <see cref="JC.Core.Models.IApplicationUser.IdentityTenantId"/> does not inherently mean the user's
     /// application tenant. Nor does it set <see cref="IUserInfo.Authority"/>, which only the
     /// registering package knows.
     /// <para>
@@ -53,6 +53,7 @@ public static class UserInfoExtensions
 
         userInfo.DisplayName = user.DisplayName;
         userInfo.LastLoginUtc = user.LastLoginUtc;
+        userInfo.RegistrationUtc = user.RegistrationUtc;
         userInfo.IsEnabled = user.IsEnabled;
 
         userInfo.RequiresPasswordChange = user.RequirePasswordChange;
@@ -72,7 +73,7 @@ public static class UserInfoExtensions
     /// <param name="roles">The user's role names. Null and empty entries are discarded.</param>
     /// <param name="tenantId">
     /// The user's tenant within this application, or <c>null</c> for the null tenant partition.
-    /// Passed separately rather than taken from <see cref="IApplicationUser.IdentityTenantId"/>,
+    /// Passed separately rather than taken from <see cref="JC.Core.Models.IApplicationUser.IdentityTenantId"/>,
     /// because the tenant owning an identity record and the user's application tenant are different
     /// concepts. Where they coincide, pass <c>user.IdentityTenantId</c> and say so at the call site.
     /// </param>
@@ -94,7 +95,7 @@ public static class UserInfoExtensions
 
         // Same source the claims middleware uses, so the authority is stated in exactly one place.
         userInfo.Authority = scopedServices
-            .GetRequiredService<IOptions<IdentityClaimTypeOptions>>().Value.Authority;
+            .GetRequiredService<IOptions<IdentityProjectionOptions>>().Value.Authority;
 
         return userInfo;
     }

@@ -60,6 +60,9 @@ public class UserInfoBase : IUserInfo
     public DateTime? LastLoginUtc { get; set; }
 
     /// <inheritdoc />
+    public DateTime? RegistrationUtc { get; set; }
+
+    /// <inheritdoc />
     public bool IsEnabled { get; set; }
 
     /// <inheritdoc />
@@ -105,7 +108,7 @@ public class UserInfoBase : IUserInfo
     /// instance and seeding an existing one share a single projection.
     /// <para>
     /// Deliberately does not set <see cref="TenantId"/>, as
-    /// <see cref="IApplicationUser.IdentityTenantId"/> does not inherently mean the user's
+    /// <see cref="JC.Core.Models.IApplicationUser.IdentityTenantId"/> does not inherently mean the user's
     /// application tenant. A derived type that knows the two coincide sets it itself.
     /// </para>
     /// </remarks>

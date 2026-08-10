@@ -9,17 +9,12 @@ namespace JC.Identity.Shared.Models.Options;
 /// the result.
 /// </summary>
 /// <remarks>
-/// These three values exist because the middleware must not know which authority authenticated the
-/// user. ASP.NET Identity keeps the same three on <c>IdentityOptions.ClaimsIdentity</c>, and
-/// JC.Identity copies them across at registration so that reconfiguring ASP.NET Identity keeps
-/// working. A different authority sets them to whatever its own tokens carry.
-/// <para>
-/// The remaining claims the middleware reads are JC's own, and are fixed constants on
-/// <see cref="JC.Identity.Shared.Authentication.DefaultClaims"/> rather than options — every
-/// authority is expected to emit those under the same names.
-/// </para>
+/// These exist so the middleware need not know which authority authenticated the user. JC.Identity
+/// copies the claim types from <c>IdentityOptions.ClaimsIdentity</c> at registration; another
+/// authority sets whatever its own tokens carry. The remaining claims are fixed constants on
+/// <see cref="JC.Identity.Shared.Authentication.DefaultClaims"/>.
 /// </remarks>
-public class IdentityClaimTypeOptions
+public class IdentityProjectionOptions
 {
     /// <summary>
     /// Gets or sets the claim type carrying the user identifier. Defaults to
@@ -40,9 +35,12 @@ public class IdentityClaimTypeOptions
     public string RoleClaimType { get; set; } = ClaimTypes.Role;
 
     /// <summary>
-    /// Gets or sets the identity authority type used for authentication.
-    /// This property indicates the source or mechanism of authentication,
-    /// such as local, CAP SSO, custom, or none.
+    /// Gets or sets the authority that supplied the current identity.
     /// </summary>
-    public IdentityAuthority Authority { get; set; } = IdentityAuthority.Local;
+    /// <remarks>
+    /// Defaults to <see cref="IdentityAuthority.None"/>, so an authority that never states its own
+    /// value cannot silently pass as local. JC.Identity sets <see cref="IdentityAuthority.Local"/>
+    /// at registration.
+    /// </remarks>
+    public IdentityAuthority Authority { get; set; } = IdentityAuthority.None;
 }

@@ -14,7 +14,7 @@ namespace JC.Identity.Shared.Middleware;
 /// </summary>
 /// <remarks>
 /// Authority-agnostic: the three identity claim types come from
-/// <see cref="IdentityClaimTypeOptions"/> and the rest from <see cref="DefaultClaims"/>, so
+/// <see cref="IdentityProjectionOptions"/> and the rest from <see cref="DefaultClaims"/>, so
 /// whichever package authenticated the user, the projection is the same.
 /// <see cref="IUserInfo.Authority"/> comes from those same options, so each authority declares
 /// itself once at registration rather than in every construction path.
@@ -29,7 +29,7 @@ public class UserInfoMiddleware(RequestDelegate next, ILogger<UserInfoMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         var userInfo = (IUserInfo)context.RequestServices.GetRequiredService(typeof(IUserInfo));
-        var claimTypes = context.RequestServices.GetRequiredService<IOptions<IdentityClaimTypeOptions>>().Value;
+        var claimTypes = context.RequestServices.GetRequiredService<IOptions<IdentityProjectionOptions>>().Value;
 
         if (!userInfo.IsSetup)
         {
@@ -72,6 +72,7 @@ public class UserInfoMiddleware(RequestDelegate next, ILogger<UserInfoMiddleware
                 userInfo.MultiTenancyEnabled = !string.IsNullOrEmpty(userInfo.TenantId);
                 userInfo.DisplayName = context.User.FindFirst(DefaultClaims.DisplayName)?.Value;
                 userInfo.LastLoginUtc = DateTime.TryParse(context.User.FindFirst(DefaultClaims.LastLoginUtc)?.Value, out var lastLoginUtc) ? lastLoginUtc : null;
+                userInfo.RegistrationUtc = DateTime.TryParse(context.User.FindFirst(DefaultClaims.RegistrationUtc)?.Value, out var registrationUtc) ? registrationUtc : null;
 
                 userInfo.RequiresPasswordChange = string.Equals(context.User.FindFirst(DefaultClaims.RequirePasswordChange)?.Value, "true", StringComparison.OrdinalIgnoreCase);
 

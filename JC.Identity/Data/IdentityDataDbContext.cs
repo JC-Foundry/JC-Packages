@@ -3,7 +3,6 @@ using JC.Core.Data.DataMappings;
 using JC.Core.Models;
 using JC.Core.Models.Auditing;
 using JC.Core.Services;
-using JC.Identity.Extensions;
 using JC.Identity.Models;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -12,11 +11,21 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 namespace JC.Identity.Data;
 
 /// <summary>
-/// Identity-aware data context extending <see cref="IdentityDbContext{TUser, TRole, TKey}"/> and implementing
-/// <see cref="IDataDbContext"/>. Configures core entities, tenant entities, and applies multi-tenancy query filters.
+/// Identity-aware data context extending <see cref="IdentityDbContext{TUser, TRole, TKey}"/> and
+/// implementing <see cref="IDataDbContext"/>. Configures the Identity model and the audit trail.
 /// </summary>
 /// <typeparam name="TUser">The user entity type, extending <see cref="BaseUser"/>.</typeparam>
 /// <typeparam name="TRole">The role entity type, extending <see cref="BaseRole"/>.</typeparam>
+/// <remarks>
+/// Does <b>not</b> filter by tenant. A tenant-scoped application derives from this type, implements
+/// <c>JC.Tenancy.Data.ITenantScopedContext</c> and calls <c>ApplyTenantFilters</c> from its own
+/// <c>OnModelCreating</c> — which is what lets a single-tenant application skip JC.Tenancy entirely.
+/// <para>
+/// <see cref="BaseUser"/> does not implement <see cref="Core.Models.MultiTenancy.IMultiTenancy"/>,
+/// so users stay unfiltered even then. Required, not incidental: a filter on the user entity breaks
+/// <c>UserManager</c> and <c>SignInManager</c>, which resolve a user before any tenant scope exists.
+/// </para>
+/// </remarks>
 public class IdentityDataDbContext<TUser, TRole> : IdentityDbContext<TUser, TRole, string>, IDataDbContext
     where TUser : BaseUser
     where TRole : BaseRole
@@ -28,24 +37,15 @@ public class IdentityDataDbContext<TUser, TRole> : IdentityDbContext<TUser, TRol
     /// Initialises a new instance of <see cref="IdentityDataDbContext{TUser, TRole}"/>.
     /// </summary>
     /// <param name="options">The options to configure the context.</param>
-    /// <param name="userInfo">The current user information, used for tenant query filters.</param>
+    /// <param name="userInfo">The current user information, used to attribute audit entries.</param>
     public IdentityDataDbContext(DbContextOptions options, IUserInfo userInfo) : base(options)
     {
         _userInfo = userInfo;
         _appServices = options.FindExtension<CoreOptionsExtension>()?.ApplicationServiceProvider;
     }
 
-    /// <summary>
-    /// The current user's tenant identifier. Referenced by global query filters — EF Core
-    /// re-evaluates this property per query rather than caching the value at model creation time.
-    /// </summary>
-    public string? CurrentTenantId => _userInfo.TenantId;
-
     /// <inheritdoc />
     public DbSet<AuditEntry> AuditEntries { get; set; }
-    
-    // <summary>Gets the set of tenants.</summary>
-    // public DbSet<Tenant> Tenants => Set<Tenant>();
 
     /// <inheritdoc cref="SaveChangesAsync" />
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -71,16 +71,5 @@ public class IdentityDataDbContext<TUser, TRole> : IdentityDbContext<TUser, TRol
         {
             entity.Property(e => e.TenantId).HasMaxLength(36);
         });
-
-        // modelBuilder.Entity<Tenant>(entity =>
-        // {
-        //     entity.HasKey(e => e.Id);
-        //     entity.Property(e => e.Id).HasMaxLength(36);
-        //     entity.Property(e => e.Name).IsRequired().HasMaxLength(256);
-        //     entity.Property(e => e.Domain).HasMaxLength(256);
-        //     entity.HasIndex(e => e.Domain);
-        // });
-
-        modelBuilder.ApplyTenantQueryFilters(this);
     }
 }

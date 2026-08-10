@@ -20,8 +20,8 @@ public static class ServiceCollectionExtensions
     /// </typeparam>
     /// <param name="services">The service collection to register into.</param>
     /// <param name="configureMiddleware">Optional callback to configure <see cref="IdentityMiddlewareOptions"/>.</param>
-    /// <param name="configureClaimTypes">
-    /// Optional callback to configure <see cref="IdentityClaimTypeOptions"/>. Defaults match ASP.NET
+    /// <param name="configureProjection">
+    /// Optional callback to configure <see cref="IdentityProjectionOptions"/>. Defaults match ASP.NET
     /// Identity, so a local-Identity application normally leaves this alone.
     /// </param>
     /// <returns>The service collection for chaining.</returns>
@@ -33,7 +33,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddSharedIdentityServices<TUserInfo>(
         this IServiceCollection services,
         Action<IdentityMiddlewareOptions>? configureMiddleware = null,
-        Action<IdentityClaimTypeOptions>? configureClaimTypes = null)
+        Action<IdentityProjectionOptions>? configureProjection = null)
         where TUserInfo : class, IUserInfo
     {
         // Scoped: one instance per request, populated once by UserInfoMiddleware.
@@ -44,10 +44,10 @@ public static class ServiceCollectionExtensions
         else
             services.Configure<IdentityMiddlewareOptions>(_ => { });
 
-        if (configureClaimTypes != null)
-            services.Configure(configureClaimTypes);
+        if (configureProjection != null)
+            services.Configure(configureProjection);
         else
-            services.Configure<IdentityClaimTypeOptions>(_ => { });
+            services.Configure<IdentityProjectionOptions>(_ => { });
 
         return services;
     }
