@@ -27,13 +27,16 @@ public static class TenantInfoExtensions
     /// Tenant metadata is resolved lazily, so this costs nothing until something reads it. Calling
     /// it inside a live request scope re-scopes the rest of that request, which is a deliberate
     /// cross-tenant act rather than a convenience.
+    /// <para>
+    /// Passing <c>null</c> pins the null partition, overriding the current user's tenant rather than
+    /// falling back to it.
+    /// </para>
     /// </remarks>
     public static ITenantInfo SetTenantInfoForTenant(this IServiceProvider scopedServices, string? tenantId)
     {
         var tenantInfo = scopedServices.GetRequiredService<ITenantInfo>();
 
         tenantInfo.TenantId = tenantId;
-        tenantInfo.IsSetup = true;
 
         return tenantInfo;
     }

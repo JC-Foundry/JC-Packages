@@ -78,8 +78,8 @@ public interface ITenantStore
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A <see cref="TenantValidationResponse"/> carrying the restored tenant, or the reason it was rejected.</returns>
     /// <remarks>
-    /// Revalidated on the way back in: another tenant may have taken the name or domain while this
-    /// one was deleted.
+    /// A deleted tenant keeps its name and domain, so a restore cannot clash with a tenant created
+    /// while it was away.
     /// </remarks>
     Task<TenantValidationResponse> TryRestoreAsync(string tenantId, CancellationToken cancellationToken = default);
 

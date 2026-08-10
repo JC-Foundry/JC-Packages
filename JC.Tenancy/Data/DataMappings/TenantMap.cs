@@ -16,6 +16,10 @@ public class TenantMap : IEntityTypeConfiguration<Tenant>
         builder.Property(t => t.Name).IsRequired().HasMaxLength(256);
         builder.Property(t => t.Domain).HasMaxLength(256);
 
+        //Unique so a concurrent add cannot slip past ITenantStore's check. Not applied to Domain:
+        //it is nullable, and SQL Server would then allow only one tenant without a domain
+        builder.HasIndex(t => t.Name).IsUnique();
+
         //Tenants are commonly resolved by domain on the way in
         builder.HasIndex(t => t.Domain);
 

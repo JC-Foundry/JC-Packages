@@ -73,9 +73,20 @@ public sealed class Tenant : AuditModel
     /// <summary>
     /// Deserialises and returns the current tenant settings.
     /// </summary>
-    /// <returns>A list of <see cref="TenantSettings"/>.</returns>
+    /// <returns>A list of <see cref="TenantSettings"/>, empty where none are stored or the value is unreadable.</returns>
     public List<TenantSettings> GetSettings()
-        => JsonSerializer.Deserialize<List<TenantSettings>>(Settings) ?? [];
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<List<TenantSettings>>(Settings) ?? [];
+        }
+        catch (JsonException)
+        {
+            //Written outside ITenantStore by direct SQL or seeding, and read from property getters
+            //on the ambient tenant - a throw would surface inside an unrelated request
+            return [];
+        }
+    }
 }
 
 /// <summary>

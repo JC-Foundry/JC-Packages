@@ -1,7 +1,7 @@
 using System.Text;
 using JC.Core.Enums;
 using JC.Core.Extensions;
-using JC.Core.Models;
+using JC.Core.Models.MultiTenancy;
 using JC.Core.Services.DataRepositories;
 using JC.FileStorage.Models;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +12,7 @@ namespace JC.FileStorage.Services;
 
 public class StorageService
 {
-    private readonly IUserInfo? _userInfo;
+    private readonly ITenantContext? _tenant;
     private readonly ILogger<StorageService> _logger;
     private readonly FilePathProvider _pathProvider;
     private readonly FolderRegistry _folderRegistry;
@@ -24,7 +24,9 @@ public class StorageService
         FilePathProvider pathProvider,
         FolderRegistry folderRegistry)
     {
-        _userInfo = serviceProvider.GetService<IUserInfo>();
+        //The operational tenant, not the user's - SavedFile is filtered by the former, so writes
+        //must be stamped from it too. Optional: no tenancy registered means the null partition
+        _tenant = serviceProvider.GetService<ITenantContext>();
         _logger = logger;
         _pathProvider = pathProvider;
         _folderRegistry = folderRegistry;
@@ -52,7 +54,7 @@ public class StorageService
             .AsQueryable().FilterDeleted(DeletedQueryType.OnlyActive);
         
         //Unable to do role check (JC.Identity) for cross-tenant query
-        if(!string.Equals(_userInfo?.TenantId, tenantId))
+        if(!string.Equals(_tenant?.TenantId, tenantId))
             query = query.IgnoreQueryFilters()
                 .Where(f => f.TenantId == tenantId);
         
@@ -70,10 +72,10 @@ public class StorageService
     
     
     public async Task<GetFileTextResponse> GetSavedFileText(FolderModel folder, string fileName)
-        => await GetSavedFileTextForTenant(_userInfo?.TenantId, folder, fileName);
+        => await GetSavedFileTextForTenant(_tenant?.TenantId, folder, fileName);
     
     public async Task<GetFileByteResponse> GetSavedFileBytes(FolderModel folder, string fileName)
-        => await GetSavedFileBytesForTenant(_userInfo?.TenantId, folder, fileName);
+        => await GetSavedFileBytesForTenant(_tenant?.TenantId, folder, fileName);
     
     public async Task<GetFileByteResponse> GetSavedFileBytesForTenant(string? tenantId, FolderModel folder, string fileName)
     {
@@ -131,11 +133,11 @@ public class StorageService
 
     public async Task<bool> TrySaveFile(FolderModel folder, string fileName, string fileText, string ext,
         bool blockOverwrite = true)
-        => await TrySaveFileForTenant(_userInfo?.TenantId, folder, fileName, fileText, ext, blockOverwrite);
+        => await TrySaveFileForTenant(_tenant?.TenantId, folder, fileName, fileText, ext, blockOverwrite);
     
     public async Task<bool> TrySaveFile(FolderModel folder, string fileName, byte[] content, string ext,
         bool blockOverwrite = true)
-        => await TrySaveFileForTenant(_userInfo?.TenantId, folder, fileName, content, ext, blockOverwrite);
+        => await TrySaveFileForTenant(_tenant?.TenantId, folder, fileName, content, ext, blockOverwrite);
     
     
     public async Task<bool> TrySaveFileForTenant(string? tenantId, FolderModel folder, string fileName, string fileText, 
@@ -238,7 +240,7 @@ public class StorageService
     #region Delete File
 
     public async Task<bool> TryDeleteFile(FolderModel folder, string fileName)
-        => await TryDeleteFileForTenant(_userInfo?.TenantId, folder, fileName);
+        => await TryDeleteFileForTenant(_tenant?.TenantId, folder, fileName);
 
     public async Task<bool> TryDeleteFileForTenant(string? tenantId, FolderModel folder, string fileName)
     {

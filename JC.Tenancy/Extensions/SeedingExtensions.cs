@@ -19,9 +19,9 @@ public static class SeedingExtensions
     /// <summary>
     /// Finds or creates a tenant by name and assigns it to a user, in a scope of its own.
     /// </summary>
-    /// <typeparam name="T">The user record type.</typeparam>
+    /// <typeparam name="TUser">The user entity type.</typeparam>
     /// <param name="services">The root service provider.</param>
-    /// <param name="user">The user to assign the tenant to.</param>
+    /// <param name="userId">The identifier of the user to assign the tenant to.</param>
     /// <param name="tenantName">The tenant name to find or create. Defaults to <c>"Default Tenant"</c>.</param>
     /// <param name="description">The description applied when the tenant is created. Ignored where it already exists.</param>
     /// <param name="userContextType">
@@ -34,21 +34,22 @@ public static class SeedingExtensions
     /// <code>
     /// var admin = await app.ConfigureAdminAndRolesAsync&lt;AppUser, AppRole, AppRoles&gt;();
     /// if (admin is not null)
-    ///     await app.Services.SeedDefaultTenantAsync(admin);
+    ///     await app.Services.SeedDefaultTenantAsync&lt;AppUser&gt;(admin.Id);
     /// </code>
     /// </example>
-    public static async Task<Tenant?> SeedDefaultTenantAsync<T>(
+    public static async Task<Tenant?> SeedDefaultTenantAsync<TUser>(
         this IServiceProvider services,
-        T user,
+        string userId,
         string tenantName = "Default Tenant",
         string? description = "Default system tenant",
         Type? userContextType = null,
         CancellationToken cancellationToken = default)
-        where T : class, IApplicationUser
+        where TUser : class, IApplicationUser
     {
         using var scope = services.CreateScope();
         var seeder = scope.ServiceProvider.GetRequiredService<TenantSeeder>();
 
-        return await seeder.SeedDefaultTenantAsync(user, tenantName, description, userContextType, cancellationToken);
+        return await seeder.SeedDefaultTenantAsync<TUser>(
+            userId, tenantName, description, userContextType, cancellationToken);
     }
 }

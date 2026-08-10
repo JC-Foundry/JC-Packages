@@ -63,7 +63,7 @@ public static class ApplicationBuilderExtensions
     /// <code>
     /// var admin = await app.ConfigureAdminAndRolesAsync&lt;AppUser, AppRole, AppRoles&gt;();
     /// if (admin is not null)
-    ///     await app.ApplicationServices.SeedDefaultTenantAsync(admin);
+    ///     await app.ApplicationServices.SeedDefaultTenantAsync&lt;AppUser&gt;(admin.Id);
     /// </code>
     /// </remarks>
     public static async Task<TUser?> ConfigureAdminAndRolesAsync<TUser, TRole, TRoles>(

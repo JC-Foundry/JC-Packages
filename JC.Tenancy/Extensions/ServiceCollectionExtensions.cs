@@ -1,4 +1,5 @@
 using JC.Core.Models;
+using JC.Core.Models.MultiTenancy;
 using JC.Tenancy.Data;
 using JC.Tenancy.Models;
 using JC.Tenancy.Models.Options;
@@ -66,20 +67,16 @@ public static class ServiceCollectionExtensions
 
         services.TryAddScoped<TenantSeeder>();
 
+        // IUserInfo is handed over, not read here: it is populated in place later in the request, so
+        // reading it at construction would pin the scope to whatever it held at the time - usually
+        // nothing. Optional, so tenancy works with no identity package and starts in the null partition.
         services.AddScoped<ITenantInfo>(sp =>
-        {
-            var tenantInfo = new TenantInfo(sp.GetRequiredService<TenantCache>())
-            {
-                // Only the identifier, which costs nothing. Tenant metadata is resolved from the
-                // cache on first read, so a scope that never asks for it never queries.
-                // IUserInfo is optional: tenancy is usable with no identity package at all, and
-                // work with no user simply starts in the null partition.
-                TenantId = sp.GetService<IUserInfo>()?.TenantId,
-                IsSetup = true
-            };
+            new TenantInfo(sp.GetRequiredService<TenantCache>(), sp.GetService<IUserInfo>()));
 
-            return tenantInfo;
-        });
+        // Forwarded to the same scoped instance, never registered separately — two instances in one
+        // scope could hold different tenants, which is worse than not resolving at all. This is what
+        // lets a package read the operational tenant with only a JC.Core reference.
+        services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<ITenantInfo>());
 
         return services;
     }

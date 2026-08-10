@@ -50,10 +50,10 @@ public class TenantSeeder(IRepositoryManager repos, ITenantStore store, ILogger<
     }
 
     /// <summary>
-    /// Finds or creates a tenant by name, assigns it to <paramref name="user"/>, and saves the user.
+    /// Finds or creates a tenant by name and assigns it to a user.
     /// </summary>
-    /// <typeparam name="T">The user record type.</typeparam>
-    /// <param name="user">The user to assign the tenant to.</param>
+    /// <typeparam name="TUser">The user entity type.</typeparam>
+    /// <param name="userId">The identifier of the user to assign the tenant to.</param>
     /// <param name="tenantName">The tenant name to find or create.</param>
     /// <param name="description">The description applied on creation. Ignored where the tenant exists.</param>
     /// <param name="userContextType">
@@ -61,26 +61,41 @@ public class TenantSeeder(IRepositoryManager repos, ITenantStore store, ILogger<
     /// manager's default context.
     /// </param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>The assigned tenant, or <c>null</c> where it could not be created — the user is then left untouched.</returns>
-    public async Task<Tenant?> SeedDefaultTenantAsync<T>(
-        T user,
+    /// <returns>
+    /// The assigned tenant; <c>null</c> where the tenant could not be created or no user has that
+    /// identifier, in which case the user is left untouched and the reason is logged.
+    /// </returns>
+    /// <remarks>
+    /// Takes an identifier rather than an entity so the user is loaded and tracked by the context
+    /// that saves it, and only the tenant column is written.
+    /// </remarks>
+    public async Task<Tenant?> SeedDefaultTenantAsync<TUser>(
+        string userId,
         string tenantName = "Default Tenant",
         string? description = "Default system tenant",
         Type? userContextType = null,
         CancellationToken cancellationToken = default)
-        where T : class, IApplicationUser
+        where TUser : class, IApplicationUser
     {
         var tenant = await SeedDefaultTenantAsync(tenantName, description, cancellationToken);
         if (tenant is null) return null;
+
+        var repo = (userContextType is null ? repos : repos.For(userContextType)).GetRepository<TUser>();
+
+        var user = await repo.GetByIdAsync(userId, cancellationToken);
+        if (user is null)
+        {
+            logger.LogError("Cannot assign tenant '{TenantName}': no {UserType} has identifier '{UserId}'.",
+                tenantName, typeof(TUser).Name, userId);
+            return null;
+        }
 
         // Already assigned — nothing to write, so a repeated startup does not churn the user row.
         if (string.Equals(user.IdentityTenantId, tenant.Id, StringComparison.Ordinal))
             return tenant;
 
         user.IdentityTenantId = tenant.Id;
-
-        var manager = userContextType is null ? repos : repos.For(userContextType);
-        await manager.GetRepository<T>().UpdateAsync(user, cancellationToken: cancellationToken);
+        await repo.UpdateAsync(user, cancellationToken: cancellationToken);
 
         logger.LogInformation("Assigned tenant '{TenantName}' ({TenantId}) to user '{UserName}'.",
             tenant.Name, tenant.Id, user.UserName);

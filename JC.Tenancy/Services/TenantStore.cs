@@ -143,11 +143,11 @@ public class TenantStore<TContext>(IRepositoryManager repos, TenantCache cache) 
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>A <see cref="TenantValidationResponse"/> carrying the tenant, or the reason it was rejected.</returns>
     /// <remarks>
-    /// Checked against active tenants only, so a name freed by a soft-delete can be reused —
-    /// at the cost of that tenant failing revalidation if anyone later restores it.
+    /// Checked against soft-deleted tenants too, because the unique index on <c>Name</c> still holds
+    /// their rows — a deleted name is not free to reuse, so validating active-only would pass here
+    /// and then fail on the constraint.
     /// <para>
-    /// Case sensitivity follows the database collation rather than being forced here, so that the
-    /// check agrees with any unique index an application adds over the same columns.
+    /// Case sensitivity follows the database collation, so the check agrees with the index.
     /// </para>
     /// </remarks>
     private async Task<TenantValidationResponse> ValidateAsync(Tenant tenant, CancellationToken cancellationToken)
@@ -157,16 +157,27 @@ public class TenantStore<TContext>(IRepositoryManager repos, TenantCache cache) 
 
         var others = Repository.AsQueryable()
             .AsNoTracking()
-            .FilterDeleted(DeletedQueryType.OnlyActive)
+            .FilterDeleted(DeletedQueryType.All)
             .Where(t => t.Id != tenant.Id);
 
-        if (await others.AnyAsync(t => t.Name == tenant.Name, cancellationToken))
-            return new TenantValidationResponse($"A tenant named '{tenant.Name}' already exists.");
+        var nameClash = await others.FirstOrDefaultAsync(t => t.Name == tenant.Name, cancellationToken);
+        if (nameClash is not null)
+            return new TenantValidationResponse(Taken($"named '{tenant.Name}'", nameClash.IsDeleted));
 
-        if (!string.IsNullOrWhiteSpace(tenant.Domain)
-            && await others.AnyAsync(t => t.Domain == tenant.Domain, cancellationToken))
-            return new TenantValidationResponse($"A tenant using the domain '{tenant.Domain}' already exists.");
+        if (!string.IsNullOrWhiteSpace(tenant.Domain))
+        {
+            var domainClash = await others.FirstOrDefaultAsync(t => t.Domain == tenant.Domain, cancellationToken);
+            if (domainClash is not null)
+                return new TenantValidationResponse(Taken($"using the domain '{tenant.Domain}'", domainClash.IsDeleted));
+        }
 
         return new TenantValidationResponse(tenant);
+
+        //A deleted tenant keeps its name and domain, so say so - otherwise the caller is told
+        //something already exists that they cannot find anywhere
+        static string Taken(string what, bool isDeleted)
+            => isDeleted
+                ? $"A deleted tenant {what} still holds it. Restore that tenant, or rename it to free the value."
+                : $"A tenant {what} already exists.";
     }
 }

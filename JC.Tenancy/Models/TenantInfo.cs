@@ -1,43 +1,43 @@
 using System.ComponentModel;
+using JC.Core.Models;
 using JC.Tenancy.Services;
 
 namespace JC.Tenancy.Models;
 
 /// <summary>
-/// Default <see cref="ITenantInfo"/>, resolving tenant metadata from <see cref="TenantCache"/> the
-/// first time any of it is read.
+/// Default <see cref="ITenantInfo"/>, deriving the tenant from the current user unless overridden,
+/// and resolving tenant metadata from <see cref="TenantCache"/> on first read.
 /// </summary>
 /// <remarks>
-/// Registered scoped by <c>AddTenancy</c>, which sets <see cref="ITenantInfo.TenantId"/> from the
-/// signed-in user where there is one. Metadata resolution is deferred so that the query filters,
-/// which read only the identifier, never trigger a store lookup.
+/// <paramref name="userInfo"/> is read on every access rather than captured at construction. It is
+/// populated in place by the claims middleware, and this can be built earlier in the request —
+/// authentication touches the DbContext, which resolves this — so a value read at construction
+/// would be the unpopulated one and would pin the whole request to the null partition.
 /// </remarks>
-public class TenantInfo(TenantCache cache) : ITenantInfo
+public class TenantInfo(TenantCache cache, IUserInfo? userInfo = null) : ITenantInfo
 {
     private Tenant? _tenant;
     private bool _resolved;
-    private string? _tenantId;
+    private string? _resolvedFor;
+
+    private string? _overrideTenantId;
 
     /// <inheritdoc />
     public string? TenantId
     {
-        get => _tenantId;
+        get => IsOverridden ? _overrideTenantId : userInfo?.TenantId;
         set
         {
-            if (string.Equals(_tenantId, value, StringComparison.Ordinal)) return;
-
-            // Scope changed - anything resolved for the previous tenant no longer applies.
-            _tenantId = value;
-            _tenant = null;
-            _resolved = false;
+            _overrideTenantId = value;
+            IsOverridden = true;
         }
     }
 
     /// <inheritdoc />
-    public bool HasTenant => !string.IsNullOrEmpty(_tenantId);
+    public bool HasTenant => !string.IsNullOrEmpty(TenantId);
 
     /// <inheritdoc />
-    public bool IsSetup { get; set; }
+    public bool IsOverridden { get; private set; }
 
     /// <inheritdoc />
     public string? Name => Resolve()?.Name;
@@ -88,17 +88,24 @@ public class TenantInfo(TenantCache cache) : ITenantInfo
     /// <inheritdoc />
     public void SetTenant(Tenant? tenant)
     {
-        _tenantId = tenant?.Id;
+        _overrideTenantId = tenant?.Id;
+        IsOverridden = true;
+
         _tenant = tenant;
+        _resolvedFor = tenant?.Id;
         _resolved = true;
-        IsSetup = true;
     }
 
     private Tenant? Resolve()
     {
-        if (_resolved) return _tenant;
+        var tenantId = TenantId;
 
-        _tenant = string.IsNullOrEmpty(_tenantId) ? null : cache.Get(_tenantId);
+        // Keyed to what was resolved, not just whether anything was: the underlying tenant can
+        // change within a scope, either by override or by the claims middleware populating the user.
+        if (_resolved && string.Equals(_resolvedFor, tenantId, StringComparison.Ordinal)) return _tenant;
+
+        _tenant = string.IsNullOrEmpty(tenantId) ? null : cache.Get(tenantId);
+        _resolvedFor = tenantId;
         _resolved = true;
 
         return _tenant;

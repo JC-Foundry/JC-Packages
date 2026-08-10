@@ -1,5 +1,5 @@
 using System.Net;
-using JC.Core.Models;
+using JC.Core.Models.MultiTenancy;
 using JC.FileStorage.Models;
 using JC.FileStorage.Services;
 using JC.FileStorage.Web.Framework;
@@ -91,9 +91,10 @@ public class UploadConstraintsTagHelper : TagHelper
             throw new InvalidOperationException(
                 "The 'folder' attribute is required on <upload-constraints>.");
 
-        //Optional, like StorageService - no JC.Identity means the no-tenant scope
+        //Optional, like StorageService - no tenancy registered means the no-tenant scope.
+        //The operational tenant, so the constraints shown match the folder the file will land in.
         var tenantId = TenantId
-            ?? ViewContext.HttpContext.RequestServices.GetService<IUserInfo>()?.TenantId;
+            ?? ViewContext.HttpContext.RequestServices.GetService<ITenantContext>()?.TenantId;
 
         if (!_folderRegistry.TryGetFolder(Folder, tenantId, out var folder) || folder == null)
             throw new InvalidOperationException(
