@@ -1,0 +1,41 @@
+/* =====================================================================
+   JC.FileStorage.Web — Tailwind safelist
+   ---------------------------------------------------------------------
+   Tailwind generates utilities by scanning source files. This package's
+   class names live in a compiled assembly it never reads, so `@source` over
+   your own markup does not reach them and the utilities are never generated
+   — the markup renders with valid class names and no CSS behind them.
+
+   Import this file from your Tailwind entry CSS to declare them:
+
+       project reference:  @import "../path/to/JC.FileStorage.Web/jc-filestorage.tailwind.css";
+       package reference:  @import "<nuget-root>/jc.filestorage.web/<version>/contentFiles/any/any/jc-filestorage.tailwind.css";
+
+   The package path is version-pinned, so copying this file into your own Styles
+   folder and re-copying on upgrade is the less brittle option for a consumer on
+   NuGet. Either way, Tailwind needs a real path on disk — it never sees MSBuild.
+
+   This package builds on JC.Web, so import that package's safelist too:
+
+       @import "../path/to/JC.Web/UI/jc-web.tailwind.css";
+
+   Keep this in step with Framework/TailwindFileStorageDictionary.cs — a value
+   added there and not here renders unstyled.
+   ===================================================================== */
+
+
+/* =====================================================================
+   UIFramework.Tailwind — TailwindFileStorageDictionary
+   ===================================================================== */
+
+/* Upload constraints help text */
+@source inline("mt-1 text-sm text-gray-500");
+
+
+/* =====================================================================
+   UIFramework.CustomJCTailwind — CustomJCTailwindFileStorageDictionary
+
+   Nothing to declare. Its only value is jc-tailwind-ui's `form-text`, an
+   authored CSS rule in that framework's bundle rather than a generated
+   utility. The block is kept so the file does not read as an oversight.
+   ===================================================================== */

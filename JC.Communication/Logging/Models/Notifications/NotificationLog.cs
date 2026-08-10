@@ -25,7 +25,7 @@ public class NotificationLog : LogModel
     [ForeignKey(nameof(NotificationId))]
     public Notification Notification { get; set; }
 
-    /// <summary>Gets the timestamp of the event, derived from <see cref="AuditModel.CreatedUtc"/>.</summary>
+    /// <summary>Gets the timestamp of the event, derived from <see cref="BaseCreateModel.CreatedUtc"/>.</summary>
     [NotMapped]
     public DateTime Timestamp => CreatedUtc;
 

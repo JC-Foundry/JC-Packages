@@ -663,7 +663,6 @@ public class ChatThreadService
             }
         }
 
-        var participantUserIds = thread.Participants.Select(p => p.UserId).ToList();
         var userDeletions = (await GetThreadDeletions(threadId, DeletedQueryType.OnlyActive))
             .Where(d => participantIdList.Contains(d.UserId))
             .ToList();

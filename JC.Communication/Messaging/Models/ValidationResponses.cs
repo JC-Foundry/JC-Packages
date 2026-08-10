@@ -1,4 +1,5 @@
 using JC.Communication.Messaging.Models.DomainModels;
+// ReSharper disable UnusedMember.Global
 
 namespace JC.Communication.Messaging.Models;
 
@@ -68,7 +69,7 @@ public class ParticipantValidationResponse : MessagingValidationResponse
 public class ChatThreadValidationResponse : MessagingValidationResponse
 {
     /// <summary>Gets the validated chat thread, or <c>null</c> when validation fails.</summary>
-    public ChatThread? ValidatedChatThread { get; } = null;
+    public ChatThread? ValidatedChatThread { get; }
 
     /// <summary>Creates a successful validation response with no thread.</summary>
     public ChatThreadValidationResponse()
@@ -100,7 +101,7 @@ public class ChatThreadValidationResponse : MessagingValidationResponse
 public class ChatMessageValidationResponse : MessagingValidationResponse
 {
     /// <summary>Gets the validated chat message, or <c>null</c> when validation fails.</summary>
-    public ChatMessage? ValidatedChatMessage { get; } = null;
+    public ChatMessage? ValidatedChatMessage { get; }
 
     /// <summary>Creates a successful validation response with no message.</summary>
     public ChatMessageValidationResponse()
@@ -132,7 +133,7 @@ public class ChatMessageValidationResponse : MessagingValidationResponse
 public class ChatMetadataValidationResponse : MessagingValidationResponse
 {
     /// <summary>Gets the validated chat metadata, or <c>null</c> when validation fails.</summary>
-    public ChatMetadata? ValidatedChatMetadata { get; } = null;
+    public ChatMetadata? ValidatedChatMetadata { get; }
 
     /// <summary>Creates a successful validation response with no metadata.</summary>
     public ChatMetadataValidationResponse()

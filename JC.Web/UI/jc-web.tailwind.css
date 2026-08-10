@@ -1,0 +1,89 @@
+/* =====================================================================
+   JC.Web — Tailwind safelist
+   ---------------------------------------------------------------------
+   Tailwind generates utilities by scanning source files. JC.Web's class
+   names live in a compiled assembly it never reads, so `@source` over your
+   own markup does not reach them and the utilities are never generated —
+   the markup renders with valid class names and no CSS behind them.
+
+   Import this file from your Tailwind entry CSS to declare them:
+
+       project reference:  @import "../path/to/JC.Web/UI/jc-web.tailwind.css";
+       package reference:  @import "<nuget-root>/jc.web/<version>/contentFiles/any/any/jc-web.tailwind.css";
+
+   The package path is version-pinned, so copying this file into your own Styles
+   folder and re-copying on upgrade is the less brittle option for a consumer on
+   NuGet. Either way, Tailwind needs a real path on disk — it never sees MSBuild.
+
+   Keep this in step with UI/Framework/TailwindDictionary.cs and
+   UI/Framework/CustomJCTailwindDictionary.cs — a value added there and not
+   here renders unstyled.
+
+   Delete whichever block does not apply to the framework you registered.
+   ===================================================================== */
+
+
+/* =====================================================================
+   UIFramework.Tailwind — TailwindDictionary
+   ===================================================================== */
+
+/* Alert */
+@source inline("relative mb-4 rounded-md border px-4 py-3 pr-12");
+@source inline("absolute top-0 right-0 text-xl leading-none opacity-50 hover:opacity-75");
+@source inline("border-green-300 bg-green-100 text-green-900");
+@source inline("border-amber-300 bg-amber-100 text-amber-900");
+@source inline("border-red-300 bg-red-100 text-red-900");
+@source inline("border-sky-300 bg-sky-100 text-sky-900");
+
+/* Breadcrumb */
+@source inline("flex list-none flex-wrap items-center p-0 text-blue-600 text-gray-500 before:mr-2 before:text-gray-500");
+
+/* Pagination */
+@source inline("-space-x-px z-10 block relative border border-gray-300 px-3 py-2 hover:bg-gray-100 hover:text-blue-800");
+
+/* Table */
+@source inline("w-full border-collapse text-left border-b border-b-2 border-gray-200 border-gray-300 px-2 py-2 align-top font-semibold");
+
+/* Bug reporter */
+@source inline("print:hidden shadow-lg bg-white p-3 mb-2 mb-1 text-base text-sm hidden justify-between");
+@source inline("block w-full rounded-md border border-gray-300 px-2 py-1");
+@source inline("border-gray-500 text-gray-600 hover:bg-gray-500 hover:text-white text-white hover:opacity-90");
+
+/* Bug reporter — the default `colour` (BugReporterClasses.DefaultColour = "red-600").
+   A `colour="…"` attribute other than the default needs its own entry; no
+   safelist can predict what a page will pass. */
+@source inline("border-red-600 text-red-600 bg-red-600");
+
+/* States */
+@source inline("font-semibold pointer-events-none opacity-50");
+
+/* Variant and arbitrary-value utilities. These carry brackets, quotes and
+   child selectors, so if anything in this file fails to generate, check
+   here first. */
+@source inline("before:content-['×']");
+@source inline("before:content-['/'] first:before:content-none");
+@source inline("[&>li:first-child>a]:rounded-l-md [&>li:last-child>a]:rounded-r-md");
+@source inline("[&>a]:border-blue-600 [&>a]:bg-blue-600 [&>a]:text-white [&>a]:hover:bg-blue-600");
+@source inline("[&>a]:pointer-events-none [&>a]:bg-white [&>a]:text-gray-400");
+
+/* Bug reporter feedback — BugReporterClasses.FeedbackFormat is substituted in
+   the browser with success / warning / danger, so these only generate if your
+   @theme defines those colour names. Uncomment once it does, or leave
+   FeedbackFormat empty in a dictionary of your own.
+
+@source inline("border-{success,warning,danger}-300 bg-{success,warning,danger}-100 text-{success,warning,danger}-900");
+*/
+
+
+/* =====================================================================
+   UIFramework.CustomJCTailwind — CustomJCTailwindDictionary
+
+   jc-tailwind-ui's own component classes (btn, card, alert, form-control,
+   tone-*, page-link …) are authored CSS rules in its bundle and need no
+   declaring. Everything below is a generated utility, which does.
+   ===================================================================== */
+
+@source inline("hidden flex justify-between font-semibold mb-2 py-1 px-2 text-sm print:hidden");
+
+/* The tone's light shade, read straight from the custom property. */
+@source inline("text-[var(--t-l)]");

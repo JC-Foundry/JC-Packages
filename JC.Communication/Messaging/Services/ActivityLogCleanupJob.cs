@@ -1,7 +1,5 @@
 using JC.Communication.Logging.Models.Messaging;
-using JC.Communication.Messaging.Data;
 using JC.Communication.Messaging.Models.Options;
-using JC.Core.Data;
 using JC.Core.Models;
 using JC.Core.Services.DataRepositories;
 using Microsoft.EntityFrameworkCore;

@@ -1,4 +1,4 @@
-namespace JC.Web.UI.Framework;
+namespace JC.Web.UI.Framework.Icons;
 
 /// <summary>
 /// Helpers for icon class values supplied by a caller rather than by a dictionary.

@@ -4,7 +4,8 @@ namespace JC.Communication.Messaging.Models;
 
 /// <summary>
 /// Read-only projection of <see cref="ChatMetadata"/> for consumption by the UI or API layer.
-/// Resolves the colour value to a single string based on the <paramref name="preferHexCode"/> preference.
+/// Resolves the colour value to a single string based on the preferHexCode (constructor parameter)
+/// preference.
 /// </summary>
 public class MetadataModel
 {

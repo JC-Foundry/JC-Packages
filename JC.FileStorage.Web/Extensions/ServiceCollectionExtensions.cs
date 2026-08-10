@@ -50,10 +50,13 @@ public static class ServiceCollectionExtensions
         // resolved icon set for anything layered above it.
         services.AddUI(framework, iconFramework);
 
-        // Bootstrap is the only dictionary implemented so far. Tailwind and CustomJCTailwind become
-        // additional switch arms here once theirs exist; no tag helper changes.
-        services.AddFrameworkDictionary<IFileStorageFrameworkDictionary>(
-            _ => new BootstrapFileStorageDictionary());
+        // Adding a framework is a dictionary class and an arm here — no tag helper changes.
+        services.AddFrameworkDictionary<IFileStorageFrameworkDictionary>(f => f switch
+        {
+            UIFramework.Tailwind => new TailwindFileStorageDictionary(),
+            UIFramework.CustomJCTailwind => new CustomJCTailwindFileStorageDictionary(),
+            _ => new BootstrapFileStorageDictionary()
+        });
 
         return services;
     }

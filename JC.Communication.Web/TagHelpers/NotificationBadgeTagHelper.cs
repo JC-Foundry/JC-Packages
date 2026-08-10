@@ -1,6 +1,7 @@
 using System.Net;
 using JC.Communication.Notifications.Services;
 using JC.Communication.Web.Framework;
+using JC.Communication.Web.Framework.Icons;
 using JC.Web.UI.HTML;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 
@@ -55,7 +56,7 @@ public class NotificationBadgeTagHelper : TagHelper
         var css = _dictionary.NotificationBadge;
 
         var unreadCount = await _cache.GetUnreadCountAsync();
-        var iconHtml = _html.CreateElement("i", "", classes: WebUtility.HtmlEncode(
+        var iconHtml = _html.CreateElement("i", string.Empty, classes: WebUtility.HtmlEncode(
             string.IsNullOrWhiteSpace(Icon) ? _icons.Icons.Bell : _icons.Icons.Custom(Icon)));
 
         if (unreadCount == 0 && HideWhenZero)

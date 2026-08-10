@@ -1,12 +1,11 @@
 using JC.Core.Data;
-using JC.Core.Models;
-using JC.Core.Models.Auditing;
 using JC.Core.Models.Options;
 using JC.Core.Services;
 using JC.Core.Services.DataRepositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+// ReSharper disable ConditionalAccessQualifierIsNonNullableAccordingToAPIContract
 
 namespace JC.Core.Extensions;
 

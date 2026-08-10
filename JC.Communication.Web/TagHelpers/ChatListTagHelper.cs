@@ -2,6 +2,7 @@ using System.Net;
 using JC.Communication.Logging.Models.Messaging;
 using JC.Communication.Messaging.Models;
 using JC.Communication.Web.Framework;
+using JC.Communication.Web.Framework.Icons;
 using JC.Core.Extensions;
 using JC.Core.Models;
 using JC.Core.Services.DataRepositories;
@@ -82,7 +83,7 @@ public class ChatListTagHelper : TagHelper
 
     public override async Task ProcessAsync(TagHelperContext context, TagHelperOutput output)
     {
-        if (Model == null || Model.Count == 0)
+        if (Model == null! || Model.Count == 0)
         {
             output.TagName = "div";
             output.TagMode = TagMode.StartTagAndEndTag;
@@ -163,7 +164,7 @@ public class ChatListTagHelper : TagHelper
         string avatarContent;
         if (metadata?.ImgPath != null)
         {
-            avatarContent = _html.CreateElement("img", "",
+            avatarContent = _html.CreateElement("img", string.Empty,
                 attributes: new Dictionary<string, string>
                 {
                     ["src"] = metadata.ImgPath,
@@ -180,7 +181,7 @@ public class ChatListTagHelper : TagHelper
             var bgStyle = $"width:40px;height:40px;background-color:{WebUtility.HtmlEncode(background)};";
 
             avatarContent = _html.CreateElement("div",
-                _html.CreateElement("i", "", classes: WebUtility.HtmlEncode(metadata.Icon)),
+                _html.CreateElement("i", string.Empty, classes: WebUtility.HtmlEncode(metadata.Icon)),
                 attributes: new Dictionary<string, string> { ["style"] = bgStyle },
                 classes: css.AvatarIcon);
         }
@@ -188,7 +189,7 @@ public class ChatListTagHelper : TagHelper
         {
             var icon = chat.IsGroupChat ? _icons.Icons.People : _icons.Icons.Person;
             avatarContent = _html.CreateElement("div",
-                _html.CreateElement("i", "", classes: icon),
+                _html.CreateElement("i", string.Empty, classes: icon),
                 attributes: new Dictionary<string, string> { ["style"] = "width:40px;height:40px;" },
                 classes: css.AvatarFallback);
         }

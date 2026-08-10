@@ -615,6 +615,8 @@ Takes `IWebFrameworkDictionary` as its only constructor parameter.
 
 All five methods insert `message` as raw HTML without encoding.
 
+When `dismissible` is `true`, the appended close button carries `data-bs-dismiss="alert"` and `aria-label="Close"` under every framework — its class comes from `AlertClasses.CloseButton`, but the attribute is fixed. Bootstrap's own bundle acts on it; under any other framework it is inert until the application supplies a handler. The button is emitted with no children, so a dictionary whose close button draws its glyph through CSS renders correctly.
+
 ### Methods
 
 #### Success(string message, bool dismissible = true)

@@ -43,7 +43,7 @@ public class NotificationService
     /// Builds a base query for notifications filtered by user, deletion state, and sort order.
     /// Includes the associated <see cref="NotificationStyle"/> if present.
     /// </summary>
-    /// <param name="orderByNewest">When <c>true</c>, orders by <see cref="Notification.CreatedUtc"/> descending; otherwise ascending.</param>
+    /// <param name="orderByNewest">When <c>true</c>, orders by <see cref="JC.Core.Models.Auditing.BaseCreateModel.CreatedUtc"/> descending; otherwise ascending.</param>
     /// <param name="asNoTracking">When <c>true</c>, applies <see cref="EntityFrameworkQueryableExtensions.AsNoTracking{TEntity}"/> for read-only queries.</param>
     /// <param name="userId">The user to filter by. Defaults to the current user from <see cref="IUserInfo"/>.</param>
     /// <param name="deletedQueryType">Controls whether soft-deleted notifications are included.</param>

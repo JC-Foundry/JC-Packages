@@ -1,9 +1,11 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <PackageId>JC.MySql</PackageId>
-        <Version>5.1.0</Version>
-        <Description>MySQL database provider extensions for JC.Core using Pomelo.EntityFrameworkCore.MySql.</Description>
+        <Version>6.0.0</Version>
+        <Description>Registers a JC.Core DbContext against MySQL using Pomelo.EntityFrameworkCore.MySql. Takes the connection string by name from configuration (defaulting to DefaultConnection) and fails fast when it is absent, names the migrations assembly, and exposes the provider's own options for anything further. The server version is auto-detected from the connection string, so the database must be reachable at start-up. A MySQL health check can be registered alongside, opt-in. Interchangeable with JC.SqlServer — the two present the same shape, so the provider is a one-line choice.</Description>
+        <PackageTags>$(PackageTags);mysql;efcore;pomelo;database-provider</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup Condition="'$(UseLocalProjectReferences)' == 'true'">
@@ -20,4 +22,10 @@
       <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" VersionOverride="9.0.0" />
     </ItemGroup>
 
+    <!-- The README ships in the package: it is the landing page on a feed, and the
+         project's front page on GitHub. Update rather than Include - the SDK's default
+         globs already pick .md up as None. -->
+    <ItemGroup>
+        <None Update="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
 </Project>

@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using JC.Core.Models.Auditing;
 
@@ -16,6 +17,7 @@ public sealed class Tenant : AuditModel
     public required string Name { get; set; }
 
     /// <summary>Gets or sets an optional description of the tenant.</summary>
+    [MaxLength(10240)]
     public string? Description { get; set; }
 
     /// <summary>Gets or sets the domain associated with the tenant (indexed for lookup).</summary>
@@ -28,6 +30,7 @@ public sealed class Tenant : AuditModel
     public DateTime? ExpiryDateUtc { get; set; }
 
     /// <summary>Gets the JSON-serialised tenant settings. Use <see cref="SetSettings"/> and <see cref="GetSettings"/> to manage.</summary>
+    // ReSharper disable once EntityFramework.ModelValidation.UnlimitedStringLength
     public string Settings { get; private set; } = "[]";
 
     /// <summary>

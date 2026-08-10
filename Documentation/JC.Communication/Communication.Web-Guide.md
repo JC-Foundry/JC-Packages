@@ -1,24 +1,50 @@
 # JC.Communication.Web — Guide
 
-Tag helpers and models for rendering JC.Communication features in Razor views. Covers notifications (dropdown, badge, toasts), messaging (thread view, chat list, compose box, participants), and the contact form. All tag helpers use Bootstrap 5 classes and are self-closing (`TagStructure.WithoutEndTag`).
+Tag helpers for rendering JC.Communication features in Razor views: notifications (dropdown, badge, toasts), messaging (thread view, chat list, compose box, participants), and a contact form. Covers how class names and icons are chosen, every tag helper with examples, and the JavaScript each component expects. See [Setup](Communication.Web-Setup.md) for registration and framework selection.
 
-## Prerequisites
+All tag helpers are self-closing (`TagStructure.WithoutEndTag`).
 
-Add `@addTagHelper *, JC.Communication.Web` to your `_ViewImports.cshtml` to enable the tag helpers.
+## How class names and icons are chosen
 
-Notification tag helpers require `NotificationCache` (registered via `AddNotifications`). Messaging tag helpers require `ChatModel` or `List<ChatModel>` from `ChatThreadService`. The `<chat-list>` tag helper also requires `IRepositoryManager` and `IUserInfo` (registered via JC.Core and JC.Identity).
+No class name or icon is hardcoded in a tag helper. Each is read from two dictionaries resolved from the container:
+
+- `ICommunicationFrameworkDictionary` — CSS classes, selected by the `UIFramework` passed to `AddCommunicationWeb` (or to `AddUI` / `AddWebDefaults`, whichever ran first).
+- `ICommunicationIconDictionary` — icon classes, selected by the `IconFramework`, which is an independent choice. A Tailwind application may still use Bootstrap Icons.
+
+The practical consequence is that the components' colour and icon attributes are **nullable**. Left unset they fall back to the dictionary, which is what makes the same markup work under every framework:
+
+```razor
+@* Uses whatever the configured framework calls its danger colour *@
+<notification-badge />
+
+@* Bootstrap: bg-danger · Tailwind: bg-red-600 · jc-tailwind-ui: tone-danger *@
+<notification-badge badge-colour="danger" />
+```
+
+Set a colour explicitly and you are writing that framework's vocabulary, so the value has to match the framework you registered. See [Contextual colours change meaning per framework](Communication.Web-Setup.md#contextual-colours-change-meaning-per-framework).
+
+### Icon values are complete class attributes
+
+An icon value is the **whole** class attribute, not a glyph suffix — `"bi bi-bell"` under Bootstrap Icons, `"fa-solid fa-bell"` under Font Awesome, which share no base class.
+
+Caller-supplied values are normalised against the configured set's base class, so under Bootstrap Icons both forms work:
+
+```razor
+<notification-dropdown icon="bi-star" />      @* normalised to "bi bi-star" *@
+<notification-dropdown icon="bi bi-star" />   @* left as-is *@
+```
+
+**Nuance:** Font Awesome has no base class, so nothing is prepended and the value is taken exactly as given. A `NotificationStyle.CustomIconClass` stored as `"bi-star"` therefore renders as `"bi-star"` under Font Awesome and shows no glyph. Stored icon values need migrating when the icon set changes.
 
 ## Notifications
 
 ### Notification dropdown
 
-Renders a bell button with a dropdown list of the current user's unread notifications. Notifications are retrieved from `NotificationCache` and ordered by creation date descending. Read notifications are excluded.
+Renders a bell button with a dropdown of the current user's unread notifications, read from `NotificationCache`, filtered to unread and ordered by creation date descending.
 
 ```razor
 <notification-dropdown />
 ```
-
-Customise the appearance and behaviour:
 
 ```razor
 <notification-dropdown
@@ -34,20 +60,24 @@ Customise the appearance and behaviour:
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `icon` | `string` | `"bi-bell"` | Bootstrap icon class for the bell button. |
-| `badge-colour` | `string` | `"danger"` | Bootstrap colour class for the unread count badge. |
+| `icon` | `string?` | `null` | Icon class for the bell. Falls back to the icon dictionary's bell. |
+| `badge-colour` | `string?` | `null` | Colour for the unread count badge and the per-item unread dot. Falls back to the dictionary's default, which is `danger` under Bootstrap. |
 | `max-height` | `int` | `350` | Maximum height of the scrollable notification list in pixels. |
 | `dropdown-width` | `int` | `360` | Dropdown menu width in pixels. |
 | `empty-text` | `string` | `"No new notifications"` | Text shown when there are no unread notifications. |
 | `body-max-length` | `int` | `80` | Maximum notification body length before truncation. |
-| `view-all-href` | `string?` | `null` | URL for the "View all" footer link. If null, no footer is rendered. |
-| `align` | `string` | `"end"` | Bootstrap dropdown alignment class (`"start"` or `"end"`). |
+| `view-all-href` | `string?` | `null` | URL for the "View all" footer link. When null, no footer or divider is rendered. |
+| `align` | `string?` | `null` | Menu alignment. Falls back to the dictionary's default, which is `end` under Bootstrap. |
 
-Each notification item shows an icon and colour based on `NotificationType`. Custom styling on a notification's `NotificationStyle` takes precedence over the type-based defaults from `NotificationUIHelper`. If the notification has a `UrlLink`, the item is rendered as an `<a>` tag instead of a `<div>`.
+Each item shows an icon and colour derived from the notification's `NotificationType`. A notification's `NotificationStyle.CustomIconClass` and `CustomColourClass` override those defaults individually — set one and the other still comes from the type. Items with a `UrlLink` render as `<a>` rather than `<div>`.
+
+The count badge is only rendered when there is at least one unread notification, and is capped at `99+`.
+
+**Nuance:** `badge-colour` drives both the count badge and each item's unread dot, so they cannot be coloured separately.
 
 ### Notification badge
 
-Renders a lightweight unread notification count badge — use this when you only need the count, not the full dropdown.
+The count on its own, for when you do not need the dropdown.
 
 ```razor
 <notification-badge />
@@ -62,15 +92,17 @@ Renders a lightweight unread notification count badge — use this when you only
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `icon` | `string` | `"bi-bell"` | Bootstrap icon class. |
-| `badge-colour` | `string` | `"danger"` | Bootstrap colour class for the badge pill. |
-| `hide-when-zero` | `bool` | `true` | When `true`, only the icon is shown if the unread count is zero. |
+| `icon` | `string?` | `null` | Icon class. Falls back to the icon dictionary's bell. |
+| `badge-colour` | `string?` | `null` | Badge colour. Falls back to the dictionary's default, which is `danger` under Bootstrap. |
+| `hide-when-zero` | `bool` | `true` | When `true`, the badge is omitted entirely if the unread count is zero. |
 
-The count is capped at `99+`. The badge uses Bootstrap's `position-absolute translate-middle` positioning.
+The count is capped at `99+`, and a visually-hidden "unread notifications" label is appended for screen readers.
+
+**Nuance:** when the count is zero and `hide-when-zero` is `true`, the wrapping `<span>` is emitted **without** the positioning class — there is nothing to position against. Any layout you hang off that class needs to tolerate its absence, or set `hide-when-zero="false"`.
 
 ### Notification toasts
 
-Renders a fixed-position Bootstrap toast container for notification pop-ups. Each notification becomes a toast with a type-based icon, colour, title, timestamp, and body. Ideal for real-time notifications pushed via SignalR.
+Renders a stack of toasts, one per notification. Suited to real-time notifications pushed over SignalR.
 
 ```razor
 <notification-toast model="@notifications" />
@@ -88,22 +120,24 @@ Renders a fixed-position Bootstrap toast container for notification pop-ups. Eac
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `model` | `List<Notification>` | — | The notifications to render as toasts. Required. |
-| `position` | `string` | `"top-0 end-0"` | Bootstrap position classes for the toast container. |
-| `auto-hide` | `bool` | `true` | Whether toasts auto-hide after the delay. |
-| `delay` | `int` | `5000` | Auto-hide delay in milliseconds. |
-| `body-max-length` | `int` | `120` | Maximum body text length before truncation. |
-| `container-id` | `string` | `"notification-toasts"` | HTML `id` attribute for the container element. |
+| `model` | `List<Notification>` | — | The notifications to render. Required. |
+| `position` | `string?` | `null` | Container position. Falls back to the dictionary's default, which is `top-0 end-0` under Bootstrap. |
+| `auto-hide` | `bool` | `true` | Emitted as `data-bs-autohide`. |
+| `delay` | `int` | `5000` | Auto-hide delay in milliseconds, emitted as `data-bs-delay`. |
+| `body-max-length` | `int` | `120` | Maximum body length before truncation. |
+| `container-id` | `string` | `"notification-toasts"` | HTML `id` for the container element. |
 
-When a notification has `BodyHtml` set, it is used as the toast body content instead of the truncated plain-text `Body`. If the notification has a `UrlLink`, the entire toast is wrapped in an `<a>` tag. A `<script>` block is emitted to auto-show all toasts using `bootstrap.Toast(t).show()`.
+Each toast carries a type-based icon and colour, a title, a relative timestamp and a close button. A notification with a `UrlLink` has its whole content wrapped in an `<a>`.
 
-**Nuance:** Custom `NotificationStyle` properties (`CustomIconClass`, `CustomColourClass`) take precedence over the type-based defaults from `NotificationUIHelper`.
+**Nuance:** when a notification has `BodyHtml` set, it is written into the toast **unencoded** — that is the point of the property, and it is why `BodyHtml` must never hold unsanitised user input. Without it, `Body` is truncated and HTML-encoded as normal. Sanitise on write with JC.Web's [`ContentSanitiser`](../JC.Web/UI-Guide.md#sanitising-user-html) if the value can originate from a user.
+
+**Nuance:** `model` is the only attribute that is not null-checked into a suppressed output — a null model renders an empty container rather than nothing.
 
 ## Messaging
 
 ### Message thread
 
-Renders a chat thread view showing messages with sender info, timestamps, and reply-to context. Sent and received messages are styled differently and positioned on opposite sides. The container has a configurable max height with auto-scroll to the latest message.
+Renders a thread: a header, the messages in `SentAtUtc` order, and an auto-scroll script.
 
 ```razor
 <message-thread
@@ -127,24 +161,28 @@ Renders a chat thread view showing messages with sender info, timestamps, and re
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `model` | `ChatModel` | — | The chat model to render. Required. |
-| `current-user-id` | `string` | — | The current user's ID, used to distinguish sent vs received messages. Required. |
-| `sent-colour` | `string` | `"primary"` | Bootstrap colour class for sent message bubbles. |
-| `received-colour` | `string` | `"light"` | Bootstrap colour class for received message bubbles. |
-| `sent-text-colour` | `string` | `"white"` | Bootstrap text colour class for sent messages. |
-| `received-text-colour` | `string` | `"dark"` | Bootstrap text colour class for received messages. |
+| `model` | `ChatModel` | — | The chat to render. Required — output is suppressed entirely when null. |
+| `current-user-id` | `string` | — | Distinguishes sent from received messages. Required. |
+| `sent-colour` | `string?` | `null` | Background for sent bubbles. Falls back to the dictionary's default, `primary` under Bootstrap. |
+| `received-colour` | `string?` | `null` | Background for received bubbles. Falls back to `light` under Bootstrap. |
+| `sent-text-colour` | `string?` | `null` | Text colour for sent bubbles. Falls back to `white` under Bootstrap. |
+| `received-text-colour` | `string?` | `null` | Text colour for received bubbles. Falls back to `dark` under Bootstrap. |
 | `reply-truncate-length` | `int` | `60` | Maximum length of the reply-to preview before truncation. |
-| `max-height` | `int` | `500` | Maximum height of the message container in pixels. Set to `0` for no limit. |
-| `container-class` | `string` | `"d-flex flex-column gap-2 p-3"` | CSS class for the message container. |
-| `user-resolver` | `Func<string, string>?` | `null` | Resolves a user ID to a display name. If null, the raw user ID is shown. |
+| `max-height` | `int` | `500` | Maximum container height in pixels. Set to `0` for no limit. |
+| `container-class` | `string?` | `null` | Overrides the container class entirely. Falls back to the dictionary's. |
+| `user-resolver` | `Func<string, string>?` | `null` | Resolves a user ID to a display name. Without it, the raw ID is shown. |
 
-The tag helper renders a header with the thread name, metadata icon/colour, and a member count badge for group chats. Messages are ordered by `SentAtUtc` ascending. When a message has a `ReplyToMessageId`, a preview of the original message is shown with a reply arrow icon. Sender names are only shown for received messages in group chats.
+The header shows the thread's metadata image or icon, the chat name (tinted when metadata carries a `Colour`), and a member count badge for group chats. Sender names appear only on received messages in group chats.
 
-**Nuance:** When `max-height` is greater than `0`, the container gets `overflow-y:auto` styling and an inline `<script>` auto-scrolls to the bottom: `e.scrollTop = e.scrollHeight`. The container ID is `thread-{ThreadId}`.
+**Nuance:** under jc-tailwind-ui a bubble takes both its fill and its text colour from the tone, so `sent-text-colour` and `received-text-colour` have no effect there. The tone carries its own readable foreground, which is what lets a custom colour work without a second legibility decision.
+
+**Nuance:** a reply preview is only rendered when the replied-to message is **in the same model**. `ReplyToMessageId` is looked up against the messages loaded into this thread, so a reply to a message outside the loaded window renders as an ordinary message with no quote.
+
+**Nuance:** when `max-height` is greater than `0`, the container gets `overflow-y:auto` and an inline script sets `scrollTop = scrollHeight`. The container's id is `thread-{ThreadId}`. With `max-height="0"` no script is emitted and the thread grows to fit.
 
 ### Chat list
 
-Renders a list of chat thread previews with thread name, last message preview, last activity time, metadata (icon/image/colour), and optional unread message count badges.
+Renders thread previews with name, last message, activity time, metadata and optional unread counts.
 
 ```razor
 <chat-list model="@chats" />
@@ -164,40 +202,30 @@ Renders a list of chat thread previews with thread name, last message preview, l
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `model` | `List<ChatModel>` | — | The chat models to render. Required. |
-| `href-format` | `string` | `"/chat/{0}"` | URL format for thread links. `{0}` is replaced with the thread ID. |
-| `preview-max-length` | `int` | `50` | Maximum length of the last message preview before truncation. |
-| `empty-text` | `string` | `"No conversations"` | Text shown when no chats exist. |
-| `container-class` | `string` | `"list-group"` | CSS class for the container element. |
-| `show-unread` | `bool` | `true` | Whether to show unread message count badges. |
-| `unread-badge-colour` | `string` | `"primary"` | Bootstrap badge colour for unread counts. |
-| `user-resolver` | `Func<string, string>?` | `null` | Resolves a user ID to a display name for the last message sender. |
+| `model` | `List<ChatModel>` | — | The chats to render. Required. |
+| `href-format` | `string` | `"/chat/{0}"` | Link format. `{0}` is replaced with the URL-encoded thread ID. |
+| `preview-max-length` | `int` | `50` | Maximum last-message preview length before truncation. |
+| `empty-text` | `string` | `"No conversations"` | Text shown when the model is null or empty. |
+| `container-class` | `string?` | `null` | Overrides the container class entirely. Falls back to the dictionary's. |
+| `show-unread` | `bool` | `true` | Whether to compute and show unread count badges. |
+| `unread-badge-colour` | `string?` | `null` | Unread badge colour. Falls back to `primary` under Bootstrap. |
+| `user-resolver` | `Func<string, string>?` | `null` | Resolves the last message sender's ID to a display name. |
 
-Each thread item is rendered as an `<a>` tag with a `list-group-item-action` class. The avatar area shows the thread's metadata image, icon (with colour background), or a default person/people icon. The unread badge is capped at `99+`.
+The avatar falls back in three steps: the thread metadata's image, then its icon on a coloured background, then a person or people glyph from the icon dictionary depending on `IsGroupChat`.
 
-**Nuance:** Unread counts are computed by querying `MessageReadLog` entries for the current user across all threads in the model. For each thread, the tag helper finds the latest message the user has a read log for, then counts messages with a `SentAtUtc` after that point. If no read log exists for a thread, all messages are considered unread. This requires `IRepositoryManager` and `IUserInfo` to be injected — the tag helper uses `ProcessAsync` rather than `Process` to support the async database query.
+**Nuance:** unread counts hit the database. For each thread the tag helper finds the newest message the current user has a `MessageReadLog` for, then counts messages sent after it; a thread with no read log counts as entirely unread. This runs one query across all threads in the model, but it does mean `<chat-list>` needs `IRepositoryManager` and `IUserInfo`, and that it renders asynchronously. Set `show-unread="false"` to skip the query entirely.
+
+**Nuance:** counts are computed from `chat.Messages` on the model you pass in, not from the database. If you load threads with only the latest message per thread, every count will be at most one.
 
 ### Chat input
 
-Renders a message compose box with a textarea, send button, and optional reply-to preview bar. Posts to the configured endpoint as a form submission.
+A compose box that posts to your endpoint as an ordinary form.
 
 ```razor
 <chat-input
     endpoint="/api/messages/send"
     thread-id="@chat.ThreadId" />
 ```
-
-With reply-to:
-
-```razor
-<chat-input
-    endpoint="/api/messages/send"
-    thread-id="@chat.ThreadId"
-    reply-to="@selectedReplyMessage"
-    user-resolver="@(id => userService.GetDisplayName(id))" />
-```
-
-Full configuration:
 
 ```razor
 <chat-input
@@ -217,26 +245,28 @@ Full configuration:
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `endpoint` | `string` | — | POST endpoint URL for sending messages. Required. |
-| `thread-id` | `string` | — | Thread ID included as a hidden input. Required. |
-| `reply-to` | `MessageModel?` | `null` | The message being replied to. If set, a dismissible reply preview is shown and a hidden `ReplyToMessageId` input is included. |
-| `reply-truncate-length` | `int` | `80` | Maximum length of the reply-to preview before truncation. |
-| `placeholder` | `string` | `"Type a message..."` | Textarea placeholder text. |
-| `rows` | `int` | `2` | Number of rows for the textarea. |
-| `max-length` | `int` | `4096` | HTML `maxlength` attribute on the textarea. |
-| `button-text` | `string` | `"Send"` | Send button text (shown next to a `bi-send` icon). |
-| `button-colour` | `string` | `"primary"` | Bootstrap button colour class. |
-| `prefix` | `string` | `"Input"` | Model binding prefix for input `name` attributes. |
+| `endpoint` | `string` | — | POST endpoint. Required. |
+| `thread-id` | `string` | — | Thread ID, included as a hidden input. Required. |
+| `reply-to` | `MessageModel?` | `null` | The message being replied to. When set, a preview bar and a hidden `ReplyToMessageId` input are rendered. |
+| `reply-truncate-length` | `int` | `80` | Maximum reply preview length before truncation. |
+| `placeholder` | `string` | `"Type a message..."` | Textarea placeholder. |
+| `rows` | `int` | `2` | Textarea rows. |
+| `max-length` | `int` | `4096` | Textarea `maxlength`. |
+| `button-text` | `string` | `"Send"` | Send button text, rendered beside the icon dictionary's send glyph. |
+| `button-colour` | `string?` | `null` | Send button colour. Falls back to `primary` under Bootstrap. |
+| `prefix` | `string` | `"Input"` | Model binding prefix for input names. |
 | `antiforgery` | `bool` | `true` | Whether to include an anti-forgery token hidden input. |
-| `user-resolver` | `Func<string, string>?` | `null` | Resolves the reply-to sender's user ID to a display name. |
+| `user-resolver` | `Func<string, string>?` | `null` | Resolves the reply-to sender's ID to a display name. |
 
-The form posts with `method="post"` and includes hidden inputs for `{Prefix}.ThreadId` and optionally `{Prefix}.ReplyToMessageId`. The message textarea uses `{Prefix}.Message` as its name. The reply-to preview bar includes a close button with `btn-close` styling.
+Inputs are named `{prefix}.ThreadId`, `{prefix}.Message` and, when replying, `{prefix}.ReplyToMessageId`. Set `prefix=""` to drop the prefix entirely and bind to top-level parameters.
 
-**Nuance:** Throws `InvalidOperationException` if `endpoint` is not set.
+**Nuance:** throws `InvalidOperationException` when `endpoint` is null or whitespace. This is a startup-visible failure only if the page renders, so exercise the view in a smoke test.
+
+**Nuance:** the reply preview's dismiss button is markup only. It carries no handler — cancelling a reply means re-rendering without `reply-to`, which is your page's job.
 
 ### Chat participants
 
-Renders a horizontal list of participant avatars showing initials in coloured circles. When the number of participants exceeds the maximum display count, an overflow indicator (`+N`) is shown.
+Avatars with initials, and an overflow count past a limit.
 
 ```razor
 <chat-participants model="@chat" />
@@ -253,19 +283,19 @@ Renders a horizontal list of participant avatars showing initials in coloured ci
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `model` | `ChatModel` | — | The chat model whose participants to render. Required. |
-| `max-display` | `int` | `5` | Maximum number of avatars to display before showing the overflow count. |
-| `avatar-size` | `int` | `32` | Avatar circle size in pixels. Font size is automatically calculated as `size / 2.5`. |
-| `container-class` | `string` | `"d-flex align-items-center gap-1"` | CSS class for the container element. |
+| `model` | `ChatModel` | — | The chat whose participants to render. Required — output is suppressed when null, or when there are no participants. |
+| `max-display` | `int` | `5` | Avatars shown before an overflow indicator. |
+| `avatar-size` | `int` | `32` | Avatar diameter in pixels. Font size is derived as `size / 2.5`. |
+| `container-class` | `string?` | `null` | Overrides the container class entirely. Falls back to the dictionary's. |
 | `user-resolver` | `Func<string, string>?` | `null` | Resolves a user ID to a display name for initials and tooltips. |
 
-Initials are generated by splitting the display name by spaces and taking the first character of the first and last parts. Single-word names produce one initial. If the name is empty, `"?"` is shown. Each avatar has a `title` attribute with the full display name.
+Initials come from the first character of the first and last space-separated parts of the resolved name, uppercased. A single-word name gives one initial; an empty name gives `?`. Each avatar carries a `title` with the full name.
+
+**Nuance:** under jc-tailwind-ui the container is that framework's `avatar-group`, which overlaps the avatars rather than spacing them. It is the component the framework ships for this; pass `container-class` if you want the spaced row instead.
 
 ## Contact form
 
-### Contact form
-
-Renders a Bootstrap form with email, subject, and message fields. Posts to the configured endpoint using the `ContactInputModel` shape.
+Renders email, subject and message fields posting to your endpoint in the `ContactInputModel` shape.
 
 ```razor
 <contact-form endpoint="/api/contact" />
@@ -287,22 +317,20 @@ Renders a Bootstrap form with email, subject, and message fields. Posts to the c
 
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `endpoint` | `string` | — | POST endpoint URL. Required. |
-| `heading` | `string` | `"Contact Us"` | Form heading rendered as an `<h4>`. Set to empty to hide. |
+| `endpoint` | `string` | — | POST endpoint. Required. |
+| `heading` | `string` | `"Contact Us"` | Heading rendered as an `<h4>`. Set to empty to omit it. |
 | `button-text` | `string` | `"Send Message"` | Submit button text. |
-| `button-colour` | `string` | `"primary"` | Bootstrap button colour class. |
-| `prefix` | `string` | `"Input"` | Model binding prefix for input `name` attributes. |
+| `button-colour` | `string?` | `null` | Submit button colour. Falls back to `primary` under Bootstrap. |
+| `prefix` | `string` | `"Input"` | Model binding prefix for input names. |
 | `email-placeholder` | `string` | `"Your email address"` | Email field placeholder. |
 | `subject-placeholder` | `string` | `"Subject"` | Subject field placeholder. |
 | `message-placeholder` | `string` | `"Your message"` | Message textarea placeholder. |
-| `message-rows` | `int` | `5` | Number of rows for the message textarea. |
+| `message-rows` | `int` | `5` | Message textarea rows. |
 | `antiforgery` | `bool` | `true` | Whether to include an anti-forgery token. |
 
-The form inputs are named `{Prefix}.Email`, `{Prefix}.Subject`, and `{Prefix}.Message`, matching the `ContactInputModel` properties. All fields have the `required` HTML attribute set.
+Inputs are named `{prefix}.Email`, `{prefix}.Subject` and `{prefix}.Message`, with ids `contact-email`, `contact-subject` and `contact-message`. All three carry the `required` HTML attribute.
 
-### ContactInputModel
-
-Bind this model to the form POST action to receive the submitted values:
+Bind `ContactInputModel` in the receiving handler:
 
 ```csharp
 public async Task<IActionResult> OnPostAsync(ContactInputModel input)
@@ -310,12 +338,14 @@ public async Task<IActionResult> OnPostAsync(ContactInputModel input)
     if (!ModelState.IsValid)
         return Page();
 
-    // Send email using input.Email, input.Subject, input.Message
+    await email.SendAsync(
+        [new EmailRecipient("support@example.com")],
+        input.Subject,
+        $"From {input.Email}\n\n{input.Message}");
+
     return RedirectToPage("ThankYou");
 }
 ```
-
-The model includes `[Required]`, `[EmailAddress]`, and `[MaxLength]` validation attributes:
 
 | Property | Type | Max length | Validation |
 |----------|------|-----------|------------|
@@ -323,9 +353,50 @@ The model includes `[Required]`, `[EmailAddress]`, and `[MaxLength]` validation 
 | `Subject` | `string` | 256 | Required. |
 | `Message` | `string` | 8192 | Required. |
 
+**Nuance:** throws `InvalidOperationException` when `endpoint` is null or whitespace, as `<chat-input>` does.
+
+## JavaScript these components expect
+
+Three components render markup that needs behaviour attached. What is supplied depends on the configured framework.
+
+| Component | Behaviour | Under Bootstrap | Under any other framework |
+|---|---|---|---|
+| `<notification-dropdown>` | Opening the menu | `data-bs-toggle="dropdown"` on the bell, driven by Bootstrap's JS | You supply it, or the framework does — see below |
+| `<notification-toast>` | Showing each toast | An auto-show script calling `new bootstrap.Toast(t).show()` is emitted | **No script is emitted.** You supply the equivalent |
+| `<notification-toast>` | Dismissing a toast | `data-bs-dismiss="toast"` on the close button, driven by Bootstrap's JS | You supply it |
+
+### Why the `data-bs-*` attributes stay
+
+These attributes are emitted under every framework, not just Bootstrap. Renaming them per framework would mean shipping JavaScript for Bootstrap users, who already have working behaviour from Bootstrap's own bundle. They are a documented contract in two categories:
+
+- **Declarative attributes** — `data-bs-toggle`, `data-bs-dismiss`, `data-bs-autohide`, `data-bs-delay`. A non-Bootstrap application shadows these with a handler of its own. They are inert markup until something reads them.
+- **The auto-show script** — this is the exception, because it depends on the `bootstrap` global and would throw a `ReferenceError` without it. It is therefore **omitted** whenever the configured framework is not Bootstrap, and needs replacing rather than shadowing.
+
+A minimal shadow for the toast, for any non-Bootstrap framework:
+
+```html
+<script type="module">
+  document.querySelectorAll('[data-bs-dismiss="toast"]').forEach(btn =>
+      btn.addEventListener('click', () => btn.closest('.toast')?.remove()));
+</script>
+```
+
+### Under jc-tailwind-ui
+
+The notification dropdown needs nothing: the bell carries that framework's own `dropdown-toggle` class, which is the selector its `ui.js` delegates on, so `initUI()` drives the menu.
+
+```html
+<script type="module">
+  import { initUI } from "/js/ui.js";
+  initUI();
+</script>
+```
+
+Toasts still need the dismiss shadow above — the framework's `ui.js` listens for `data-dismiss`, not `data-bs-dismiss`. Alternatively, skip `<notification-toast>` and call the framework's own `toast()` function from your real-time handler.
+
 ## User resolver pattern
 
-Several tag helpers accept a `user-resolver` attribute — a `Func<string, string>` that converts a user ID to a display name. This is used for sender names, participant initials, and tooltips. Without a resolver, the raw user ID is displayed.
+`<message-thread>`, `<chat-list>`, `<chat-participants>` and `<chat-input>` each accept a `user-resolver` — a `Func<string, string>` mapping a user ID to a display name. Without one, the raw ID is shown.
 
 ```razor
 @inject IUserDisplayService userService
@@ -335,26 +406,17 @@ Several tag helpers accept a `user-resolver` attribute — a `Func<string, strin
     current-user-id="@userInfo.UserId"
     user-resolver="@(id => userService.GetDisplayName(id))" />
 
-<chat-list
-    model="@chats"
-    user-resolver="@(id => userService.GetDisplayName(id))" />
-
 <chat-participants
     model="@chat"
     user-resolver="@(id => userService.GetDisplayName(id))" />
-
-<chat-input
-    endpoint="/api/messages/send"
-    thread-id="@chat.ThreadId"
-    reply-to="@replyMessage"
-    user-resolver="@(id => userService.GetDisplayName(id))" />
 ```
 
-The resolver is invoked synchronously for each user ID. If you need async lookups, pre-resolve the names into a dictionary and use that:
+The resolver is invoked synchronously, once per user ID encountered — including repeats. For an async lookup, or to avoid a per-message call, resolve into a dictionary first:
 
 ```razor
 @{
-    var nameMap = await userService.GetDisplayNamesAsync(chat.Participants.Select(p => p.UserId));
+    var nameMap = await userService.GetDisplayNamesAsync(
+        chat.Participants.Select(p => p.UserId));
 }
 
 <message-thread
@@ -362,3 +424,8 @@ The resolver is invoked synchronously for each user ID. If you need async lookup
     current-user-id="@userInfo.UserId"
     user-resolver="@(id => nameMap.GetValueOrDefault(id, id))" />
 ```
+
+## Next steps
+
+- [Setup](Communication.Web-Setup.md) — registration, framework selection, and per-framework requirements.
+- [API Reference](Communication.Web-API.md)

@@ -1,8 +1,4 @@
-using JC.Core.Data;
-using JC.Core.Helpers;
-using JC.Core.Models;
 using JC.Core.Services.DataRepositories;
-using JC.Github.Data;
 using JC.Github.Helpers;
 using JC.Github.Models;
 using JC.Github.Models.Options;

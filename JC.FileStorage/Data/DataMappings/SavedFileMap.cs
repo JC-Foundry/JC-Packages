@@ -2,6 +2,7 @@ using JC.Core.Data.DataMappings;
 using JC.FileStorage.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+// ReSharper disable RedundantAssignment
 
 namespace JC.FileStorage.Data.DataMappings;
 

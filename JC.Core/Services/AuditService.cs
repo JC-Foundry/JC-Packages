@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JC.Core.Data;
 using JC.Core.Enums;
+using JC.Core.Extensions;
 using JC.Core.Models;
 using JC.Core.Models.Auditing;
 using JC.Core.Models.Options;
@@ -127,12 +128,12 @@ internal class AuditService
         var entry = new AuditEntry
         {
             Action = action,
-            TableName = tableName,
-            EntityKey = entityKey,
-            UserId = _userId,
-            UserName = _userName,
-            ActionUserId = actionUserId,
-            SourceApplication = _sourceApplication,
+            TableName = tableName.Truncate(512, string.Empty),
+            EntityKey = entityKey?.Truncate(1024, string.Empty),
+            UserId = _userId.Truncate(50, string.Empty),
+            UserName = _userName.Truncate(256, string.Empty),
+            ActionUserId = actionUserId?.Truncate(50, string.Empty),
+            SourceApplication = _sourceApplication?.Truncate(512, string.Empty),
             IsActionIdPreferred = IsActionPreferred(actionUserId),
             ActionData = data,
             AuditDate = DateTime.UtcNow

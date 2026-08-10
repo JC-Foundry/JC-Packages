@@ -851,6 +851,60 @@ Forwards to `StorageService.TryDeleteFileForTenant`. Bypasses the tenant query f
 
 ---
 
+# Framework dictionary
+
+The CSS class dictionary for this package's tag helper. Every property holds a **complete** class attribute value rather than a single token, and defaults to `""`, so adding one does not break an existing implementation. Registered by `AddFileStorageWeb` via JC.Web's `AddFrameworkDictionary`.
+
+## IFileStorageFrameworkDictionary
+
+**Namespace:** `JC.FileStorage.Web.Framework`
+
+The class dictionary contract for `<upload-constraints>`. Extends `IFrameworkDictionary`. One implementation exists per supported `UIFramework`; the configured framework decides which is resolved from the container.
+
+The contract belongs to JC.FileStorage.Web rather than JC.Web, so adding a tag helper here needs no JC.Web change and no JC.Web release.
+
+### Properties
+
+| Property | Type | Access | Description |
+|----------|------|--------|-------------|
+| `UploadConstraints` | `UploadConstraintsClasses` | get; | Classes for the upload constraints help text. |
+
+## UploadConstraintsClasses
+
+**Namespace:** `JC.FileStorage.Web.Framework`
+
+Sealed record holding the classes for the upload constraints help text.
+
+### Properties
+
+| Property | Type | Default | Access | Description |
+|----------|------|---------|--------|-------------|
+| `Container` | `string` | `""` | get; init; | The element wrapping the constraint text. |
+
+## BootstrapFileStorageDictionary
+
+**Namespace:** `JC.FileStorage.Web.Framework`
+
+Sealed `IFileStorageFrameworkDictionary` implementation holding Bootstrap 5 class names. Selected when `UIFramework.Bootstrap` is configured, which is the default. `Container` is `form-text`, reproducing the markup this tag helper emitted before class names were made configurable.
+
+## TailwindFileStorageDictionary
+
+**Namespace:** `JC.FileStorage.Web.Framework`
+
+Sealed `IFileStorageFrameworkDictionary` implementation holding Tailwind CSS classes, chosen to reproduce Bootstrap's `form-text` appearance. Selected when `UIFramework.Tailwind` is configured. Targets Tailwind v4 and assumes Preflight. `Container` is `mt-1 text-sm text-gray-500`.
+
+Every class must reach Tailwind's scanner. These values live in a compiled assembly it never reads, so `@source` over application markup does not find them — an application file repeating them verbatim is the practical fix.
+
+## CustomJCTailwindFileStorageDictionary
+
+**Namespace:** `JC.FileStorage.Web.Framework`
+
+Sealed `IFileStorageFrameworkDictionary` implementation holding jc-tailwind-ui classes. Selected when `UIFramework.CustomJCTailwind` is configured. That framework ships `form-text` as its own help-text treatment, so `Container` matches `BootstrapFileStorageDictionary` exactly.
+
+It exists as a distinct type so the framework is a deliberate choice rather than a fallback to the Bootstrap dictionary, and so the value can diverge later without a registration change.
+
+---
+
 # Helpers
 
 ## FormFileHelper
@@ -946,7 +1000,9 @@ Throws `ArgumentOutOfRangeException` if `bytes` is negative.
 
 **Namespace:** `JC.FileStorage.Web.TagHelpers`
 
-Renders a folder's upload constraints as Bootstrap help text. Targets `<upload-constraints>` with no end tag. Requires `@addTagHelper *, JC.FileStorage.Web` — see [Setup](Setup.md#jcfilestorageweb--aspnet-core-integration).
+Renders a folder's upload constraints as help text, using the configured UI framework's classes. Targets `<upload-constraints>` with no end tag. Requires `@addTagHelper *, JC.FileStorage.Web` — see [Setup](Setup.md#jcfilestorageweb--aspnet-core-integration).
+
+Constructor dependencies: `FolderRegistry`, `HtmlHelper`, `IFileStorageFrameworkDictionary`. The latter two come from `AddFileStorageWeb`; without that call, resolution fails when the page renders rather than at build or startup.
 
 Reads the limits through `FolderRegistry.ResolveAllowedExtensions` and `ResolveMaxBytes` — the same values `ValidateFile` enforces — so the text cannot drift from the rule.
 
@@ -961,7 +1017,7 @@ Reads the limits through `FolderRegistry.ResolveAllowedExtensions` and `ResolveM
 | `TypesLabel` | `string` | `Accepted types` | get; set; | Attribute `types-label`. Label before the accepted types. |
 | `SizeLabel` | `string` | `Maximum size` | get; set; | Attribute `size-label`. Label before the maximum size. |
 | `AnyTypeText` | `string` | `Any type except executable files` | get; set; | Attribute `any-type-text`. Shown when no type restriction applies. |
-| `CssClass` | `string` | `form-text` | get; set; | Attribute `css-class`. Classes applied to the wrapper `div`. |
+| `CssClass` | `string?` | `null` | get; set; | Attribute `css-class`. Classes applied to the wrapper `div`. Falls back to `IFileStorageFrameworkDictionary.UploadConstraints.Container` when null or whitespace. |
 | `ViewContext` | `ViewContext` | — | get; set; | Not bound. Supplies the request services used to resolve `IUserInfo`. |
 
 ### Methods

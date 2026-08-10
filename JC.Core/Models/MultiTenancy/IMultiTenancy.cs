@@ -1,3 +1,4 @@
+#pragma warning disable CS1574, CS1584, CS1581, CS1580
 namespace JC.Core.Models.MultiTenancy;
 
 /// <summary>

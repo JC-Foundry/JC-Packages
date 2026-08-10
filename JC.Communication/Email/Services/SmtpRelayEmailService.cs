@@ -6,7 +6,6 @@ using MailKit.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MimeKit;
 
 namespace JC.Communication.Email.Services;
 
@@ -78,7 +77,8 @@ public class SmtpRelayEmailService : IEmailService
                 : null;
             var secret = _config[SmtpRelayOptions.Password]
                          ?? _config[SmtpRelayOptions.ApiKey]
-                         ?? _config[SmtpRelayOptions.Secret];
+                         ?? _config[SmtpRelayOptions.Secret]
+                         ?? throw new InvalidOperationException("No password or API key found.");
 
             if (!string.IsNullOrEmpty(username))
                 await client.AuthenticateAsync(username, secret, cancellationToken);

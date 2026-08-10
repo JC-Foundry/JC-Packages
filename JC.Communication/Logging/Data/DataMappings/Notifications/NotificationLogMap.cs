@@ -2,6 +2,7 @@ using JC.Communication.Logging.Models.Notifications;
 using JC.Core.Data.DataMappings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+// ReSharper disable RedundantAssignment
 
 namespace JC.Communication.Logging.Data.DataMappings.Notifications;
 

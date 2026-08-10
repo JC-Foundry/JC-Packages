@@ -132,7 +132,6 @@ public sealed class NotificationValidationResponse
     /// Creates a successful validation response.
     /// </summary>
     /// <param name="notification">The validated notification.</param>
-    /// <param name="style">The optional validated style.</param>
     public NotificationValidationResponse(Notification notification)
     {
         IsValid = true;

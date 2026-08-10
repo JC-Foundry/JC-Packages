@@ -1,6 +1,7 @@
 using System.Net;
 using JC.Communication.Messaging.Models;
 using JC.Communication.Web.Framework;
+using JC.Communication.Web.Framework.Icons;
 using JC.Core.Extensions;
 using JC.Web.UI.HTML;
 using Microsoft.AspNetCore.Razor.TagHelpers;
@@ -82,7 +83,7 @@ public class MessageThreadTagHelper(HtmlHelper html,
 
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {
-        if (Model == null)
+        if (Model == null!)
         {
             output.SuppressOutput();
             return;
@@ -136,7 +137,7 @@ public class MessageThreadTagHelper(HtmlHelper html,
         if (metadata != null)
         {
             if (!string.IsNullOrWhiteSpace(metadata.ImgPath))
-                iconHtml = html.CreateElement("img", "",
+                iconHtml = html.CreateElement("img", string.Empty,
                     attributes: new Dictionary<string, string>
                     {
                         ["src"] = metadata.ImgPath,
@@ -145,7 +146,7 @@ public class MessageThreadTagHelper(HtmlHelper html,
                     },
                     classes: css.HeaderAvatar);
             else if (!string.IsNullOrWhiteSpace(metadata.Icon))
-                iconHtml = html.CreateElement("i", "",
+                iconHtml = html.CreateElement("i", string.Empty,
                     attributes: new Dictionary<string, string>
                     {
                         ["style"] = "font-size:1.25rem;"
@@ -190,7 +191,7 @@ public class MessageThreadTagHelper(HtmlHelper html,
             var replyBody = WebUtility.HtmlEncode(replyTo.Message.Truncate(ReplyTruncateLength));
 
             replyHtml = html.CreateElement("div",
-                html.CreateElement("i", "", classes: icons.Icons.Reply) + " " +
+                html.CreateElement("i", string.Empty, classes: icons.Icons.Reply) + " " +
                 html.CreateElement("span", replyName, classes: css.ReplyName) + " " +
                 replyBody,
                 classes: css.ReplyPreview);

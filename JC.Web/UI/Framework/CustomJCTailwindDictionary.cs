@@ -11,11 +11,17 @@ namespace JC.Web.UI.Framework;
 /// <c>tone-{type}</c> class, so the contextual colour composes as <c>tone-{0}</c>. Unlike Bootstrap's
 /// per-type shorthands, that works for any colour the application defines a tone for.
 /// <para>
-/// Two requirements: <see cref="Pagination"/> needs the opt-in <c>interactive</c> layer, and the few
-/// stock Tailwind utilities used below must be declared —
-/// <c>@source inline("{hidden,flex,justify-between,font-semibold,mb-2,py-1,px-2,text-sm}")</c>,
-/// plus <c>print:hidden</c> and <c>text-[var(--t-l)]</c>. The framework's own classes are always in
-/// the bundle and need nothing.
+/// Two requirements. <see cref="Pagination"/> needs the opt-in <c>interactive</c> layer. And the
+/// stock Tailwind utilities used below must be declared in <c>UI/jc-web.tailwind.css</c> — adding or
+/// changing one here means updating that file, or it renders with a valid class name and no CSS
+/// behind it.
+/// </para>
+/// <para>
+/// The distinction that matters is <i>authored CSS rule</i> against <i>generated utility</i>, not
+/// which framework is in play. jc-tailwind-ui compiles from source through Tailwind rather than
+/// shipping finished CSS, so its own component classes (<c>btn</c>, <c>card</c>, <c>form-control</c>,
+/// <c>tone-*</c>) are real rules in its bundle and need nothing, while every stock utility and
+/// arbitrary value below is generated on demand and needs scanning exactly as under plain Tailwind.
 /// </para>
 /// </remarks>
 public sealed class CustomJCTailwindDictionary : IWebFrameworkDictionary

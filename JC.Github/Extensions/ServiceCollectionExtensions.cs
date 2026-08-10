@@ -1,5 +1,4 @@
 using JC.Core.Data;
-using JC.Core.Extensions;
 using JC.Github.Data;
 using JC.Github.Helpers;
 using JC.Github.Models;

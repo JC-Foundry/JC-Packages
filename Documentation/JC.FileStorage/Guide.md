@@ -14,13 +14,15 @@ Folders live in a singleton `FolderRegistry` populated at startup. A folder must
 var app = builder.Build();
 
 // No-tenant folders
-app.AddFolders(true, "invoices", "reports");
+app.Services.AddFolders(true, "invoices", "reports");
 
 // Tenant-scoped folders
-app.AddFolders(true,
+app.Services.AddFolders(true,
     new FolderModel("invoices", "tenant-a"),
     new FolderModel("invoices", "tenant-b"));
 ```
+
+`AddFolders` extends `IServiceProvider`, so the same call registers folders from a worker service or a test host as readily as from a web application. Referencing JC.FileStorage.Web adds an `app.AddFolders(...)` overload on `IApplicationBuilder` that forwards to it.
 
 Passing an unregistered folder to any `StorageService` method throws `ArgumentException` from `FilePathProvider.GetPath`.
 
@@ -62,7 +64,7 @@ var registry = app.Services.GetRequiredService<FolderRegistry>();
 registry.DefaultMaxBytes = 5 * 1024 * 1024;                  // applies to folders with no MaxBytes
 registry.DefaultAllowedExtensions = [".pdf", ".png"];        // applies to folders with no AllowedExtensions
 
-app.AddFolders(true,
+app.Services.AddFolders(true,
     new FolderModel("invoices", null, 10 * 1024 * 1024, [".pdf"]),  // its own limits
     new FolderModel("scratch"));                                     // inherits both defaults
 ```
@@ -375,7 +377,7 @@ The text is read from the registry, so it always matches what the server enforce
 | `show-types` / `show-size` | `true` | Show each half. Both off suppresses the element. |
 | `types-label` / `size-label` | "Accepted types" / "Maximum size" | Leading labels. |
 | `any-type-text` | "Any type except executable files" | Shown when no type restriction applies. |
-| `css-class` | `form-text` | Classes on the wrapper. |
+| `css-class` | `null` | Classes on the wrapper. Falls back to the configured framework's dictionary, which is `form-text` under Bootstrap. |
 
 **Nuance:** the tag helper throws if the folder is not registered *for that tenant*. Folders are per-tenant, so a page shared across tenants needs the folder registered for every one of them.
 

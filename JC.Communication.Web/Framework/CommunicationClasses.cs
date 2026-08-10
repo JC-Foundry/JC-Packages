@@ -1,4 +1,5 @@
 using JC.Communication.Notifications.Models;
+using JC.Communication.Web.Framework.Icons;
 using JC.Web.UI.Framework;
 
 namespace JC.Communication.Web.Framework;

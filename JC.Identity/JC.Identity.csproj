@@ -1,9 +1,11 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <PackageId>JC.Identity</PackageId>
-        <Version>5.1.0</Version>
-        <Description>Identity library providing ASP.NET Core Identity integration, context-bound multi-tenancy query filters, middleware, and user management helpers.</Description>
+        <Version>6.0.0</Version>
+        <Description>ASP.NET Core Identity wired into the JC suite. IdentityDataDbContext extends IdentityDbContext and implements JC.Core's IDataDbContext, so identity, tenants and the audit trail share one context and every change is attributed to the signed-in user. Multi-tenancy is enforced by global query filters reading the current tenant per query rather than caching it at model build. A claims factory projects twelve fields from your BaseUser onto the principal, and middleware reads them back into IUserInfo — the contract the rest of the suite depends on for attribution and tenant scoping. Further middleware enforces disabled accounts, forced password changes and optional two-factor, skipping static files and configured paths, and helpers seed system roles and a default administrator from configuration.</Description>
+        <PackageTags>$(PackageTags);identity;authentication;claims;multi-tenancy;aspnetcore</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
@@ -17,5 +19,11 @@
 
     <ItemGroup Condition="'$(UseLocalProjectReferences)' != 'true'">
         <PackageReference Include="JC.Core" />
+    </ItemGroup>
+    <!-- The README ships in the package: it is the landing page on a feed, and the
+         project's front page on GitHub. Update rather than Include - the SDK's default
+         globs already pick .md up as None. -->
+    <ItemGroup>
+        <None Update="README.md" Pack="true" PackagePath="\" />
     </ItemGroup>
 </Project>

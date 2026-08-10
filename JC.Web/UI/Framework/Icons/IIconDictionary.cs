@@ -1,4 +1,4 @@
-namespace JC.Web.UI.Framework;
+namespace JC.Web.UI.Framework.Icons;
 
 /// <summary>
 /// Marker for a package's icon class dictionary. Each package defines its own contract deriving

@@ -1,7 +1,5 @@
 using JC.Communication.Logging.Models.Notifications;
-using JC.Communication.Notifications.Data;
 using JC.Communication.Notifications.Models.Options;
-using JC.Core.Data;
 using JC.Core.Models;
 using JC.Core.Services.DataRepositories;
 using Microsoft.EntityFrameworkCore;

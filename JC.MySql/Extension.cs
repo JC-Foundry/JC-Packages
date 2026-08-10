@@ -1,4 +1,3 @@
-using HealthChecks.MySql;
 using JC.Core.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;

@@ -1,15 +1,22 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <PackageId>JC.FileStorage.Web</PackageId>
-        <Version>5.1.0</Version>
-        <TargetFramework>net9.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
+        <Version>6.0.0</Version>
+        <Description>ASP.NET Core integration for JC.FileStorage. WebStorageService wraps StorageService to take IFormFile uploads, rejecting them against the folder's limits before the stream is read, and returns stored files with the MIME type and download name an action result needs. FormFileHelper strips the directory component browsers have historically sent in a file name, normalises extensions, and maps them to MIME types from the shared framework's ~380 known types. An &lt;upload-constraints&gt; tag helper renders a folder's accepted types and size limit as help text, read from the same registry values the server enforces so the two cannot drift. Class names come from a dictionary selected by the configured CSS framework, and a Tailwind safelist ships alongside.</Description>
+        <PackageTags>$(PackageTags);aspnetcore;file-upload;iformfile;tag-helpers;mime-types</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
+    <!-- The Tailwind safelist ships in the package: a consumer on either Tailwind framework
+         imports it from their entry CSS, and it is useless to them if it stays in this repo.
+         Update rather than Include — the SDK's default globs already pick .css up as None. -->
+    <ItemGroup>
+        <None Update="jc-filestorage.tailwind.css" Pack="true" PackagePath="contentFiles\any\any\" PackageCopyToOutput="false" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(UseLocalProjectReferences)' == 'true'">
@@ -22,4 +29,10 @@
         <PackageReference Include="JC.Web" />
     </ItemGroup>
 
+    <!-- The README ships in the package: it is the landing page on a feed, and the
+         project's front page on GitHub. Update rather than Include - the SDK's default
+         globs already pick .md up as None. -->
+    <ItemGroup>
+        <None Update="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
 </Project>

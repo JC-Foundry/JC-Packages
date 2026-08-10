@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using JC.Communication.Messaging.Models.DomainModels;
 using JC.Core.Models.Auditing;
 using Microsoft.EntityFrameworkCore;
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
 namespace JC.Communication.Logging.Models.Messaging;
 

@@ -1,6 +1,7 @@
 using System.Net;
 using JC.Communication.Notifications.Models;
 using JC.Communication.Web.Framework;
+using JC.Communication.Web.Framework.Icons;
 using JC.Core.Extensions;
 using JC.Web.UI.Framework;
 using JC.Web.UI.HTML;
@@ -75,7 +76,7 @@ public class NotificationToastTagHelper(HtmlHelper html,
         var css = dictionary.NotificationToast;
 
         var toasts = "";
-        if (Model != null)
+        if (Model != null!)
             toasts = string.Concat(Model.Select(BuildToast));
 
         var position = WebUtility.HtmlEncode(
@@ -119,11 +120,11 @@ public class NotificationToastTagHelper(HtmlHelper html,
         var time = notification.CreatedUtc.ToRelativeTime();
 
         // Toast header
-        var headerIcon = html.CreateElement("i", "",
+        var headerIcon = html.CreateElement("i", string.Empty,
             classes: css.HeaderIcon(WebUtility.HtmlEncode(iconClass), WebUtility.HtmlEncode(colourClass)));
         var headerTitle = html.CreateElement("strong", title, classes: css.HeaderTitle);
         var headerTime = html.CreateElement("small", WebUtility.HtmlEncode(time), classes: css.HeaderTime);
-        var closeBtn = html.CreateElement("button", "",
+        var closeBtn = html.CreateElement("button", string.Empty,
             attributes: new Dictionary<string, string>
             {
                 ["type"] = "button",

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using JC.Communication.Email.Models.Options;
 using JC.Core.Models.Auditing;
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
 
@@ -36,7 +37,7 @@ public class EmailLog : LogModel
     public ICollection<EmailRecipientLog> EmailRecipientLogs { get; set; }
 
     /// <summary>
-    /// The email body content log. Only populated when <see cref="Options.EmailLoggingMode.FullLog"/> is used.
+    /// The email body content log. Only populated when <see cref="EmailLoggingMode.FullLog"/> is used.
     /// </summary>
     public EmailContentLog? EmailContentLog { get; set; }
 

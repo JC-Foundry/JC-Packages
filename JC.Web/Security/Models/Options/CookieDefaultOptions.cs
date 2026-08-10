@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Http;
 namespace JC.Web.Security.Models.Options;
 
 /// <summary>
-/// Global default options applied to all cookies created by <see cref="Abstractions.ICookieService"/> implementations.
+/// Global default options applied to all cookies created by <see cref="Services.ICookieService"/> implementations.
 /// These defaults are used as the baseline, with any <see cref="CookieDefaultOverride"/> properties merged on top.
 /// </summary>
 public class CookieDefaultOptions

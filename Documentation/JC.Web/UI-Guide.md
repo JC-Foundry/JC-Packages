@@ -31,6 +31,19 @@ A null, empty or whitespace-only `message` suppresses the element entirely, so b
 
 **`message` is inserted as raw HTML.** It is passed through unencoded so an alert can contain a link or bold text. Encode anything user-supplied before binding it.
 
+**A dismissible alert's close button carries `data-bs-dismiss="alert"` under every framework.** This is the one place JC.Web emits a Bootstrap behavioural attribute, and it stays because the alternative is shipping JavaScript for Bootstrap users who already have working behaviour from Bootstrap's own bundle. The class on the button always comes from the dictionary; only the attribute is fixed.
+
+Under Bootstrap it works with no further action. Under Tailwind or jc-tailwind-ui the attribute is inert markup until something reads it, so dismissal needs one handler of your own:
+
+```html
+<script type="module">
+  document.querySelectorAll('[data-bs-dismiss="alert"]').forEach(btn =>
+      btn.addEventListener('click', () => btn.closest('[role="alert"]')?.remove()));
+</script>
+```
+
+Nothing else in JC.Web depends on a framework's JavaScript — `<bug-reporter>` ships its own vanilla script, and `<pagination>`, `<breadcrumb>` and non-dismissible alerts are static markup.
+
 ### Pagination
 
 ```cshtml

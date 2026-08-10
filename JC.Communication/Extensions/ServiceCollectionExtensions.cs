@@ -3,25 +3,21 @@ using JC.Communication.Email.Models;
 using JC.Communication.Email.Models.Options;
 using JC.Communication.Email.Services;
 using JC.Communication.Logging.Data;
-using JC.Communication.Logging.Models.Email;
-using JC.Communication.Logging.Models.Messaging;
-using JC.Communication.Logging.Models.Notifications;
 using JC.Communication.Logging.Services;
 using JC.Communication.Messaging.Data;
-using JC.Communication.Messaging.Models.DomainModels;
 using JC.Communication.Messaging.Models.Options;
 using JC.Communication.Messaging.Services;
 using JC.Communication.Notifications.Data;
-using JC.Communication.Notifications.Models;
 using JC.Communication.Notifications.Models.Options;
 using JC.Communication.Notifications.Services;
 using JC.Core.Data;
-using JC.Core.Extensions;
 using JC.Core.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+// ReSharper disable ConditionalAccessQualifierIsNonNullableAccordingToAPIContract
+// ReSharper disable UnusedMethodReturnValue.Local
 
 namespace JC.Communication.Extensions;
 

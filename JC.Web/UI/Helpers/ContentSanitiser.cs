@@ -1,4 +1,5 @@
 using Ganss.Xss;
+// ReSharper disable ConditionalAccessQualifierIsNonNullableAccordingToAPIContract
 
 namespace JC.Web.UI.Helpers;
 

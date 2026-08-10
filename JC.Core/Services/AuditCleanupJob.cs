@@ -1,4 +1,3 @@
-using JC.Core.Data;
 using JC.Core.Models;
 using JC.Core.Models.Auditing;
 using JC.Core.Models.Options;

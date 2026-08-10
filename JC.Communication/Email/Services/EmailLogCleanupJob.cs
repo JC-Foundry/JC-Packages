@@ -1,7 +1,5 @@
 using JC.Communication.Email.Models.Options;
-using JC.Communication.Logging.Data;
 using JC.Communication.Logging.Models.Email;
-using JC.Core.Data;
 using JC.Core.Models;
 using JC.Core.Services.DataRepositories;
 using Microsoft.EntityFrameworkCore;

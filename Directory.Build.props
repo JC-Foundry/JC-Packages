@@ -4,10 +4,26 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Authors>jcraik</Authors>
+    <Company>JC Foundry</Company>
+    <Product>JC-Packages</Product>
+    <Copyright>Copyright © JC Foundry</Copyright>
     <IsPackable>true</IsPackable>
-    <RepositoryUrl>https://github.com/johncraik/JC-Packages</RepositoryUrl>
+    <RepositoryUrl>https://github.com/JC-Foundry/JC-Packages</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/JC-Foundry/JC-Packages</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+    <!-- Each package appends its own tags to this with $(PackageTags), so the shared one is
+         never lost. Setting PackageTags in a csproj without it would silently drop it. -->
     <PackageTags>jc-packages</PackageTags>
+
+    <!-- Emit the XML doc file beside each assembly. It is packed automatically, so consumers
+         get IntelliSense from the /// comments, and it turns on cref validation (CS1574) —
+         without it a <see cref="..."/> pointing at something that no longer exists is silent.
+         1591 (missing XML comment on a public member) is suppressed: documenting every public
+         member is not a goal, and leaving it on would bury the cref warnings that are. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
 
     <!-- When building inside this repo, prefer local project references -->
     <UseLocalProjectReferences>true</UseLocalProjectReferences>

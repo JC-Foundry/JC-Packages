@@ -1,6 +1,7 @@
 using JC.Web.UI.Framework;
+using JC.Web.UI.Framework.Icons;
 
-namespace JC.Communication.Web.Framework;
+namespace JC.Communication.Web.Framework.Icons;
 
 /// <summary>
 /// The icon class dictionary for JC.Communication.Web's tag helpers. One implementation exists per

@@ -1,8 +1,8 @@
 using System.Net;
 using JC.Communication.Messaging.Models;
 using JC.Communication.Web.Framework;
+using JC.Communication.Web.Framework.Icons;
 using JC.Core.Extensions;
-using JC.Web.UI.HTML;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -109,7 +109,7 @@ public class ChatInputTagHelper(HtmlHelper html,
             {
                 var tokens = antiforgery.GetAndStoreTokens(ViewContext.HttpContext);
                 if (tokens.RequestToken != null)
-                    content += html.CreateElement("input", "",
+                    content += html.CreateElement("input", string.Empty,
                         attributes: new Dictionary<string, string>
                         {
                             ["type"] = "hidden",
@@ -120,7 +120,7 @@ public class ChatInputTagHelper(HtmlHelper html,
         }
 
         // Hidden thread ID
-        content += html.CreateElement("input", "",
+        content += html.CreateElement("input", string.Empty,
             attributes: new Dictionary<string, string>
             {
                 ["type"] = "hidden",
@@ -135,7 +135,7 @@ public class ChatInputTagHelper(HtmlHelper html,
             var replyBody = WebUtility.HtmlEncode(ReplyTo.Message.Truncate(ReplyTruncateLength));
 
             // Hidden input for reply-to message ID
-            content += html.CreateElement("input", "",
+            content += html.CreateElement("input", string.Empty,
                 attributes: new Dictionary<string, string>
                 {
                     ["type"] = "hidden",
@@ -145,11 +145,11 @@ public class ChatInputTagHelper(HtmlHelper html,
 
             var replyContent =
                 html.CreateElement("div",
-                    html.CreateElement("i", "", classes: icons.Icons.Reply) + " " +
+                    html.CreateElement("i", string.Empty, classes: icons.Icons.Reply) + " " +
                     html.CreateElement("span", replyName, classes: css.ReplyName) + " " +
                     replyBody,
                     classes: css.ReplyText) +
-                html.CreateElement("button", html.CreateElement("i", "", classes: icons.Icons.Close),
+                html.CreateElement("button", html.CreateElement("i", string.Empty, classes: icons.Icons.Close),
                     attributes: new Dictionary<string, string>
                     {
                         ["type"] = "button",
@@ -161,7 +161,7 @@ public class ChatInputTagHelper(HtmlHelper html,
         }
 
         // Input row: textarea + send button
-        var textarea = html.CreateElement("textarea", "",
+        var textarea = html.CreateElement("textarea", string.Empty,
             attributes: new Dictionary<string, string>
             {
                 ["name"] = $"{WebUtility.HtmlEncode(namePrefix)}Message",
@@ -176,7 +176,7 @@ public class ChatInputTagHelper(HtmlHelper html,
             string.IsNullOrWhiteSpace(ButtonColour) ? css.DefaultButtonColour : ButtonColour);
 
         var sendButton = html.CreateElement("button",
-            html.CreateElement("i", "", classes: icons.Icons.Send) + " " +
+            html.CreateElement("i", string.Empty, classes: icons.Icons.Send) + " " +
             WebUtility.HtmlEncode(ButtonText),
             attributes: new Dictionary<string, string> { ["type"] = "submit" },
             classes: css.SendButton(buttonColour));

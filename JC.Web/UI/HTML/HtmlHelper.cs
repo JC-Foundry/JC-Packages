@@ -26,7 +26,7 @@ public class HtmlHelper(IWebFrameworkDictionary dictionary)
     /// <returns>The rendered HTML string.</returns>
     /// <remarks>
     /// <paramref name="content"/> is inserted as raw HTML and is not encoded. Pass user-supplied
-    /// text through <see cref="System.Net.WebUtility.HtmlEncode"/> or a sanitiser first.
+    /// text through <see cref="System.Net.WebUtility.HtmlEncode(string)"/> or a sanitiser first.
     /// </remarks>
     public string CreateElement(string tagName, string content = "", bool isActive = false, bool isDisabled = false,
         Dictionary<string, string>? attributes = null, params string[] classes)

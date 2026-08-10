@@ -1,4 +1,3 @@
-using JC.Core.Data.DataMappings;
 using JC.Github.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;

@@ -92,7 +92,7 @@ public class ContactFormTagHelper(HtmlHelper html, ICommunicationFrameworkDictio
             {
                 var tokens = antiforgery.GetAndStoreTokens(ViewContext.HttpContext);
                 if (tokens.RequestToken != null)
-                    content += html.CreateElement("input", "",
+                    content += html.CreateElement("input", string.Empty,
                         attributes: new Dictionary<string, string>
                         {
                             ["type"] = "hidden",
@@ -110,7 +110,7 @@ public class ContactFormTagHelper(HtmlHelper html, ICommunicationFrameworkDictio
             html.CreateElement("label", "Email",
                 attributes: new Dictionary<string, string> { ["for"] = "contact-email" },
                 classes: css.Label) +
-            html.CreateElement("input", "",
+            html.CreateElement("input", string.Empty,
                 attributes: new Dictionary<string, string>
                 {
                     ["type"] = "email",
@@ -127,7 +127,7 @@ public class ContactFormTagHelper(HtmlHelper html, ICommunicationFrameworkDictio
             html.CreateElement("label", "Subject",
                 attributes: new Dictionary<string, string> { ["for"] = "contact-subject" },
                 classes: css.Label) +
-            html.CreateElement("input", "",
+            html.CreateElement("input", string.Empty,
                 attributes: new Dictionary<string, string>
                 {
                     ["type"] = "text",
@@ -144,7 +144,7 @@ public class ContactFormTagHelper(HtmlHelper html, ICommunicationFrameworkDictio
             html.CreateElement("label", "Message",
                 attributes: new Dictionary<string, string> { ["for"] = "contact-message" },
                 classes: css.Label) +
-            html.CreateElement("textarea", "",
+            html.CreateElement("textarea", string.Empty,
                 attributes: new Dictionary<string, string>
                 {
                     ["id"] = "contact-message",

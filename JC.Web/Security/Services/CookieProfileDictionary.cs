@@ -5,7 +5,7 @@ namespace JC.Web.Security.Services;
 
 /// <summary>
 /// Thread-safe registry of <see cref="CookieProfile"/> instances, keyed by cookie name.
-/// Registered as a singleton and used by <see cref="Abstractions.ICookieService"/> implementations
+/// Registered as a singleton and used by <see cref="Services.ICookieService"/> implementations
 /// to resolve cookie configuration (identity, encryption, and default overrides) by name.
 /// Profiles are typically registered at startup and looked up per-request.
 /// </summary>

@@ -3,7 +3,7 @@ namespace JC.BackgroundJobs.Services;
 /// <summary>
 /// Produces stable, human-readable names for job types — including closed generic
 /// jobs such as <c>AuditCleanupJob&lt;PortfolioDbContext&gt;</c>.
-/// <see cref="Type.Name"/> collapses every closed generic of the same open type to
+/// <c>Type.Name</c> collapses every closed generic of the same open type to
 /// the same arity-mangled name (e.g. <c>AuditCleanupJob`1</c>), which would cause
 /// distinct per-context jobs to share a Hangfire job ID and silently overwrite one another.
 /// </summary>

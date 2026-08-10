@@ -30,7 +30,7 @@ public class GitHelper(GithubOptions options, string apiKey)
         var response = await _baseUrl.Request("repos", owner, repo, "issues")
             .PostJsonAsync(new
             {
-                title = title,
+                title,
                 body=desc
             })
             .ReceiveJson<NewIssueResponse>();

@@ -2,6 +2,7 @@ using JC.Communication.Messaging.Models.DomainModels;
 using JC.Core.Data.DataMappings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+// ReSharper disable RedundantAssignment
 
 namespace JC.Communication.Messaging.Data.DataMappings;
 

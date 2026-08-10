@@ -1,4 +1,5 @@
 using JC.Communication.Web.Framework;
+using JC.Communication.Web.Framework.Icons;
 using JC.Web.Extensions;
 using JC.Web.UI.Framework;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,15 +45,20 @@ public static class ServiceCollectionExtensions
     {
         services.AddUI(framework, iconFramework);
 
-        // Bootstrap is the only dictionary implemented so far. Tailwind and CustomJCTailwind become
-        // additional switch arms here once theirs exist; no tag helper changes.
-        services.AddFrameworkDictionary<ICommunicationFrameworkDictionary>(
-            _ => new BootstrapCommunicationDictionary());
+        // Adding a framework is a dictionary class and an arm here — no tag helper changes.
+        services.AddFrameworkDictionary<ICommunicationFrameworkDictionary>(f => f switch
+        {
+            UIFramework.Tailwind => new TailwindCommunicationDictionary(),
+            UIFramework.CustomJCTailwind => new CustomJCTailwindCommunicationDictionary(),
+            _ => new BootstrapCommunicationDictionary()
+        });
 
-        // Likewise for icons — FontAwesome becomes a second arm here, selected by its own choice
-        // rather than by the CSS framework.
-        services.AddIconDictionary<ICommunicationIconDictionary>(
-            _ => new BootstrapIconsCommunicationDictionary());
+        // Likewise for icons, selected by their own choice rather than by the CSS framework.
+        services.AddIconDictionary<ICommunicationIconDictionary>(i => i switch
+        {
+            IconFramework.FontAwesome => new FontAwesomeCommunicationDictionary(),
+            _ => new BootstrapIconsCommunicationDictionary()
+        });
 
         return services;
     }

@@ -1,6 +1,5 @@
 using JC.Core.Models;
 using JC.Identity.Authentication;
-using JC.Identity.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;

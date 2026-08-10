@@ -38,7 +38,7 @@ internal static class JsonLdSerialiser
     /// <c>JavaScriptEncoder.UnsafeRelaxedJsonEscaping</c>. The relaxed encoder leaves <c>&lt;</c>
     /// unescaped, which would let a <c>&lt;/script&gt;</c> sequence in any database-sourced field
     /// — a product name or article headline — close the script element and execute whatever
-    /// followed it. The default encoder escapes it to <c><</c>, so the payload cannot break out.
+    /// followed it. The default encoder escapes it to <c>&lt;</c>, so the payload cannot break out.
     /// </remarks>
     private static readonly JsonSerializerOptions Options = new()
     {

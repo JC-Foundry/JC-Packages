@@ -65,6 +65,9 @@ public sealed class EmailMessage
     /// <exception cref="ArgumentException">Thrown if no recipients are provided.</exception>
     public EmailMessage(string from, string plainBody, string? subject = null, params IEnumerable<EmailRecipient> toAddresses)
     {
+        if(string.IsNullOrWhiteSpace(from))
+            throw new ArgumentException("From address is required.", nameof(from));
+        
         FromAddress = from;
         Subject = string.IsNullOrEmpty(subject) ? NoSubject : subject;
         PlainBody = plainBody;
@@ -166,7 +169,7 @@ public sealed class EmailMessage
             if(string.IsNullOrWhiteSpace(FromAddress))
                 errors = AppendError(errors, "From address is required.");
 
-            if(FromAddress?.Contains('@') == false)
+            if(FromAddress.Contains('@') == false)
                 errors = AppendError(errors, "Invalid From address.");
 
             if(string.IsNullOrWhiteSpace(PlainBody))

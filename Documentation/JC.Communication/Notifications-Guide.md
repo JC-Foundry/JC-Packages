@@ -352,45 +352,40 @@ cache.Invalidate(userId: targetUserId);
 
 ### Default type-based styling
 
-Each `NotificationType` has default Bootstrap icon and colour mappings. Use `NotificationUIHelper` to resolve them in your UI:
+`NotificationType` carries semantic meaning. The icon and colour it renders as are decided by whichever UI package draws the notification, not by this one — JC.Communication references only JC.Core, so it cannot see a framework dictionary, and a presentation default is not its business.
+
+For Razor applications that package is JC.Communication.Web, whose `<notification-dropdown>` and `<notification-toast>` resolve both from dictionaries selected by the configured CSS framework and icon set. See [How class names and icons are chosen](Communication.Web-Guide.md#how-class-names-and-icons-are-chosen) for the mappings and how to change them.
+
+Rendering notifications yourself means supplying your own mapping from `NotificationType` to whatever your markup needs:
 
 ```csharp
 @foreach (var notification in Model.Notifications)
 {
-    var icon = NotificationUIHelper.GetIconClass(notification.Type);
-    var colour = NotificationUIHelper.GetColourClass(notification.Type);
+    var colour = notification.Type switch
+    {
+        NotificationType.Success => "success",
+        NotificationType.Warning => "warning",
+        NotificationType.Error => "danger",
+        _ => "secondary"
+    };
 
     <div class="notification text-@colour">
-        <i class="bi @icon"></i>
         <strong>@notification.Title</strong>
         <p>@notification.Body</p>
     </div>
 }
 ```
 
-Default mappings:
-
-| Type | Icon class | Colour class |
-|------|-----------|-------------|
-| `Message` | `bi-chat-left-text` | `primary` |
-| `Info` | `bi-info-circle` | `info` |
-| `Success` | `bi-check-circle` | `success` |
-| `Warning` | `bi-exclamation-triangle` | `warning` |
-| `Error` | `bi-x-circle` | `danger` |
-| `System` | `bi-cpu` | `secondary` |
-| `Task` | `bi-list-check` | `primary` |
-
 ### Per-notification style overrides
 
-When a notification has a `NotificationStyle` attached, use its values instead of the defaults:
+A `NotificationStyle` attached to a notification overrides the type's defaults for that notification alone. `CustomColourClass` and `CustomIconClass` are independent — set one and the other still comes from the type:
 
 ```csharp
-var icon = notification.Style?.CustomIconClass
-    ?? NotificationUIHelper.GetIconClass(notification.Type);
-
-var colour = notification.Style?.CustomColourClass
-    ?? NotificationUIHelper.GetColourClass(notification.Type);
+var colour = notification.Style?.CustomColourClass ?? DefaultColourFor(notification.Type);
+var icon = notification.Style?.CustomIconClass ?? DefaultIconFor(notification.Type);
 ```
+
+**Nuance:** `CustomIconClass` is a complete class attribute value, and JC.Communication.Web normalises it against the configured icon set's base class when rendering. A value stored as `"bi-star"` works under Bootstrap Icons, where the base class `bi` is prepended; under Font Awesome, which has no base class, it is taken as given and shows no glyph. Stored icon values need migrating when the icon set changes.
 
 A `NotificationStyle` is created automatically when you pass `colourClass` or `iconClass` to `NotificationSender.SendNotification`. You can also create one manually — at least one of `CustomColourClass` or `CustomIconClass` must be set (validation rejects styles with both empty).
 

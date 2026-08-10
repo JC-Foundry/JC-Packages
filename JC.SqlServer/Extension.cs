@@ -1,4 +1,3 @@
-using HealthChecks.SqlServer;
 using JC.Core.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;

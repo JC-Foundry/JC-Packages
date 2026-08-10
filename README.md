@@ -16,7 +16,7 @@ A suite of .NET 9 NuGet packages providing shared infrastructure for .NET applic
 | **JC.Github** | GitHub integration for bug report and issue tracking services | [Documentation](Documentation/JC.Github/) |
 | **JC.BackgroundJobs** | Lightweight hosted-service background jobs and Hangfire recurring/ad-hoc job integration | [Documentation](Documentation/JC.BackgroundJobs/) |
 | **JC.FileStorage** | Tenant-scoped file storage on disk with database-backed records, audited deletion, per-folder size and type limits, and single-level folder separation | [Documentation](Documentation/JC.FileStorage/) |
-| **JC.FileStorage.Web** | ASP.NET Core integration for JC.FileStorage — `IFormFile` handling, MIME type inference, and an upload constraints tag helper | [Documentation](Documentation/JC.FileStorage/) |
+| **JC.FileStorage.Web** | ASP.NET Core integration for JC.FileStorage — `IFormFile` handling, MIME type inference, an upload constraints tag helper, and an `IApplicationBuilder` overload of `AddFolders` | [Documentation](Documentation/JC.FileStorage/) |
 | **JC.SqlServer.Hangfire** | Hangfire SQL Server storage registration for JC-Packages applications | — |
 
 ## Prerequisites
@@ -54,7 +54,7 @@ JC.SqlServer.Hangfire (standalone — no JC dependencies)
 
 JC.Identity, JC.Web, JC.Communication, JC.Github, JC.BackgroundJobs, JC.FileStorage, JC.MySql, and JC.SqlServer all depend on **JC.Core**. The database providers (JC.MySql / JC.SqlServer) are interchangeable. **JC.Communication.Web** depends on both **JC.Communication** and **JC.Web**, and **JC.FileStorage.Web** depends on both **JC.FileStorage** and **JC.Web**.
 
-**JC.FileStorage** depends only on JC.Core, but JC.Identity is required for multi-tenancy — without it, every stored file belongs to the no-tenant scope. **JC.FileStorage.Web** is optional: it adds `IFormFile` handling and a tag helper, and is only needed by web applications.
+**JC.FileStorage** depends only on JC.Core, but JC.Identity is required for multi-tenancy — without it, every stored file belongs to the no-tenant scope. It carries no ASP.NET Core dependency, so it runs unchanged from a worker service or a console host. **JC.FileStorage.Web** is optional and needed only by web applications: it adds `IFormFile` handling, a tag helper, and an `IApplicationBuilder` overload of `AddFolders`.
 
 **JC.SqlServer.Hangfire** is standalone — it has no dependency on JC.Core. It depends on Hangfire.SqlServer and Hangfire.AspNetCore.
 
@@ -177,8 +177,10 @@ var app = builder.Build();
 
 // Folders must be registered before any file is saved or read.
 // throwOnFail always has to be passed — it precedes a params parameter
-app.AddFolders(true, "invoices", "reports");
+app.Services.AddFolders(true, "invoices", "reports");
 ```
+
+`AddFolders` extends `IServiceProvider`, so JC.FileStorage carries no ASP.NET Core dependency and runs just as well from a worker service or a console host. JC.FileStorage.Web adds an `app.AddFolders(...)` overload on `IApplicationBuilder` for web applications.
 
 Your `DbContext` must implement `IFileStorageDbContext` and call `modelBuilder.ApplyFileStorageMappings()` in `OnModelCreating`. Files are then saved, read, and deleted through `StorageService`.
 
@@ -186,19 +188,39 @@ Folders can cap file size and restrict extensions, falling back to defaults on `
 
 ```csharp
 // 10MB, PDFs only — enforced on every entry point
-app.AddFolders(true, new FolderModel("invoices", null, 10 * 1024 * 1024, [".pdf"]));
+app.Services.AddFolders(true, new FolderModel("invoices", null, 10 * 1024 * 1024, [".pdf"]));
 ```
 
 Executable extensions (`.exe`, `.bat`, `.ps1` and around sixty more) can never be stored, and no configuration re-enables them.
 
 See [JC.FileStorage documentation](Documentation/JC.FileStorage/) for folder registration, limits, tenant scoping, cross-tenant access, and delete behaviour.
 
+### JC.Communication.Web
+
+```csharp
+builder.Services.AddCore<AppDbContext>();
+builder.Services.AddNotifications<AppDbContext>();
+
+// Registers the UI framework services and this package's class and icon dictionaries
+builder.Services.AddCommunicationWeb();
+```
+
+Adds Razor tag helpers for notifications, messaging and a contact form. Add `@addTagHelper *, JC.Communication.Web` to `_ViewImports.cshtml` to use them:
+
+```html
+<notification-dropdown view-all-href="/notifications" />
+<contact-form endpoint="/contact" />
+```
+
+`AddCommunicationWeb` is required — every tag helper in the package takes constructor dependencies the container cannot supply otherwise, and omitting it fails when a page renders. Pass `UIFramework` and `IconFramework` to render for Tailwind or jc-tailwind-ui, and Font Awesome instead of Bootstrap Icons. See [JC.Communication.Web setup](Documentation/JC.Communication/Communication.Web-Setup.md).
+
 ### JC.FileStorage.Web
 
 ```csharp
 builder.Services.AddCore<AppDbContext>();
 
-// Registers WebStorageService, plus everything AddFileStorage registers
+// Registers WebStorageService and the UI services the tag helper resolves,
+// plus everything AddFileStorage registers
 builder.Services.AddFileStorageWeb();
 ```
 
@@ -320,10 +342,10 @@ Full documentation for each package is available in the [Documentation](Document
 | Package | Setup | Full Guide | API Reference |
 |---------|-------|------------|---------------|
 | JC.Core | [Setup](Documentation/JC.Core/Setup.md) | [Guide](Documentation/JC.Core/Guide.md) | [API](Documentation/JC.Core/API.md) |
-| JC.Web | [Setup](Documentation/JC.Web/Setup.md) | [Guide](Documentation/JC.Web/Guide.md) | [API](Documentation/JC.Web/API.md) |
+| JC.Web | [Security Setup](Documentation/JC.Web/Security-Setup.md) · [Client Profiling Setup](Documentation/JC.Web/ClientProfiling-Setup.md) · [SEO Setup](Documentation/JC.Web/SEO-Setup.md) · [UI Setup](Documentation/JC.Web/UI-Setup.md) | [Security Guide](Documentation/JC.Web/Security-Guide.md) · [Client Profiling Guide](Documentation/JC.Web/ClientProfiling-Guide.md) · [SEO Guide](Documentation/JC.Web/SEO-Guide.md) · [UI Guide](Documentation/JC.Web/UI-Guide.md) | [Security API](Documentation/JC.Web/Security-API.md) · [Client Profiling API](Documentation/JC.Web/ClientProfiling-API.md) · [SEO API](Documentation/JC.Web/SEO-API.md) · [UI API](Documentation/JC.Web/UI-API.md) |
 | JC.Identity | [Setup](Documentation/JC.Identity/Setup.md) | [Guide](Documentation/JC.Identity/Guide.md) | [API](Documentation/JC.Identity/API.md) |
 | JC.Communication | [Email Setup](Documentation/JC.Communication/Email-Setup.md) · [Notifications Setup](Documentation/JC.Communication/Notifications-Setup.md) · [Messaging Setup](Documentation/JC.Communication/Messaging-Setup.md) | [Email Guide](Documentation/JC.Communication/Email-Guide.md) · [Notifications Guide](Documentation/JC.Communication/Notifications-Guide.md) · [Messaging Guide](Documentation/JC.Communication/Messaging-Guide.md) | [Email API](Documentation/JC.Communication/Email-API.md) · [Notifications API](Documentation/JC.Communication/Notifications-API.md) · [Messaging API](Documentation/JC.Communication/Messaging-API.md) |
-| JC.Communication.Web | — | [Guide](Documentation/JC.Communication/Communication.Web-Guide.md) | [API](Documentation/JC.Communication/Communication.Web-API.md) |
+| JC.Communication.Web | [Setup](Documentation/JC.Communication/Communication.Web-Setup.md) | [Guide](Documentation/JC.Communication/Communication.Web-Guide.md) | [API](Documentation/JC.Communication/Communication.Web-API.md) |
 | JC.Github | [Setup](Documentation/JC.Github/Setup.md) | [Guide](Documentation/JC.Github/Guide.md) | [API](Documentation/JC.Github/API.md) |
 | JC.BackgroundJobs | [Setup](Documentation/JC.BackgroundJobs/Setup.md) | [Guide](Documentation/JC.BackgroundJobs/Guide.md) | [API](Documentation/JC.BackgroundJobs/API.md) |
 | JC.FileStorage | [Setup](Documentation/JC.FileStorage/Setup.md) | [Guide](Documentation/JC.FileStorage/Guide.md) | [API](Documentation/JC.FileStorage/API.md) |

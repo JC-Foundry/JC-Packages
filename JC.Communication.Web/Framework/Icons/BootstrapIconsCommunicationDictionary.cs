@@ -1,7 +1,7 @@
 using JC.Communication.Notifications.Models;
 using JC.Web.UI.Framework;
 
-namespace JC.Communication.Web.Framework;
+namespace JC.Communication.Web.Framework.Icons;
 
 /// <summary>
 /// Bootstrap Icons classes for JC.Communication.Web's tag helpers. Selected when

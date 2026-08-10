@@ -54,14 +54,16 @@ builder.Services.AddFileStorage();
 
 ### Folders — `Program.cs`
 
-Folders must be registered before any file is saved or read. Register them after `app.Build()`:
+Folders must be registered before any file is saved or read. Register them once the service provider exists:
 
 ```csharp
 var app = builder.Build();
 
 // throwOnFail must always be passed — see AddFolders below
-app.AddFolders(true, "invoices", "reports");
+app.Services.AddFolders(true, "invoices", "reports");
 ```
+
+`AddFolders` extends `IServiceProvider`, not a host-specific builder, so the same call works from a worker service or a test host. Applications that also reference JC.FileStorage.Web can use the `app.AddFolders(...)` overload it adds on `IApplicationBuilder` instead — see [JC.FileStorage.Web](#jcfilestorageweb--aspnet-core-integration).
 
 ### Configuration — `appsettings.json`
 
@@ -116,19 +118,28 @@ Registers the following, each with `TryAdd` semantics so a prior registration of
 
 ### AddFolders — folder registration
 
-An `IApplicationBuilder` extension with two overloads — one taking folder names, one taking `FolderModel` instances.
+An `IServiceProvider` extension with two overloads — one taking folder names, one taking `FolderModel` instances. It extends the service provider rather than a host-specific builder so this package stays free of any ASP.NET Core dependency.
 
 ```csharp
 var app = builder.Build();
 
 // Names — each folder is registered in the no-tenant scope
-app.AddFolders(true, "invoices", "reports");
+app.Services.AddFolders(true, "invoices", "reports");
 
 // FolderModel — required for tenant-scoped folders
-app.AddFolders(true,
+app.Services.AddFolders(true,
     new FolderModel("invoices", "tenant-a"),
     new FolderModel("invoices", "tenant-b"));
 ```
+
+Outside ASP.NET Core, call it on whatever provider the host built:
+
+```csharp
+using var host = Host.CreateApplicationBuilder(args).Build();
+host.Services.AddFolders(true, "invoices", "reports");
+```
+
+JC.FileStorage.Web adds an `IApplicationBuilder` overload that forwards to this one, so `app.AddFolders(...)` remains available to applications referencing that package.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -136,18 +147,18 @@ app.AddFolders(true,
 | `folderNames` | `params IEnumerable<string>` | — | Folder names, each registered in the no-tenant scope. |
 | `folders` | `params IEnumerable<FolderModel>` | — | Folder models, each registered against its own tenant. |
 
-**`throwOnFail` must always be passed.** Because it precedes a `params` parameter, its default can never be used — `app.AddFolders("invoices")` fails to compile with `CS1503`. Calling `app.AddFolders(true)` with no folders is also a compile error (`CS0121`), as the two overloads are ambiguous with an empty `params`.
+**`throwOnFail` must always be passed.** Because it precedes a `params` parameter, its default can never be used — `app.Services.AddFolders("invoices")` fails to compile with `CS1503`. Calling `app.Services.AddFolders(true)` with no folders is also a compile error (`CS0121`), as the two overloads are ambiguous with an empty `params`.
 
 Registration fails when a folder of the same name already exists **for that tenant** (compared case-insensitively). The same name under a different tenant is not a conflict:
 
 ```csharp
 // Both succeed — same name, different tenants
-app.AddFolders(true,
+app.Services.AddFolders(true,
     new FolderModel("invoices", "tenant-a"),
     new FolderModel("invoices", "tenant-b"));
 
 // The second is a duplicate and throws with throwOnFail: true
-app.AddFolders(true, "reports", "REPORTS");
+app.Services.AddFolders(true, "reports", "REPORTS");
 ```
 
 Folders are held in a singleton registry, so registration happens once at startup and applies for the lifetime of the application. A tenant created after startup has no folders until the application registers them.
@@ -157,7 +168,7 @@ Folders are held in a singleton registry, so registration happens once at startu
 A folder can declare a maximum file size and the extensions it accepts. Both are optional, and both are enforced by `StorageService` itself, so no caller can store a file a folder forbids.
 
 ```csharp
-app.AddFolders(true,
+app.Services.AddFolders(true,
     // Limits declared on the folder: 10MB, PDFs only
     new FolderModel("invoices", null, 10 * 1024 * 1024, [".pdf"]),
 
@@ -275,7 +286,9 @@ Without JC.Identity there is no `IUserInfo` and no query filter, so every file b
 
 ### JC.FileStorage.Web — ASP.NET Core integration
 
-An optional companion package for web applications. It adds `IFormFile` handling, MIME type inference, and a tag helper for showing a folder's limits — nothing else. JC.FileStorage has no ASP.NET dependency of its own and is fully usable without this package, from background jobs and console applications.
+An optional companion package for web applications. It adds `IFormFile` handling, MIME type inference, a tag helper for showing a folder's limits, and an `IApplicationBuilder` overload of `AddFolders` — nothing else.
+
+JC.FileStorage carries **no ASP.NET Core dependency at all**: no framework reference, and every type it exposes works from a console application, a worker service or a test host. Everything ASP.NET-specific lives here, which is why the `app.AddFolders(...)` form is in this package while the `IServiceProvider` form it forwards to is in the base one.
 
 Add a project reference to `JC.FileStorage.Web`, which brings in JC.FileStorage and JC.Web:
 
@@ -283,21 +296,49 @@ Add a project reference to `JC.FileStorage.Web`, which brings in JC.FileStorage 
 <ProjectReference Include="path/to/JC.FileStorage.Web/JC.FileStorage.Web.csproj" />
 ```
 
-Register with `AddFileStorageWeb`, which calls `AddFileStorage` for you:
+Register with `AddFileStorageWeb`, which calls `AddFileStorage` and JC.Web's `AddUI` for you:
 
 ```csharp
 builder.Services.AddCore<AppDbContext>();
 
-// Registers WebStorageService, plus everything AddFileStorage registers
-builder.Services.AddFileStorageWeb();
+// Registers WebStorageService and the UI services the tag helper resolves,
+// plus everything AddFileStorage registers
+builder.Services.AddFileStorageWeb(
+    framework: UIFramework.Bootstrap,
+    iconFramework: IconFramework.Bootstrap);
 ```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `framework` | `UIFramework` | `Bootstrap` | The CSS framework the tag helper renders classes for. Selects `BootstrapFileStorageDictionary`, `TailwindFileStorageDictionary` or `CustomJCTailwindFileStorageDictionary` |
+| `iconFramework` | `IconFramework` | `Bootstrap` | Passed through to `AddUI`. This package registers no icon dictionary of its own — its tag helper renders no glyphs — so this only matters for packages layered above it |
 
 | Service | Lifetime | Purpose |
 |---------|----------|---------|
 | `WebStorageService` | Scoped | Wraps `StorageService` for `IFormFile` uploads and file downloads |
+| `IFileStorageFrameworkDictionary` | Singleton | The class dictionary for the configured framework |
+| `UIFrameworkService`, `AlertHelper`, `HtmlHelper` | Singleton | Registered by the `AddUI` call inside |
 | `FolderRegistry`, `FilePathProvider`, `StorageService` | As above | Registered by the `AddFileStorage` call inside |
 
 `StorageService` stays registered and injectable. `WebStorageService` covers uploads, downloads and validation only — inject `StorageService` directly for anything else.
+
+**`AddUI` registers through `TryAdd`, so the first call wins.** An application that has already called `AddWebDefaults` or `AddUI` keeps the framework it chose there, and the arguments here are ignored. Pass the framework to whichever call runs first, or pass the same value to both.
+
+**Under either Tailwind framework, import the shipped safelists.** Tailwind generates utilities by scanning source files, and these class names live in compiled assemblies it never reads — without the imports the help text renders with a valid class name and no CSS behind it. Both files ship in their `.nupkg`, so they reach you either way you consume the suite:
+
+```css
+/* Project reference */
+@import "../path/to/JC.Web/UI/jc-web.tailwind.css";
+@import "../path/to/JC.FileStorage.Web/jc-filestorage.tailwind.css";
+
+/* Package reference — under the global packages folder */
+@import "<nuget-root>/jc.web/<version>/contentFiles/any/any/jc-web.tailwind.css";
+@import "<nuget-root>/jc.filestorage.web/<version>/contentFiles/any/any/jc-filestorage.tailwind.css";
+```
+
+`<nuget-root>` is `%USERPROFILE%\.nuget\packages` on Windows and `~/.nuget/packages` elsewhere. On NuGet, prefer copying both files into your own `Styles` folder — the package path carries the version number, so every upgrade breaks the import until you edit it.
+
+Under `CustomJCTailwind` this package needs nothing of its own — its only value is jc-tailwind-ui's `form-text`, an authored CSS rule in that framework's bundle rather than a generated utility — but JC.Web's safelist is still required for anything else you use from it.
 
 To use the tag helper, add it to `_ViewImports.cshtml`:
 
@@ -312,13 +353,13 @@ Then it can show a folder's limits beneath a file input:
 <upload-constraints folder="invoices" />
 ```
 
-Which renders, for a folder accepting PDFs and CSVs up to 1MB:
+Which renders, for a folder accepting PDFs and CSVs up to 1MB, under Bootstrap:
 
 ```html
 <div class="form-text">Accepted types: .pdf, .csv &middot; Maximum size: 1 MB</div>
 ```
 
-The text is read from the same `FolderRegistry` values the server enforces, so it cannot drift from them. See the [Guide](Guide.md#web-applications) for the full attribute list and the upload and download flows.
+The wrapper's class comes from the configured framework's dictionary — `form-text` under Bootstrap and jc-tailwind-ui, which both define it, and `mt-1 text-sm text-gray-500` under Tailwind. The text itself is read from the same `FolderRegistry` values the server enforces, so it cannot drift from them. See the [Guide](Guide.md#web-applications) for the full attribute list and the upload and download flows.
 
 ## 3. Apply migrations
 

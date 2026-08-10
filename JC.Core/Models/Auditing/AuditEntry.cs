@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using JC.Core.Enums;
 
 namespace JC.Core.Models.Auditing;
@@ -8,6 +9,8 @@ namespace JC.Core.Models.Auditing;
 public class AuditEntry
 {
     /// <summary>Gets the unique identifier for this audit entry.</summary>
+    [Key]
+    [MaxLength(36)]
     public string Id { get; private set; } = Guid.NewGuid().ToString();
 
     /// <summary>Gets or sets the type of action that was performed.</summary>
@@ -21,9 +24,11 @@ public class AuditEntry
     /// <see cref="Data.IDataDbContext"/> (the ambient <see cref="IUserInfo"/>, or
     /// <see cref="IUserInfo.MissingUserInfoId"/> when the context has no identity).
     /// </summary>
+    [MaxLength(50)]
     public string? UserId { get; set; }
 
     /// <summary>Gets or sets the display name of the user who performed the action.</summary>
+    [MaxLength(256)]
     public string? UserName { get; set; }
 
     /// <summary>
@@ -33,12 +38,14 @@ public class AuditEntry
     /// accurate than <see cref="UserId"/> when the context lacks identity or an explicit user id was
     /// supplied. <c>null</c> when the entity is not auditable or nothing was stamped (e.g. hard delete).
     /// </summary>
+    [MaxLength(50)]
     public string? ActionUserId { get; set; }
 
     /// <summary>
     /// Gets or sets the name of the application that wrote this audit entry, as configured via
     /// <c>CoreAuditOptions.ApplicationName</c>. <c>null</c> when the writing application did not configure one.
     /// </summary>
+    [MaxLength(512)]
     public string? SourceApplication { get; set; }
 
     /// <summary>
@@ -49,14 +56,17 @@ public class AuditEntry
     public bool IsActionIdPreferred { get; set; }
 
     /// <summary>Gets or sets the name of the database table affected by the action.</summary>
+    [MaxLength(512)]
     public string? TableName { get; set; }
 
     /// <summary>
     /// Gets or sets the JSON-serialised primary key of the audited entity, keyed by property name
     /// (e.g. <c>{"Id":"abc"}</c> or, for composite keys, <c>{"ThreadId":"abc","UserId":"xyz"}</c>).
     /// </summary>
+    [MaxLength(1024)]
     public string? EntityKey { get; set; }
 
     /// <summary>Gets or sets the JSON-serialised entity data associated with the action.</summary>
+    // ReSharper disable once EntityFramework.ModelValidation.UnlimitedStringLength
     public string? ActionData { get; set; }
 }

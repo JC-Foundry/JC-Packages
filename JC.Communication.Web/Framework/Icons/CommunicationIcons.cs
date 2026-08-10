@@ -1,7 +1,7 @@
 using JC.Communication.Notifications.Models;
-using JC.Web.UI.Framework;
+using JC.Web.UI.Framework.Icons;
 
-namespace JC.Communication.Web.Framework;
+namespace JC.Communication.Web.Framework.Icons;
 
 /*
  * Icons follow the same rules as the class records — every property holds a whole class attribute

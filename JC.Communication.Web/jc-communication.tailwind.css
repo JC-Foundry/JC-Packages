@@ -1,0 +1,103 @@
+/* =====================================================================
+   JC.Communication.Web — Tailwind safelist
+   ---------------------------------------------------------------------
+   Tailwind generates utilities by scanning source files. This package's
+   class names live in a compiled assembly it never reads, so `@source` over
+   your own markup does not reach them and the utilities are never generated
+   — the markup renders with valid class names and no CSS behind them.
+
+   Import this file from your Tailwind entry CSS to declare them:
+
+       project reference:  @import "../path/to/JC.Communication.Web/jc-communication.tailwind.css";
+       package reference:  @import "<nuget-root>/jc.communication.web/<version>/contentFiles/any/any/jc-communication.tailwind.css";
+
+   The package path is version-pinned, so copying this file into your own Styles
+   folder and re-copying on upgrade is the less brittle option for a consumer on
+   NuGet. Either way, Tailwind needs a real path on disk — it never sees MSBuild.
+
+   This package builds on JC.Web, so import that package's safelist too:
+
+       @import "../path/to/JC.Web/UI/jc-web.tailwind.css";
+
+   Keep this in step with Framework/TailwindCommunicationDictionary.cs and
+   Framework/CustomJCTailwindCommunicationDictionary.cs — a value added there
+   and not here renders unstyled.
+
+   Delete whichever block does not apply to the framework you registered.
+   ===================================================================== */
+
+
+/* =====================================================================
+   UIFramework.Tailwind — TailwindCommunicationDictionary
+   ===================================================================== */
+
+/* Shared layout and text utilities */
+@source inline("relative absolute fixed block inline-block inline-flex flex flex-col hidden");
+@source inline("items-center items-start items-end justify-center justify-between self-center self-end self-start");
+@source inline("grow shrink-0 overflow-hidden truncate sr-only z-50");
+@source inline("gap-1 gap-2 gap-3 m-0 mt-1 mt-2 mb-1 mb-2 mb-3 ml-1 ml-2 mr-auto p-3 pl-2");
+@source inline("px-2 px-3 py-0.5 py-1 py-2 py-3 w-full w-80 max-w-full");
+@source inline("text-xs text-sm text-lg text-xl text-center text-right leading-none font-medium font-semibold opacity-75");
+@source inline("rounded-full rounded-md rounded-lg shadow-lg border border-b border-t border-l-2 last:border-b-0");
+
+/* Surfaces, borders and text colours */
+@source inline("bg-white bg-gray-100 bg-gray-200 bg-gray-500 bg-blue-100 bg-blue-600 bg-red-600");
+@source inline("border-gray-200 border-gray-300 border-blue-600");
+@source inline("text-white text-gray-500 text-gray-900 text-blue-600 text-blue-700");
+@source inline("hover:bg-gray-100 hover:text-gray-900 hover:text-blue-800 hover:opacity-90");
+
+/* Dropdown placement — NotificationDropdownClasses.DefaultAlign is "right-0".
+   An `align="…"` attribute other than the default needs its own entry. */
+@source inline("top-0 right-0 left-full -translate-x-1/2 -translate-y-1/2");
+
+/* Toast placement — NotificationToastClasses.DefaultPosition is "top-0 right-0".
+   A `position="…"` attribute other than the default needs its own entry, for
+   example bottom-0 left-0. */
+@source inline("bottom-0 left-0");
+
+/* Notification type colours — NotificationTypeClasses, applied through
+   ItemIconFormat and HeaderIconFormat as text-{colour}. */
+@source inline("text-sky-600 text-green-600 text-amber-500 text-red-600");
+
+/* Contextual colour defaults, applied as bg-{colour}. A badge-colour,
+   button-colour, sent-colour or unread-badge-colour attribute other than the
+   default needs its own entry; no safelist can predict what a page passes. */
+@source inline("bg-blue-600 bg-red-600 bg-gray-100 text-gray-900");
+
+/* Close buttons draw their glyph as generated content, since the button is
+   emitted with no children. If anything in this file fails to generate,
+   check this line first. */
+@source inline("before:content-['×']");
+
+
+/* =====================================================================
+   UIFramework.CustomJCTailwind — CustomJCTailwindCommunicationDictionary
+
+   jc-tailwind-ui's own component classes (dropdown-menu, list-group-item,
+   avatar, badge-solid, form-control, toast, tone-* …) are authored CSS rules
+   in its bundle and need no declaring. Everything below is a generated
+   utility, which does — including the theme-derived colour utilities, which
+   are generated on demand exactly like any other.
+   ===================================================================== */
+
+/* Layout and text */
+@source inline("relative absolute flex flex-col items-center items-start items-end justify-center justify-between");
+@source inline("self-center self-end self-start grow shrink-0 overflow-hidden truncate sr-only");
+@source inline("gap-2 m-0 mt-1 mt-2 mb-1 mb-2 mb-3 ms-2 me-auto ps-2 p-0 p-3 px-3 py-1 py-2 py-3");
+@source inline("text-sm text-center text-end font-medium font-semibold opacity-75");
+@source inline("rounded-full rounded-md rounded-lg border-b border-t border-l-2");
+
+/* Theme-derived colour utilities, generated from jc-tailwind-ui's @theme.
+   Its own CSS reads these as var(--color-…) in declarations, which does not
+   cause the utility to be generated — they must be declared here. */
+@source inline("text-fg-muted bg-surface-2 border-edge");
+
+/* Badge and toast placement. DefaultAlign is "end" (dropdown-menu-end is a
+   framework class); DefaultPosition is empty, since toast-host positions
+   itself. A `position="…"` attribute needs its own entry. */
+@source inline("top-0 start-full -translate-x-1/2 -translate-y-1/2");
+
+/* Arbitrary values reading the current tone and the app accent. These carry
+   brackets and parentheses, so if anything in this block fails to generate,
+   check here first. */
+@source inline("text-[var(--t-l)] bg-[var(--t)] text-[var(--t-fg)] border-[var(--accent)]");

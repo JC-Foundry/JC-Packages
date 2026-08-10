@@ -2,6 +2,7 @@ using System.Net;
 using JC.Communication.Notifications.Models;
 using JC.Communication.Notifications.Services;
 using JC.Communication.Web.Framework;
+using JC.Communication.Web.Framework.Icons;
 using JC.Core.Extensions;
 using JC.Web.UI.HTML;
 using Microsoft.AspNetCore.Razor.TagHelpers;
@@ -109,7 +110,7 @@ public class NotificationDropdownTagHelper : TagHelper
             string.IsNullOrWhiteSpace(Icon) ? _icons.Icons.Bell : _icons.Icons.Custom(Icon));
 
         var button = _html.CreateElement("button",
-            _html.CreateElement("i", "", classes: bellIcon) + badge,
+            _html.CreateElement("i", string.Empty, classes: bellIcon) + badge,
             attributes: new Dictionary<string, string>
             {
                 ["type"] = "button",
@@ -141,7 +142,7 @@ public class NotificationDropdownTagHelper : TagHelper
         if (!string.IsNullOrWhiteSpace(ViewAllHref))
         {
             var divider = _html.CreateElement("li",
-                _html.CreateElement("hr", "", classes: css.Divider));
+                _html.CreateElement("hr", string.Empty, classes: css.Divider));
             var link = _html.CreateElement("a", "View all",
                 attributes: new Dictionary<string, string> { ["href"] = ViewAllHref },
                 classes: css.FooterLink);
@@ -175,7 +176,7 @@ public class NotificationDropdownTagHelper : TagHelper
         var title = WebUtility.HtmlEncode(notification.Title);
         var time = notification.CreatedUtc.ToRelativeTime();
 
-        var icon = _html.CreateElement("i", "",
+        var icon = _html.CreateElement("i", string.Empty,
             classes: css.ItemIcon(WebUtility.HtmlEncode(iconClass), WebUtility.HtmlEncode(colourClass)));
 
         var content = _html.CreateElement("div",
@@ -184,7 +185,7 @@ public class NotificationDropdownTagHelper : TagHelper
             _html.CreateElement("div", WebUtility.HtmlEncode(time), classes: css.ItemTime),
             classes: css.ItemContent);
 
-        var unreadDot = _html.CreateElement("span", "",
+        var unreadDot = _html.CreateElement("span", string.Empty,
             attributes: new Dictionary<string, string>
             {
                 ["style"] = "width:8px;height:8px;min-width:8px;"

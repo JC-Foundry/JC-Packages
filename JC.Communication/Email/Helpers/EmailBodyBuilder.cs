@@ -153,8 +153,8 @@ public sealed class EmailBodyBuilder
     }
 
     /// <summary>Normalises line endings for plain text (trims trailing whitespace, unifies newlines).</summary>
-    private static string Normalise(string text)
-        => (text ?? "").Replace("\r\n", "\n").Replace("\r", "\n").Trim();
+    private static string Normalise(string? text)
+        => (text ?? string.Empty).Replace("\r\n", "\n").Replace("\r", "\n").Trim();
 
     /// <summary>HTML-encodes free text, then maps blank lines to paragraph breaks and single newlines to
     /// &lt;br&gt; — the inner content for a &lt;p&gt; or &lt;blockquote&gt;.</summary>

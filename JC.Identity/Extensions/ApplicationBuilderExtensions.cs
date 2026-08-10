@@ -45,6 +45,7 @@ public static class ApplicationBuilderExtensions
     /// <typeparam name="TUser">The user entity type representing the administrator, inheriting from BaseUser.</typeparam>
     /// <typeparam name="TRoles">The type representing the system roles, inheriting from SystemRoles.</typeparam>
     /// <typeparam name="TRole">The type representing a role entity, inheriting from BaseRole.</typeparam>
+    /// <typeparam name="TContext">The database context type.</typeparam>
     /// <returns>The configured application builder instance for chaining.</returns>
     /// <exception cref="InvalidOperationException">
     /// Thrown if required services such as RoleManager or UserManager are not available or if roles or the admin user cannot be created.

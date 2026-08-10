@@ -10,17 +10,17 @@ using JC.Web.SEO.Services;
 using JC.Web.Security.Helpers;
 using JC.Web.Security.Models.Options;
 using JC.Web.Security.Services;
-using JC.Web.UI;
 using JC.Web.UI.Framework;
+using JC.Web.UI.Framework.Icons;
 using JC.Web.UI.HTML;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+// ReSharper disable ConditionalAccessQualifierIsNonNullableAccordingToAPIContract
 
 namespace JC.Web.Extensions;
 
@@ -679,7 +679,7 @@ public static class ServiceCollectionExtensions
     /// <param name="meta">Optional callback to configure <see cref="SeoMetaOptions"/>.</param>
     /// <returns>The service collection for chaining.</returns>
     /// <remarks>
-    /// SEO is opt-in and deliberately absent from <see cref="AddWebDefaults(IServiceCollection, IConfiguration?, bool, Action{SecurityHeaderOptions}?, Action{CookieDefaultOptions}?, Action{BotFilterOptions}?, Action{ClientIpOptions}?)"/>.
+    /// SEO is opt-in and deliberately absent from <c>AddWebDefaults</c>, unlike the UI services.
     /// Internal tools and line-of-business applications have no use for it, and its configuration is
     /// specific enough per application that folding it into the defaults would bloat them.
     /// Register the three parts individually when an application needs only some of them.

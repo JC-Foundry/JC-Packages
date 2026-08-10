@@ -32,6 +32,7 @@ public class HangfireJobOptions
 /// Typed wrapper around <see cref="HangfireJobOptions"/> so that each job type
 /// gets its own options instance in DI.
 /// </summary>
+// ReSharper disable once UnusedTypeParameter
 public class HangfireJobOptionsFor<TJob>(HangfireJobOptions options)
     where TJob : class, IBackgroundJob
 {

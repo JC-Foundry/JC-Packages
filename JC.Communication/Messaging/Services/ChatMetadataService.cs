@@ -2,7 +2,6 @@ using JC.Communication.Messaging.Models;
 using JC.Communication.Messaging.Models.DomainModels;
 using JC.Core.Enums;
 using JC.Core.Extensions;
-using JC.Core.Models;
 using JC.Core.Services.DataRepositories;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,7 +14,6 @@ namespace JC.Communication.Messaging.Services;
 public class ChatMetadataService
 {
     private readonly IRepositoryManager _repos;
-    private readonly IUserInfo _userInfo;
     private readonly ChatThreadService _threadService;
     private readonly MessagingValidationService _validationService;
 
@@ -23,16 +21,13 @@ public class ChatMetadataService
     /// Creates a new instance of the chat metadata service.
     /// </summary>
     /// <param name="repos">The repository manager for database operations.</param>
-    /// <param name="userInfo">The current user's identity.</param>
     /// <param name="threadService">The thread service for thread verification.</param>
     /// <param name="validationService">The validation service for metadata validation and preparation.</param>
     public ChatMetadataService(IRepositoryManager repos,
-        IUserInfo userInfo,
         ChatThreadService threadService,
         MessagingValidationService validationService)
     {
         _repos = repos;
-        _userInfo = userInfo;
         _threadService = threadService;
         _validationService = validationService;
     }

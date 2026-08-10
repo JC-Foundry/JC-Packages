@@ -3,6 +3,7 @@ using JC.Communication.Messaging.Models;
 using JC.Communication.Web.Framework;
 using JC.Web.UI.HTML;
 using Microsoft.AspNetCore.Razor.TagHelpers;
+// ReSharper disable ConditionalAccessQualifierIsNonNullableAccordingToAPIContract
 
 namespace JC.Communication.Web.TagHelpers;
 
