@@ -1,8 +1,8 @@
 namespace JC.Identity.Shared.Models.Options;
 
 /// <summary>
-/// Configuration options for <see cref="JC.Identity.Shared.Middleware.IdentityMiddleware"/>,
-/// controlling password change enforcement, 2FA enforcement, and route definitions.
+/// Configuration options for <see cref="JC.Identity.Shared.Helpers.IdentityRules"/>, controlling
+/// password change enforcement, 2FA enforcement, and route definitions.
 /// </summary>
 public class IdentityMiddlewareOptions
 {

@@ -1,12 +1,17 @@
 using System.Reflection;
 
-namespace JC.Identity.Shared.Authentication;
+namespace JC.Identity.Authentication;
 
 /// <summary>
-/// Defines built-in system roles. Designed to be extended by consuming applications
-/// (e.g. <c>class AppRoles : SystemRoles</c>). Role descriptions follow the naming convention
-/// <c>{RoleName}Desc</c> and are discovered automatically by <see cref="GetAllRoles{T}"/>.
+/// Defines built-in system roles for local ASP.NET Identity. Designed to be extended by consuming
+/// applications (e.g. <c>class AppRoles : SystemRoles</c>). Role descriptions follow the naming
+/// convention <c>{RoleName}Desc</c> and are discovered automatically by <see cref="GetAllRoles{T}"/>.
 /// </summary>
+/// <remarks>
+/// Local to this package rather than shared with other identity authorities. An authority with its
+/// own administrative plane brings its own role structure, and those roles are a separate security
+/// domain that must not be mixed into an application's own authorisation roles.
+/// </remarks>
 public class SystemRoles
 {
     /// <summary>Full system administrator with access to tenant management and assignment.</summary>

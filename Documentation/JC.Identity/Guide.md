@@ -1,545 +1,327 @@
 # JC.Identity — Guide
 
-Covers user information access, custom claims, role management, middleware behaviour, two-factor authentication setup, multi-tenancy with tenant query filters, tenant settings, and extending the user model. See [Setup](Setup.md) for registration.
+Covers extending the user and role entities, what a sign-in puts on the principal, enforcing account state, seeding roles and an administrator, working with the DbContext, and composing with tenancy. See [Setup](Setup.md) for registration.
 
-## Accessing user information
+Reading the current user, establishing an identity outside a request, and the account rules themselves belong to the shared runtime — see the [JC.Identity.Shared guide](../JC.Identity.Shared/Guide.md). This guide covers what is specific to local ASP.NET Core Identity.
 
-### IUserInfo in services
+## Users and roles
 
-`IUserInfo` is scoped per-request and populated automatically by `UserInfoMiddleware`. Inject it anywhere you need the current user's details:
-
-```csharp
-public class DashboardService(IUserInfo userInfo)
-{
-    public string GetWelcomeMessage()
-    {
-        return $"Welcome, {userInfo.DisplayName ?? userInfo.Username}";
-    }
-
-    public bool CanManageTenants()
-    {
-        return userInfo.IsInRole(SystemRoles.SystemAdmin);
-    }
-}
-```
-
-### IUserInfo in controllers and Razor pages
-
-```csharp
-public class ProfileController(IUserInfo userInfo) : Controller
-{
-    public IActionResult Index()
-    {
-        ViewBag.Username = userInfo.Username;
-        ViewBag.Email = userInfo.Email;
-        ViewBag.DisplayName = userInfo.DisplayName;
-        ViewBag.TenantId = userInfo.TenantId;
-        ViewBag.Roles = userInfo.Roles;
-        ViewBag.LastLogin = userInfo.LastLoginUtc;
-
-        return View();
-    }
-}
-```
-
-### Available properties
-
-`IUserInfo` exposes everything from `BaseUser` plus request-scoped metadata:
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `UserId` | `string` | Unique user identifier |
-| `Username` | `string` | Username |
-| `Email` | `string` | Email address |
-| `EmailConfirmed` | `bool` | Whether email is confirmed |
-| `PhoneNumber` | `string?` | Phone number |
-| `PhoneNumberConfirmed` | `bool` | Whether phone is confirmed |
-| `TwoFactorEnabled` | `bool` | Whether 2FA is configured |
-| `LockoutEnabled` | `bool` | Whether lockout is enabled |
-| `LockoutEnd` | `DateTime?` | When lockout expires |
-| `AccessFailedCount` | `int` | Consecutive failed login attempts |
-| `TenantId` | `string?` | Current tenant identifier |
-| `DisplayName` | `string?` | User's display name |
-| `LastLoginUtc` | `DateTime?` | UTC timestamp of last login |
-| `IsEnabled` | `bool` | Whether the account is active |
-| `RequiresPasswordChange` | `bool` | Whether a password change is pending |
-| `IsSetup` | `bool` | Whether the middleware has populated this instance |
-| `MultiTenancyEnabled` | `bool` | `true` if `TenantId` is populated |
-| `Roles` | `IReadOnlyList<string>` | Role names from claims |
-| `Claims` | `IReadOnlyList<Claim>` | All claims from the authenticated user |
-
-### Checking roles
-
-```csharp
-// Check specific role
-if (userInfo.IsInRole("Editor"))
-{
-    // User has the Editor role
-}
-
-// Check built-in system roles
-if (userInfo.IsInRole(SystemRoles.SystemAdmin))
-{
-    // Full system admin
-}
-
-if (userInfo.IsInRole(SystemRoles.Admin))
-{
-    // Tenant-scoped admin
-}
-```
-
-`IsInRole` checks both the `Roles` collection and role claims on the `Claims` list. Returns `false` for null or empty role names.
-
-### Unauthenticated requests
-
-`UserInfoMiddleware` assigns fallback identities based on the authentication state:
-
-| Scenario | `UserId` | `Username` | `Email` |
-|----------|----------|------------|---------|
-| No identity present | `"System__ID"` | `"System"` | `"<SYSTEM@EMAIL>"` |
-| Identity present, not authenticated | `"Unknown__ID"` | `"Unknown"` | `"<UNKNOWN@EMAIL>"` |
-
-The "no identity present" case occurs when no authentication middleware has run. The "not authenticated" case is the typical anonymous request — authentication middleware has run but the user hasn't logged in. Both cases ensure audit trails and any code reading `IUserInfo` always have a user identity.
-
-**Nuance:** Before the middleware runs (e.g. code executing before `UseUserInfo()`), properties have their initial defaults of the system identity: `UserId = "System__ID"`, `Username = "System"`, `Email = "<SYSTEM@EMAIL>"`.
-
-## Custom IUserInfo
-
-### When to extend
-
-Use a custom `IUserInfo` when you need additional per-request properties beyond what the built-in `UserInfo` provides. For example, if your user model has extra fields that should be available throughout the request:
+### Adding your own properties
 
 ```csharp
 public class AppUser : BaseUser
 {
-    public string? Department { get; set; }
-    public string? ProfileImageUrl { get; set; }
+    public string? JobTitle { get; set; }
+    public string? DepartmentId { get; set; }
+}
+
+public class AppRole : BaseRole
+{
+    public int SortOrder { get; set; }
 }
 ```
 
-### Creating a custom implementation
+Nothing else is needed — `IdentityDataDbContext<AppUser, AppRole>` maps the derived types, so a migration picks the new columns up.
 
-Implement `IUserInfo` and add your custom properties:
+### Managing users through UserManager
 
 ```csharp
-public class AppUserInfo : UserInfo
+public class StaffService(UserManager<AppUser> users)
 {
-    public string? Department { get; set; }
-    public string? ProfileImageUrl { get; set; }
+    public async Task<IdentityResult> CreateAsync(string email, string password, string? jobTitle)
+    {
+        var user = new AppUser
+        {
+            UserName = email,
+            Email = email,
+            JobTitle = jobTitle,
+            RegistrationUtc = DateTime.UtcNow
+        };
+
+        return await users.CreateAsync(user, password);
+    }
 }
 ```
 
-Register it using the four-type-parameter overload:
+`UserManager<TUser>` is ASP.NET Identity's, registered by `AddIdentity`. This package adds no user-management service of its own — password hashing, validation, lockout and token generation are all Identity's, unchanged.
+
+**`IsEnabled` defaults to `true`**, so a newly constructed user is usable without being explicitly enabled. `RegistrationUtc` is not set for you outside the admin seeder — set it yourself if you want it populated.
+
+### Nuances and gotchas
+
+**`LastLoginUtc` is never written by this package.** It is projected onto `IUserInfo` and emitted as a claim, but nothing sets it. Stamp it in your sign-in path:
+
+```csharp
+var result = await signInManager.PasswordSignInAsync(user, password, isPersistent, lockoutOnFailure: true);
+
+if (result.Succeeded)
+{
+    user.LastLoginUtc = DateTime.UtcNow;
+    await users.UpdateAsync(user);
+}
+```
+
+**Do not make your user entity implement `IMultiTenancy`.** `BaseUser` carries a `TenantId` column and is tenant-*aware*, but it is deliberately not tenant-*filtered*. A global query filter on the user entity breaks `UserManager` and `SignInManager`, because authentication resolves a user before any tenant scope exists — you would lose the ability to log in at all.
+
+**`IdentityTenantId` and `TenantId` are the same column.** `IdentityTenantId` is `[NotMapped]` and reads and writes `TenantId`; it exists so code holding an `IApplicationUser` can reach the tenant without referencing ASP.NET Identity. Assigning either assigns both.
+
+## Signing in
+
+### What lands on the principal
+
+`DefaultClaimsPrincipalFactory` replaces Identity's default factory and adds thirteen claims from the user entity on top of the identifier, username and role claims Identity already writes:
+
+```csharp
+// After sign-in, the principal carries these alongside the standard Identity claims
+User.FindFirst(DefaultClaims.DisplayName)?.Value;
+User.FindFirst(DefaultClaims.TenantId)?.Value;
+User.FindFirst(DefaultClaims.IsEnabled)?.Value;
+```
+
+You rarely read them directly. `UseUserInfo()` projects the whole set onto `IUserInfo`, which is what the rest of the suite consumes:
+
+```csharp
+public class DashboardModel(IUserInfo userInfo)
+{
+    public string Greeting => $"Welcome back, {userInfo.DisplayName ?? userInfo.Username}";
+}
+```
+
+The projection and everything `IUserInfo` exposes are covered in the [shared guide](../JC.Identity.Shared/Guide.md#reading-the-current-user).
+
+### Adding claims of your own
+
+Derive from the factory and extend it:
+
+```csharp
+public class AppClaimsPrincipalFactory(
+    UserManager<AppUser> userManager,
+    RoleManager<AppRole> roleManager,
+    IOptions<IdentityOptions> options)
+    : DefaultClaimsPrincipalFactory<AppUser, AppRole>(userManager, roleManager, options)
+{
+    protected override async Task<ClaimsIdentity> GenerateClaimsAsync(AppUser user)
+    {
+        var identity = await base.GenerateClaimsAsync(user);
+        identity.AddClaim(new Claim("department_id", user.DepartmentId ?? string.Empty));
+
+        return identity;
+    }
+}
+```
+
+Register it after `AddIdentity`, so it replaces the one this package registered:
+
+```csharp
+builder.Services.AddIdentity<AppUser, AppRole, AppDbContext>();
+builder.Services.AddScoped<IUserClaimsPrincipalFactory<AppUser>, AppClaimsPrincipalFactory>();
+```
+
+To read your claim back on `IUserInfo`, derive a user info type too — see [Carrying extra properties on IUserInfo](#carrying-extra-properties-on-iuserinfo).
+
+### Nuances and gotchas
+
+**Claims are minted at sign-in, not read live.** Changing `DisplayName` or `IsEnabled` in the database does not change the cookie already issued. The user sees the old value until the security stamp is revalidated or they sign in again. Where a change must take effect immediately, call `UserManager.UpdateSecurityStampAsync(user)`, which invalidates the existing cookie.
+
+**A null value becomes an empty claim, not a missing one.** Every one of the thirteen is always present on the principal, so `FindFirst` never returns null for them — test the value, not its presence.
+
+**Reconfigure `IdentityOptions.ClaimsIdentity` rather than the projection.** The claim types the projection reads are copied from Identity's own configuration, so changing them in one place keeps both in step. See [Setup](Setup.md#claim-types-and-authority).
+
+## Enforcing account state
+
+The three rules — disabled account, forced password change, optional two-factor — are evaluated by the shared runtime. This package supplies the data they read.
+
+### Disabling an account
+
+```csharp
+public async Task SuspendAsync(AppUser user)
+{
+    user.IsEnabled = false;
+    await users.UpdateAsync(user);
+    await users.UpdateSecurityStampAsync(user);
+}
+```
+
+`IsEnabled = false` alone does not eject a signed-in user, because their cookie already says otherwise. `UpdateSecurityStampAsync` is what invalidates it, so the next request re-reads the account and the rule fires.
+
+### Forcing a password change
+
+```csharp
+user.RequirePasswordChange = true;
+await users.UpdateAsync(user);
+await users.UpdateSecurityStampAsync(user);
+```
+
+Set `BaseUser.RequirePasswordChange`. That flows through the claim into `IUserInfo.RequiresPasswordChange`, which the rule reads. Clear it once the new password is accepted, or the user is redirected forever:
+
+```csharp
+var result = await users.ChangePasswordAsync(user, currentPassword, newPassword);
+
+if (result.Succeeded)
+{
+    user.RequirePasswordChange = false;
+    await users.UpdateAsync(user);
+}
+```
+
+### Requiring two-factor
+
+Two-factor enforcement is a switch on `IdentityMiddlewareOptions`, off by default; see [Setup](Setup.md#addidentity--standard-registration). The per-user state is ASP.NET Identity's own `TwoFactorEnabled`, and the setup screen is built with `IdentityHelper` — covered in the [shared guide](../JC.Identity.Shared/Guide.md#two-factor-setup-screens).
+
+### Nuances and gotchas
+
+**Three similarly named members are easy to confuse.** `BaseUser.RequirePasswordChange` is the persisted column you set. `IUserInfo.RequiresPasswordChange` is the projected value the rule reads. `IdentityMiddlewareOptions.RequirePasswordChange` is the switch that turns the rule on at all — leave it enabled, or setting the column does nothing.
+
+**Routes must exist.** The rules redirect to `/Identity/Account/Manage/SetPassword`, `/Identity/Account/Manage/EnableAuthenticator` and `/Identity/Account/AccessDenied` by default. An application not using the Identity UI scaffolding must point these at its own pages, or every redirect lands on a 404.
+
+## Seeding roles and an administrator
+
+### Both together
+
+```csharp
+var app = builder.Build();
+
+var admin = await app.ConfigureAdminAndRolesAsync<AppUser, AppRole, AppRoles>();
+```
+
+Roles first, then the administrator — which matters, because roles are assigned by name and a missing role fails the assignment.
+
+### Reacting to the result
+
+```csharp
+var admin = await app.ConfigureAdminAndRolesAsync<AppUser, AppRole, AppRoles>();
+
+if (admin is null)
+{
+    app.Logger.LogCritical("Administrator could not be created — check the Admin configuration section.");
+    return;
+}
+```
+
+`null` means creation was attempted and failed; the reason is already logged. An account that *already existed* is returned rather than nulled, which is what makes anything you chain afterwards idempotent.
+
+### Assigning application roles at seed time
+
+```csharp
+var admin = await app.SeedDefaultAdminAsync<AppUser>(
+    assignAdminRole: true,
+    additionalRoles: [AppRoles.Editor, AppRoles.Viewer]
+);
+```
+
+### Nuances and gotchas
+
+**Seeding is matched on email, then username.** An existing account matching either is returned untouched — no roles are added, no properties updated. Changing `Admin:Email` in configuration therefore creates a *second* administrator rather than renaming the first.
+
+**A failed role assignment does not fail the seed.** Each is logged and the rest continue, so an administrator can end up with some of their roles. Check the startup log rather than assuming success from a non-null return.
+
+**`SeedRolesAsync` never updates an existing role.** A role whose description you have since changed keeps the old one, because only missing roles are created.
+
+## Working with the DbContext
+
+### Adding your own entities
+
+```csharp
+public class AppDbContext(DbContextOptions<AppDbContext> options, IUserInfo userInfo)
+    : IdentityDataDbContext<AppUser, AppRole>(options, userInfo)
+{
+    public DbSet<Product> Products { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.ApplyConfiguration(new ProductMap());
+    }
+}
+```
+
+**Call `base.OnModelCreating` first.** It configures the Identity model and the audit mapping; skipping it loses both.
+
+### The audit trail
+
+Entities extending JC.Core's `AuditModel` are stamped automatically on save, attributed to `IUserInfo.UserId`:
+
+```csharp
+public class Product : AuditModel
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public required string Name { get; set; }
+}
+```
+
+Nothing further is required — `IdentityDataDbContext.SaveChangesAsync` runs the audit service before and after the write.
+
+### Nuances and gotchas
+
+**`SaveChangesAsync` returns the first save's row count.** Where new entities were created, a second save writes their audit entries, and those rows are not included in the returned figure. Do not treat the return value as "everything written".
+
+**Audit attribution comes from the ambient `IUserInfo`.** In a request that is the signed-in user. In a background job it is whatever you established — or the system user if you established nothing. See [establishing an identity outside a request](../JC.Identity.Shared/Guide.md#establishing-an-identity-outside-a-request).
+
+## Carrying extra properties on IUserInfo
+
+```csharp
+public class AppUserInfo : UserInfoBase
+{
+    public string? DepartmentId { get; set; }
+}
+```
 
 ```csharp
 builder.Services.AddIdentity<AppUser, AppRole, AppDbContext, AppUserInfo>();
 ```
 
-**Nuance:** `UserInfoMiddleware` populates the standard `IUserInfo` properties from claims. Your custom properties won't be populated automatically — you'll need additional middleware or a service to populate them (e.g. by querying the database using the `UserId`).
-
-## Claims pipeline
-
-### How claims are added
-
-`DefaultClaimsPrincipalFactory` extends the standard ASP.NET Core Identity claims with 12 custom claims from `BaseUser` properties. These are added when the authentication cookie is created (at login):
-
-| Claim type | Source property | Format |
-|-----------|----------------|--------|
-| `email_confirmed` | `EmailConfirmed` | `"True"` / `"False"` |
-| `phone_number` | `PhoneNumber` | String or empty |
-| `phone_number_confirmed` | `PhoneNumberConfirmed` | `"True"` / `"False"` |
-| `two_factor_enabled` | `TwoFactorEnabled` | `"True"` / `"False"` |
-| `lockout_enabled` | `LockoutEnabled` | `"True"` / `"False"` |
-| `lockout_end` | `LockoutEnd` | ISO 8601 or empty |
-| `access_failed_count` | `AccessFailedCount` | Integer string |
-| `tenant_id` | `TenantId` | String or empty |
-| `display_name` | `DisplayName` | String or empty |
-| `last_login_utc` | `LastLoginUtc` | ISO 8601 or empty |
-| `is_enabled` | `IsEnabled` | `"True"` / `"False"` |
-| `require_password_change` | `RequirePasswordChange` | `"True"` / `"False"` |
-
-`UserInfoMiddleware` then reads these claims back into `IUserInfo` on each request.
-
-**Nuance:** Claims are baked into the authentication cookie at login time. If you change a user's `IsEnabled`, `TenantId`, or any other property in the database, the change won't take effect until the cookie is refreshed. You can force a refresh without requiring the user to log out and back in by calling `SignInManager<TUser>.RefreshSignInAsync(user)` — this regenerates the claims and rewrites the cookie.
-
-### Claim type constants
-
-The `DefaultClaims` class provides `const string` fields for all 12 custom claim types (e.g. `DefaultClaims.TenantId`, `DefaultClaims.IsEnabled`). You should not need to read claims directly — `IUserInfo` is a scoped service populated per-request by `UserInfoMiddleware`, so inject it wherever you need user data. The constants exist primarily as an implementation detail of the claims pipeline and are documented here for completeness. Boolean claims are stored as `"True"` / `"False"` (from `bool.ToString()`).
-
-## Role management
-
-### Defining application roles
-
-Extend `SystemRoles` with your application-specific roles. Each role needs a `const string` name and a matching `{Name}Desc` description:
-
-```csharp
-public class AppRoles : SystemRoles
-{
-    public const string Editor = nameof(Editor);
-    public const string EditorDesc = "Can create and edit content.";
-
-    public const string Viewer = nameof(Viewer);
-    public const string ViewerDesc = "Read-only access to content.";
-
-    public const string Moderator = nameof(Moderator);
-    public const string ModeratorDesc = "Can manage user-generated content and comments.";
-}
-```
-
-`SystemRoles` provides two built-in roles:
-
-- `SystemAdmin` — full system administrator with tenant management access
-- `Admin` — administrator scoped to their tenant
-
-### Discovering roles at runtime
-
-`SystemRoles.GetAllRoles<T>()` uses reflection to discover all role/description pairs:
-
-```csharp
-var roles = SystemRoles.GetAllRoles<AppRoles>();
-// [
-//   ("SystemAdmin", "Full system administrator with access to tenant management and assignment."),
-//   ("Admin", "Administrator with access to all features within their tenant."),
-//   ("Editor", "Can create and edit content."),
-//   ("Viewer", "Read-only access to content."),
-//   ("Moderator", "Can manage user-generated content and comments.")
-// ]
-```
-
-This is used internally by `SeedRolesAsync` but is available for building role management UIs, dropdowns, etc.
-
-**Nuance:** The discovery relies on naming convention — a role constant `Foo` must have a matching `FooDesc` constant. If the description constant is missing, the role is still discovered but with an empty description.
-
-### Using roles for authorisation
-
-```csharp
-// Attribute-based — use your role constants (they're const strings, so valid in attributes)
-[Authorize(Roles = $"{AppRoles.Editor},{AppRoles.Admin}")]
-public class ArticleController : Controller
-{
-    // Only users with Editor or Admin role can access
-}
-```
-
-```csharp
-// Programmatic check
-if (userInfo.IsInRole(AppRoles.Editor))
-{
-    // Allow editing
-}
-```
-
-Using your role class constants avoids magic strings in both cases.
-
-### Admin seeding and role assignment
-
-When `ConfigureAdminAndRolesAsync` runs, the admin user receives different roles depending on tenancy:
-
-- **Without tenancy** (`setupTenancy: false`): admin gets both `SystemAdmin` and `Admin`
-- **With tenancy** (`setupTenancy: true`): admin gets only `SystemAdmin`
-
-The logic is that `Admin` is tenant-scoped, and a system admin managing multiple tenants shouldn't be bound to the default tenant's admin role.
-
-## Middleware behaviour
-
-### Enforcement order
-
-`IdentityMiddleware` checks three business rules in a strict order for authenticated users:
-
-1. **Disabled account** — if `IsEnabled` is `false`, redirect to the access denied route. This is checked first because a disabled user shouldn't reach any other page.
-2. **Password change** — if `RequirePasswordChange` is enabled in options and the user's `RequiresPasswordChange` is `true`, redirect to the change password route.
-3. **Two-factor authentication** — if `EnforceTwoFactor` is enabled and `TwoFactorEnabled` is `false`, redirect to the 2FA setup route.
-
-Password change is enforced before 2FA — the user must set a proper password before being asked to configure two-factor authentication.
-
-### What gets skipped
-
-The middleware automatically passes through:
-
-- **Static files** — requests for `.css`, `.js`, `.jpg`, `.jpeg`, `.png`, `.gif`, `.svg`, `.ico`, `.woff`, `.woff2`, `.ttf`, `.eot`, `.map`, `.json`, `.xml`
-- **Unauthenticated requests** — anonymous users are handled by `[Authorize]` attributes and cookie redirects, not the identity middleware
-- **Excluded paths** — the access denied route, logout route, and error route (from `IdentityMiddlewareOptions.ExcludedPaths`)
-
-**Nuance:** The excluded paths check uses `StartsWith`, so `/Identity/Account/Logout` also excludes `/Identity/Account/Logout/Confirm` and any sub-paths.
-
-**Nuance:** The password change and 2FA redirects also use `StartsWith` to check if the user is already on the target route. This prevents infinite redirect loops — if the user is already on the password change route you configured, the redirect is skipped.
-
-### Controlling middleware individually
-
-If you need to insert other middleware between the identity components:
+Populate the addition after the standard projection has run:
 
 ```csharp
 app.UseAuthentication();
+app.UseUserInfo();
 
-// Your custom middleware that needs authentication but not IUserInfo
-app.UseMyCustomMiddleware();
-
-app.UseUserInfo();       // Must come after UseAuthentication
-app.UseAuthorization();
-app.UseIdentityMiddleware(); // Must come after UseUserInfo
-```
-
-## Two-factor authentication
-
-When `EnforceTwoFactor` is enabled (see [middleware behaviour](#enforcement-order)), users without 2FA configured are redirected to your two-factor setup route. `IdentityHelper` builds the two pieces that setup page needs: the `otpauth://` URI to encode as a QR code, and a human-readable shared key shown as a manual-entry fallback.
-
-`IdentityHelper` is not registered in DI — construct it directly, passing a `UrlEncoder` (inject one, or use `UrlEncoder.Default`):
-
-```csharp
-using System.Text.Encodings.Web;
-using JC.Identity.Helpers;
-
-public class EnableAuthenticatorModel(UserManager<AppUser> userManager, UrlEncoder urlEncoder) : PageModel
+app.Use(async (context, next) =>
 {
-    public string SharedKey { get; private set; } = "";
-    public string AuthenticatorUri { get; private set; } = "";
+    if (context.RequestServices.GetRequiredService<IUserInfo>() is AppUserInfo appUserInfo)
+        appUserInfo.DepartmentId = context.User.FindFirst("department_id")?.Value;
 
-    public async Task OnGetAsync()
-    {
-        var user = await userManager.GetUserAsync(User);
-
-        var unformattedKey = await userManager.GetAuthenticatorKeyAsync(user!);
-        if (string.IsNullOrEmpty(unformattedKey))
-        {
-            await userManager.ResetAuthenticatorKeyAsync(user!);
-            unformattedKey = await userManager.GetAuthenticatorKeyAsync(user!);
-        }
-
-        var helper = new IdentityHelper(urlEncoder);
-        (AuthenticatorUri, SharedKey) = helper.Generate2faKey("MyApp", user!.Email!, unformattedKey!);
-    }
-}
-```
-
-- `AuthenticatorUri` is an `otpauth://totp/...` URI — render it as a QR code (e.g. with a client-side QR library) for the user to scan into their authenticator app.
-- `SharedKey` is the same secret grouped into space-separated blocks of four and lowercased, shown as a manual-entry fallback for users who can't scan.
-
-The first argument (`"MyApp"`) is the issuer. It appears both as the account-label prefix and as the `issuer` parameter in the URI, and is what the authenticator app displays as the account name.
-
-### Generating the pieces individually
-
-`Generate2faKey` is a convenience wrapper that returns both values at once. If you only need one, call the underlying methods directly:
-
-```csharp
-var helper = new IdentityHelper(urlEncoder);
-
-var uri = helper.Generate2faQrCodeUri("MyApp", user.Email!, unformattedKey);
-var display = helper.Format2faKey(unformattedKey);
-```
-
-### Customising the URI format
-
-The default authenticator URI format is `otpauth://totp/{0}:{1}?secret={2}&issuer={0}`. To change it (e.g. to add extra TOTP parameters), pass a format string to the second constructor overload. The placeholders are `{0}` = issuer/app name, `{1}` = URL-encoded email, `{2}` = unformatted key:
-
-```csharp
-var helper = new IdentityHelper(urlEncoder, "otpauth://totp/{0}:{1}?secret={2}&issuer={0}&digits=6&period=30");
-```
-
-**Nuance:** `IdentityHelper` only builds the URI and formatted key — it does not generate, reset, or verify the authenticator secret itself. Use ASP.NET Core Identity's `UserManager` (`GetAuthenticatorKeyAsync`, `ResetAuthenticatorKeyAsync`, `VerifyTwoFactorTokenAsync`) for the secret lifecycle, and pass the unformatted key into the helper.
-
-## Multi-tenancy
-
-### Making entities tenant-aware
-
-Implement `IMultiTenancy` on any entity that should be scoped to a tenant:
-
-```csharp
-public class Project : AuditModel, IMultiTenancy
-{
-    public int Id { get; set; }
-    public required string Name { get; set; }
-
-    // IMultiTenancy
-    public string? TenantId { get; set; }
-    public Tenant? Tenant { get; set; }
-}
-```
-
-Once your entity implements `IMultiTenancy`, `IdentityDataDbContext` automatically applies a global query filter. All queries on that entity are scoped to the current user's tenant — no manual filtering needed.
-
-### How the query filter works
-
-The filter uses the `CurrentTenantId` property on the DbContext, which reads from `IUserInfo.TenantId`:
-
-- **User has a tenant** (`TenantId = "abc123"`): queries return only records where `TenantId == "abc123"`
-- **User has no tenant** (`TenantId` is null/empty): queries return only records where `TenantId` is null
-
-This means tenant-less records (where `TenantId` is null) act as shared/global data — visible to users without a tenant, but not to tenant-scoped users.
-
-### Querying across tenants
-
-System administrators can bypass tenant filters using `AllTenants`:
-
-```csharp
-public class AdminProjectService(
-    IRepositoryManager repositories,
-    IUserInfo userInfo)
-{
-    private readonly IRepositoryContext<Project> _projects = repositories.GetRepository<Project>();
-
-    public async Task<List<Project>> GetAllProjectsAcrossTenantsAsync()
-    {
-        // SystemAdmin users see all tenants; others see only their own
-        return await _projects.AsQueryable()
-            .AllTenants(userInfo)
-            .OrderBy(p => p.Name)
-            .ToListAsync();
-    }
-}
-```
-
-`AllTenants` calls `IgnoreQueryFilters()` for `SystemAdmin` users. For all other users, the query is returned unmodified (tenant filter still applies).
-
-**Nuance:** `IgnoreQueryFilters()` removes all global query filters, not just the tenant filter. If you have other global filters (e.g. soft-delete), they will also be bypassed. Apply additional `.Where()` clauses to compensate.
-
-### Managing tenants
-
-The `Tenant` entity extends `AuditModel`, so it has full audit trail support and works with the repository pattern:
-
-```csharp
-public class TenantService(IRepositoryManager repositories)
-{
-    private readonly IRepositoryContext<Tenant> _tenants = repositories.GetRepository<Tenant>();
-
-    public async Task<Tenant> CreateAsync(string name, string? domain = null)
-    {
-        var tenant = new Tenant
-        {
-            Name = name,
-            Domain = domain,
-            Description = $"Tenant for {name}"
-        };
-
-        return await _tenants.AddAsync(tenant);
-    }
-
-    public async Task<List<Tenant>> GetAllAsync()
-    {
-        return await _tenants.GetAllAsync(t => !t.IsDeleted);
-    }
-
-    public async Task<Tenant?> GetByDomainAsync(string domain)
-    {
-        return await _tenants.AsQueryable()
-            .FilterDeleted(DeletedQueryType.OnlyActive)
-            .FirstOrDefaultAsync(t => t.Domain == domain);
-    }
-}
-```
-
-### Tenant properties
-
-```csharp
-tenant.Id;            // GUID string, auto-generated
-tenant.Name;          // Required tenant name
-tenant.Description;   // Optional description
-tenant.Domain;        // Optional domain (indexed for lookup)
-tenant.MaxUsers;      // Optional user limit (uint)
-tenant.ExpiryDateUtc; // Optional expiry date
-tenant.Settings;      // JSON string — managed via methods below
-```
-
-Because `Tenant` extends `AuditModel`, it also has `CreatedById`, `CreatedUtc`, `LastModifiedById`, `LastModifiedUtc`, `IsDeleted`, and all other audit fields.
-
-### Tenant settings
-
-Tenants have a JSON-based settings store for key-value configuration:
-
-```csharp
-// Set individual settings
-tenant.SetSetting("theme", "dark");
-tenant.SetSetting("max-projects", "50");
-tenant.SetSetting("beta-features", "true", isActive: true);
-
-// Read settings
-var settings = tenant.GetSettings();
-// [
-//   TenantSettings { Key = "theme", Value = "dark", IsActive = true },
-//   TenantSettings { Key = "max-projects", Value = "50", IsActive = true },
-//   TenantSettings { Key = "beta-features", Value = "true", IsActive = true }
-// ]
-
-// Replace all settings at once
-tenant.SetSettings(new List<TenantSettings>
-{
-    new() { Key = "theme", Value = "light", IsActive = true },
-    new() { Key = "max-projects", Value = "100", IsActive = true }
+    await next();
 });
+
+app.UseAuthorization();
+app.UseIdentityMiddleware();
 ```
 
-`SetSetting` adds a new setting if the key doesn't exist, or updates the existing one if it does. The `isActive` flag allows disabling a setting without removing it.
+Registering the pipeline by hand like this is the reason `UseIdentity()` has individual equivalents — see [Setup](Setup.md#middleware--individual-registration).
 
-**Nuance:** Settings are stored as a single JSON string column. After modifying settings, you must save the tenant entity for changes to persist:
+**Derive from `UserInfoBase`, not from `UserInfo`,** unless you want the `BaseUser`-shaped constructors as well. `UserInfo` adds only those constructors; everything else comes from the base.
+
+## Composing with tenancy
+
+`BaseUser.TenantId` is where a user's tenant is stored, and it reaches the runtime by claim rather than by query filter:
+
+```text
+BaseUser.TenantId  →  tenant_id claim  →  IUserInfo.TenantId  →  ITenantInfo (JC.Tenancy)
+```
+
+That chain is why the user entity needs no filter of its own, and why identity works before any tenant scope exists.
+
+### Assigning a tenant to a user
 
 ```csharp
-tenant.SetSetting("theme", "dark");
-await tenants.UpdateAsync(tenant); // Persists the JSON change
+user.TenantId = tenant.Id;
+await users.UpdateAsync(user);
+await users.UpdateSecurityStampAsync(user);
 ```
 
-### Assigning users to tenants
+The security stamp update matters here too — until the cookie is reissued the old tenant claim is still on the principal, so the user keeps operating in their previous tenant.
 
-Set the `TenantId` on your user entity:
+### Nuances and gotchas
 
-```csharp
-public async Task AssignUserToTenantAsync(UserManager<AppUser> userManager, string userId, string tenantId)
-{
-    var user = await userManager.FindByIdAsync(userId);
-    if (user is null) return;
+**Never scope a query by `IUserInfo.TenantId`.** It is the tenant assigned to the *user*; the tenant an operation runs against is `ITenantContext.TenantId`, and the two differ whenever a job or an administrator works elsewhere. Let the query filters do the scoping.
 
-    user.TenantId = tenantId;
-    await userManager.UpdateAsync(user);
-}
-```
+**Wiring tenant filtering is a per-context job.** `IdentityDataDbContext` applies no filters, so an application that adds JC.Tenancy must declare its context tenant-scoped explicitly — see [Setup](Setup.md#adding-tenant-filtering).
 
-**Nuance:** Changing a user's `TenantId` requires a cookie refresh to take effect — see the [claims pipeline](#claims-pipeline) nuance on `RefreshSignInAsync`.
+## Next steps
 
-## Extending the user model
-
-### Adding properties to BaseUser
-
-```csharp
-public class AppUser : BaseUser
-{
-    public string? Department { get; set; }
-    public string? ProfileImageUrl { get; set; }
-    public DateTime? DateOfBirth { get; set; }
-}
-```
-
-`BaseUser` extends `IdentityUser` and adds: `TenantId`, `DisplayName`, `LastLoginUtc`, `IsEnabled`, and `RequirePasswordChange`. Your custom properties sit alongside these.
-
-
-### Adding properties to BaseRole
-
-```csharp
-public class AppRole : BaseRole
-{
-    public string? Colour { get; set; }
-    public int SortOrder { get; set; }
-}
-```
-
-`BaseRole` extends `IdentityRole` and adds a `Description` property. Custom properties are available wherever you work with roles.
-
-### Tracking last login
-
-`BaseUser` has a `LastLoginUtc` property that isn't populated automatically — you need to update it in your login flow:
-
-```csharp
-public async Task<IActionResult> OnPostAsync(string email, string password)
-{
-    var result = await _signInManager.PasswordSignInAsync(email, password, isPersistent: false, lockoutOnFailure: true);
-
-    if (result.Succeeded)
-    {
-        var user = await _userManager.FindByEmailAsync(email);
-        user!.LastLoginUtc = DateTime.UtcNow;
-        await _userManager.UpdateAsync(user);
-    }
-
-    // ...
-}
-```
-
-The value is then included in the claims via `DefaultClaimsPrincipalFactory` and available as `IUserInfo.LastLoginUtc` for subsequent requests.
+- [Setup](Setup.md) — registration, options and their defaults.
+- [API Reference](API.md)
+- [JC.Identity.Shared — Guide](../JC.Identity.Shared/Guide.md) — reading the current user, background-job identity, the account rules and two-factor helpers.
+- [JC.Tenancy — Setup](../JC.Tenancy/Setup.md) — if you need tenant filtering.

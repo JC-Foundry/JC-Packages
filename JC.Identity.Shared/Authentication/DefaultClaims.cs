@@ -4,7 +4,7 @@ namespace JC.Identity.Shared.Authentication;
 /// Defines the custom claim type constants used by the JC identity claims pipeline.
 /// These claims are written onto the <see cref="System.Security.Claims.ClaimsIdentity"/> by
 /// whichever identity authority authenticated the user, and read back by
-/// <see cref="JC.Identity.Shared.Middleware.UserInfoMiddleware"/>.
+/// <see cref="JC.Identity.Shared.Extensions.UserInfoExtensions"/>.
 /// </summary>
 public class DefaultClaims
 {

@@ -1,4 +1,5 @@
 using JC.Core.Enums;
+using JC.Core.Models.Pagination;
 using JC.Tenancy.Models;
 
 namespace JC.Tenancy.Services;
@@ -26,12 +27,26 @@ public interface ITenantStore
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets a tenant by its associated domain.
+    /// Retrieves a tenant by its name.
     /// </summary>
-    /// <param name="domain">The domain to match.</param>
+    /// <param name="name">The name of the tenant to retrieve.</param>
+    /// <param name="deletedQueryType">Specifies whether to include active, deleted, or all tenants. Defaults to active only.</param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>The tenant, or <c>null</c> if no active tenant claims that domain.</returns>
-    Task<Tenant?> GetByDomainAsync(string domain, CancellationToken cancellationToken = default);
+    /// <returns>The tenant with the specified name, or <c>null</c> if no tenant matches.</returns>
+    Task<Tenant?> GetByNameAsync(string name,
+        DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves a tenant by its domain.
+    /// </summary>
+    /// <param name="domain">The domain associated with the tenant to retrieve.</param>
+    /// <param name="deletedQueryType">Specifies whether to include only active tenants, only deleted tenants, or all tenants. Defaults to active only.</param>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>The tenant that matches the specified domain, or <c>null</c> if no matching tenant is found.</returns>
+    Task<Tenant?> GetByDomainAsync(string? domain,
+        DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets all tenants, ordered by name.
@@ -41,6 +56,16 @@ public interface ITenantStore
     /// <returns>The matching tenants.</returns>
     Task<List<Tenant>> GetAllAsync(DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves a paginated list of tenants based on the specified page number, page size, and deletion query type.
+    /// </summary>
+    /// <param name="pageNumber">The number of the page to retrieve.</param>
+    /// <param name="pageSize">The number of items per page.</param>
+    /// <param name="deletedQueryType">Specifies whether to include all tenants, only active tenants, or only deleted tenants. Defaults to only active tenants.</param>
+    /// <returns>A paginated list of tenants.</returns>
+    Task<IPagination<Tenant>> GetAllAsync(int pageNumber, int pageSize,
+        DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive);
 
     /// <summary>
     /// Adds a tenant, provided its name and domain are not already taken.

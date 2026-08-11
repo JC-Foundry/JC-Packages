@@ -7,8 +7,11 @@ A suite of .NET 9 NuGet packages providing shared infrastructure for .NET applic
 | Package | Description | Docs |
 |---------|-------------|------|
 | **JC.Core** | Repository pattern with multi-DbContext support, automatic audit trail on SaveChanges, soft-delete, pagination, and utility helpers | [Documentation](Documentation/JC.Core/) |
-| **JC.Web** | Security headers, cookie management, client profiling, rate limiting, bug reporter tag helper, UI helpers | [Documentation](Documentation/JC.Web/) |
-| **JC.Identity** | ASP.NET Core Identity integration, multi-tenancy query filters, middleware, user management | [Documentation](Documentation/JC.Identity/) |
+| **JC.Web** | Security headers, cookie management, client profiling, rate limiting, SEO (sitemap, robots, meta, JSON-LD), and a swappable UI framework for tag helpers | [Documentation](Documentation/JC.Web/) |
+| **JC.Identity** | ASP.NET Core Identity integration — users, roles, claims, account rules, and role and administrator seeding | [Documentation](Documentation/JC.Identity/) |
+| **JC.Identity.Shared** | The identity runtime shared by every authority — `IUserInfo`, the claims projection, account rules, two-factor helpers. No ASP.NET Core dependency | [Documentation](Documentation/JC.Identity.Shared/) |
+| **JC.Identity.Shared.Web** | The ASP.NET Core half of JC.Identity.Shared — the claims and account-rule middleware | [Documentation](Documentation/JC.Identity.Shared/) |
+| **JC.Tenancy** | Application tenancy — tenant scope, EF Core query filters, a tenant store with caching, and safe and unsafe cross-tenant access | [Documentation](Documentation/JC.Tenancy/) |
 | **JC.MySql** | MySQL database provider extensions using Pomelo.EntityFrameworkCore.MySql | [Database Setup](Documentation/JC.Core/Database-Setup.md) |
 | **JC.SqlServer** | SQL Server database provider extensions using Microsoft.EntityFrameworkCore.SqlServer | [Database Setup](Documentation/JC.Core/Database-Setup.md) |
 | **JC.Communication** | Email sending with multiple providers, in-app notifications with caching and logging, real-time messaging with threads/participants/read tracking, and database logging | [Documentation](Documentation/JC.Communication/) |
@@ -31,14 +34,17 @@ These packages are **not published to NuGet.org**. To use them in your projects,
 2. **Local NuGet feed** — pack the projects (`dotnet pack`) and push the `.nupkg` files to a local NuGet feed.
 
 ```bash
-git clone https://github.com/johncraik/JC-Packages.git
+git clone https://github.com/JC-Foundry/JC-Packages.git
 ```
 
 ## Package Dependencies
 
 ```
 JC.Core (foundation — no JC dependencies)
-├── JC.Identity
+├── JC.Identity.Shared
+│   ├── JC.Identity.Shared.Web
+│   └── JC.Identity (depends on both halves)
+├── JC.Tenancy
 ├── JC.Web
 ├── JC.Communication
 │   └── JC.Communication.Web (depends on JC.Communication + JC.Web)
@@ -52,9 +58,13 @@ JC.Core (foundation — no JC dependencies)
 JC.SqlServer.Hangfire (standalone — no JC dependencies)
 ```
 
-JC.Identity, JC.Web, JC.Communication, JC.Github, JC.BackgroundJobs, JC.FileStorage, JC.MySql, and JC.SqlServer all depend on **JC.Core**. The database providers (JC.MySql / JC.SqlServer) are interchangeable. **JC.Communication.Web** depends on both **JC.Communication** and **JC.Web**, and **JC.FileStorage.Web** depends on both **JC.FileStorage** and **JC.Web**.
+Every package except JC.SqlServer.Hangfire depends on **JC.Core**. The database providers (JC.MySql / JC.SqlServer) are interchangeable. **JC.Communication.Web** depends on both **JC.Communication** and **JC.Web**, and **JC.FileStorage.Web** depends on both **JC.FileStorage** and **JC.Web**.
 
-**JC.FileStorage** depends only on JC.Core, but JC.Identity is required for multi-tenancy — without it, every stored file belongs to the no-tenant scope. It carries no ASP.NET Core dependency, so it runs unchanged from a worker service or a console host. **JC.FileStorage.Web** is optional and needed only by web applications: it adds `IFormFile` handling, a tag helper, and an `IApplicationBuilder` overload of `AddFolders`.
+**Identity and tenancy are independent.** `JC.Tenancy` references no identity package, and no identity package references `JC.Tenancy` — the consuming application joins them. That is what lets an application take tenancy without users, or identity without tenants. `JC.Identity` brings `JC.Identity.Shared` and `JC.Identity.Shared.Web` with it; reference the Shared halves directly only when supplying identity from somewhere other than local ASP.NET Identity.
+
+**JC.Core, JC.Tenancy, JC.Identity.Shared, JC.Communication, JC.BackgroundJobs and JC.FileStorage carry no ASP.NET Core dependency**, so they run unchanged from a worker service or console host.
+
+**JC.FileStorage** depends only on JC.Core, but JC.Tenancy is required for tenant isolation — without it, every stored file belongs to the no-tenant scope. **JC.FileStorage.Web** is optional and needed only by web applications: it adds `IFormFile` handling, a tag helper, and an `IApplicationBuilder` overload of `AddFolders`.
 
 **JC.SqlServer.Hangfire** is standalone — it has no dependency on JC.Core. It depends on Hangfire.SqlServer and Hangfire.AspNetCore.
 
@@ -90,10 +100,34 @@ builder.Services.AddIdentity<AppUser, AppRole, AppDbContext>();
 
 var app = builder.Build();
 app.UseIdentity();
-await app.ConfigureAdminAndRolesAsync<AppUser, AppRole, AppDbContext, AppRoles>(setupTenancy: true);
+
+// Optional: seed system roles and a default administrator from configuration
+var admin = await app.ConfigureAdminAndRolesAsync<AppUser, AppRole, AppRoles>();
 ```
 
-See [JC.Identity documentation](Documentation/JC.Identity/) for multi-tenancy, custom IUserInfo, and role configuration.
+See [JC.Identity documentation](Documentation/JC.Identity/) for the account rules, claims, custom `IUserInfo` and role configuration. Tenancy is a separate package — see JC.Tenancy below.
+
+### JC.Tenancy
+
+```csharp
+builder.Services.AddCore<AppDbContext>();
+
+builder.Services.AddTenancy<AppDbContext>(options =>
+{
+    // Nobody may query across tenants until a role is named
+    options.AllowBypassForRole("SystemAdmin");
+});
+```
+
+Your context implements `ITenantScopedContext` and calls `modelBuilder.ApplyTenantFilters(this)` last in `OnModelCreating`; the one context owning tenant storage also implements `ITenantDbContext` and calls `ApplyTenancyMappings()`.
+
+There is no middleware. Tenant scope is a scoped `ITenantInfo`, derived live from `IUserInfo` where an identity package is registered, and set explicitly for work that has none:
+
+```csharp
+await using var scope = await services.CreateAsyncScopeForTenant(tenantId);
+```
+
+Entities opt in by implementing `IMultiTenancy`, which lives in JC.Core — marking an entity costs no reference to JC.Tenancy. See [JC.Tenancy documentation](Documentation/JC.Tenancy/) for the store, caching, cross-tenant access and seeding.
 
 ### JC.Web
 
@@ -344,6 +378,9 @@ Full documentation for each package is available in the [Documentation](Document
 | JC.Core | [Setup](Documentation/JC.Core/Setup.md) | [Guide](Documentation/JC.Core/Guide.md) | [API](Documentation/JC.Core/API.md) |
 | JC.Web | [Security Setup](Documentation/JC.Web/Security-Setup.md) · [Client Profiling Setup](Documentation/JC.Web/ClientProfiling-Setup.md) · [SEO Setup](Documentation/JC.Web/SEO-Setup.md) · [UI Setup](Documentation/JC.Web/UI-Setup.md) | [Security Guide](Documentation/JC.Web/Security-Guide.md) · [Client Profiling Guide](Documentation/JC.Web/ClientProfiling-Guide.md) · [SEO Guide](Documentation/JC.Web/SEO-Guide.md) · [UI Guide](Documentation/JC.Web/UI-Guide.md) | [Security API](Documentation/JC.Web/Security-API.md) · [Client Profiling API](Documentation/JC.Web/ClientProfiling-API.md) · [SEO API](Documentation/JC.Web/SEO-API.md) · [UI API](Documentation/JC.Web/UI-API.md) |
 | JC.Identity | [Setup](Documentation/JC.Identity/Setup.md) | [Guide](Documentation/JC.Identity/Guide.md) | [API](Documentation/JC.Identity/API.md) |
+| JC.Identity.Shared | [Setup](Documentation/JC.Identity.Shared/Setup.md) | [Guide](Documentation/JC.Identity.Shared/Guide.md) | [API](Documentation/JC.Identity.Shared/API.md) |
+| JC.Identity.Shared.Web | [Setup](Documentation/JC.Identity.Shared/Setup.md#adding-the-aspnet-core-middleware) | [Guide](Documentation/JC.Identity.Shared/Guide.md) | [API](Documentation/JC.Identity.Shared/API.md) |
+| JC.Tenancy | [Setup](Documentation/JC.Tenancy/Setup.md) | [Guide](Documentation/JC.Tenancy/Guide.md) | [API](Documentation/JC.Tenancy/API.md) |
 | JC.Communication | [Email Setup](Documentation/JC.Communication/Email-Setup.md) · [Notifications Setup](Documentation/JC.Communication/Notifications-Setup.md) · [Messaging Setup](Documentation/JC.Communication/Messaging-Setup.md) | [Email Guide](Documentation/JC.Communication/Email-Guide.md) · [Notifications Guide](Documentation/JC.Communication/Notifications-Guide.md) · [Messaging Guide](Documentation/JC.Communication/Messaging-Guide.md) | [Email API](Documentation/JC.Communication/Email-API.md) · [Notifications API](Documentation/JC.Communication/Notifications-API.md) · [Messaging API](Documentation/JC.Communication/Messaging-API.md) |
 | JC.Communication.Web | [Setup](Documentation/JC.Communication/Communication.Web-Setup.md) | [Guide](Documentation/JC.Communication/Communication.Web-Guide.md) | [API](Documentation/JC.Communication/Communication.Web-API.md) |
 | JC.Github | [Setup](Documentation/JC.Github/Setup.md) | [Guide](Documentation/JC.Github/Guide.md) | [API](Documentation/JC.Github/API.md) |
@@ -355,7 +392,7 @@ Full documentation for each package is available in the [Documentation](Document
 ## Build from Source
 
 ```bash
-git clone https://github.com/johncraik/JC-Packages.git
+git clone https://github.com/JC-Foundry/JC-Packages.git
 cd JC-Packages
 dotnet build
 ```
@@ -379,7 +416,7 @@ No additional configuration or dependencies are required beyond the .NET 9 SDK.
 - **Major** and **Minor** are shared across the full package suite
 - A **Major** or **Minor** bump in any package updates **all packages**
 - **Patch** versions are normally **package-specific**
-- **`JC.Core` is the exception**: any patch update to `JC.Core` bumps the patch version of all packages **that depend on JC.Core** (JC.Web, JC.Identity, JC.Communication, JC.Communication.Web, JC.Github, JC.BackgroundJobs, JC.FileStorage, JC.FileStorage.Web, JC.MySql, JC.SqlServer). The standalone package JC.SqlServer.Hangfire is unaffected
+- **`JC.Core` is the exception**: any patch update to `JC.Core` bumps the patch version of all packages **that depend on JC.Core** — which is every package except the standalone JC.SqlServer.Hangfire, and includes those depending on it transitively (JC.Identity.Shared.Web through JC.Identity.Shared, JC.Communication.Web and JC.FileStorage.Web through their own parents)
 
 ### What this means
 

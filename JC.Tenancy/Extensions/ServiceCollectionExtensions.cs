@@ -42,12 +42,17 @@ public static class ServiceCollectionExtensions
         Action<TenantOptions>? configure = null)
         where TContext : DbContext, ITenantDbContext
     {
-        var existing = services.FirstOrDefault(s => s.ServiceType == typeof(ITenantDbContext));
-        if (existing is not null)
+        var owner = services
+            .FirstOrDefault(s => s.ServiceType == typeof(TenantStoreOwner))?
+            .ImplementationInstance as TenantStoreOwner;
+
+        if (owner is not null)
             throw new InvalidOperationException(
-                $"Tenancy has already been registered against '{existing.ImplementationType?.Name ?? "another context"}'. " +
+                $"Tenancy has already been registered against '{owner.ContextType.Name}'. " +
                 $"Exactly one {nameof(DbContext)} may own tenant storage. Other contexts participate in " +
                 $"filtering by implementing '{nameof(ITenantScopedContext)}' — they do not need to be registered here.");
+
+        services.AddSingleton(new TenantStoreOwner(typeof(TContext)));
 
         if (configure != null)
             services.Configure(configure);
@@ -56,7 +61,6 @@ public static class ServiceCollectionExtensions
 
         services.AddMemoryCache();
 
-        // Marks TContext as the owner, and is what the guard above detects on a second call.
         services.AddScoped<ITenantDbContext>(sp => sp.GetRequiredService<TContext>());
 
         services.AddScoped<TenantCache>();

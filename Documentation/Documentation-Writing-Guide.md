@@ -3,6 +3,23 @@
 
 Standards and templates for writing JC-Packages documentation. Each package gets a dedicated folder under `/Documentation/JC.{Package}/` containing a consistent set of documents.
 
+## Updating Package Documentation
+
+You will need to update/verify the following documentation when you make changes to a package (using JC.Core as an example):
+- The global [README](../README.md) file.
+- The package's [README](../JC.Core/README.md) file.
+- The package's [Setup.md](JC.Core/Setup.md) file.
+- The package's [Guide.md](JC.Core/Guide.md) file.
+- The package's [API reference](JC.Core/API.md) file.
+
+Some packages have split setup-guide-api documentation based on the package's area/feature it implements.
+
+**The codebase is the only source of truth.** Verify every signature, default, namespace and behavioural claim against the source before writing it down. Do not carry a statement across from an existing document, a release note or a design document without re-checking it — those go stale, and a wrong default is worse than a missing one.
+
+**Never describe a previous version.** Documentation states what the package does now. Migration guidance belongs in the release notes for the major version that introduced the change, and nowhere else.
+
+**Document each thing once.** Where two packages share behaviour, document it in the package that owns it and link from the other with a sentence saying where it lives. A reader opening two files is a smaller cost than two copies drifting apart.
+
 ## Document Structure
 
 Each package folder contains the following documents, written in the order listed below:
@@ -55,324 +72,24 @@ Each package folder contains the following documents, written in the order liste
 - Link to the full guide and API reference for the package.
 ```
 
+Omit section 3 where the package introduces no entities or schema, and renumber Verify accordingly rather than leaving a gap.
+
 #### Key Rules
 
 - **Defaults must be documented.** Every registration method's default behaviour must be explicitly stated. The reader should know exactly what happens if they call the method with no arguments.
 - **Every option must be documented.** Every parameter, configuration property, and overload must be covered in full configuration. Nothing should be discoverable only through IntelliSense.
 - **Opt-in features in quick setup.** If a feature is optional (not included in the defaults convenience method), still show it in quick setup with a clear comment that it's opt-in. Then cover it fully in full configuration.
 - **Show complete, copy-pasteable code.** Use `// ...existing code...` to indicate where the snippet fits in a larger file, but never show partial statements.
+- **Code samples must compile.** Check constructor signatures, generic arity and constraints against the source — a sample that names a type parameter the method no longer takes is worse than no sample.
 - **One code block per concept.** Don't split a single registration across multiple fenced blocks unless showing different files (e.g. `Program.cs` and `appsettings.json`).
 - **Configuration examples** use `appsettings.json` with placeholder values. Never include real credentials.
 - **Full configuration code examples must show options being set to their default values** so the reader can see what the defaults are directly in the code. If a default is `null` or empty, use a suitable example value instead.
 
-#### Example — JC.Identity Setup.md
+#### Reference example
 
-This is the reference example. All package Setup.md files should follow this level of detail.
+[Documentation/JC.Identity/Setup.md](JC.Identity/Setup.md) is the reference for this document type. All package Setup.md files should follow that level of detail.
 
----
-
-````markdown
-# JC.Identity — Setup
-
-## Prerequisites
-
-- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
-- An existing ASP.NET Core project with a `DbContext`
-- JC.Core already registered (JC.Identity depends on it)
-- See [Installation](../../README.md#installation) for how to add JC-Packages to your project
-
-## 0. Add the package
-
-Add a project reference to `JC.Identity`:
-
-```xml
-<ProjectReference Include="path/to/JC.Identity/JC.Identity.csproj" />
-```
-
-See [Versioning Strategy](../../README.md#versioning-strategy) to understand which version to use.
-
-## 1. Quick setup
-
-### Services — `Program.cs`
-
-```csharp
-// Register JC.Identity with ASP.NET Core Identity, default middleware options, and default cookie paths
-builder.Services.AddIdentity<AppUser, AppRole, AppDbContext>();
-```
-
-### Middleware — `Program.cs`
-
-```csharp
-var app = builder.Build();
-
-// Registers authentication, user info population, authorisation, and identity middleware — in that order
-app.UseIdentity();
-
-// Optional: seed system roles and a default admin user from config
-await app.ConfigureAdminAndRolesAsync<AppUser, AppRole, AppDbContext, AppRoles>();
-```
-
-### Configuration — `appsettings.json`
-
-Admin seeding requires these keys (only needed if calling `ConfigureAdminAndRolesAsync`):
-
-```json
-{
-  "Admin": {
-    "Username": "admin",
-    "Email": "admin@example.com",
-    "Password": "YourSecurePassword123!",
-    "DisplayName": "System Administrator"
-  }
-}
-```
-
-### Defaults
-
-When called with no configuration callbacks, `AddIdentity` sets:
-
-| Default | Value |
-|---------|-------|
-| Login path | `/Identity/Account/Login` |
-| Logout path | `/Identity/Account/Logout` |
-| Access denied path | `/Identity/Account/AccessDenied` |
-| Password change enforcement | Enabled — users with `RequiresPasswordChange` are redirected |
-| Password change route | `/Identity/Account/Manage/SetPassword` |
-| Two-factor enforcement | Disabled |
-| Two-factor route | `/Identity/Account/Manage/EnableAuthenticator` |
-| `IUserInfo` implementation | `UserInfo` (built-in) |
-| Claims factory | `DefaultClaimsPrincipalFactory` — adds 12 custom claims from `BaseUser` properties |
-
-`UseIdentity` registers middleware in this order:
-1. `UseAuthentication()` — ASP.NET Core authentication
-2. `UseUserInfo()` — populates `IUserInfo` from the authenticated user's claims
-3. `UseAuthorization()` — ASP.NET Core authorisation
-4. `UseIdentityMiddleware()` — enforces disabled account redirects, password change, and 2FA
-
-## 2. Full configuration
-
-### AddIdentity — standard registration
-
-Registers ASP.NET Core Identity with EF Core stores, default token providers, the JC.Identity claims factory, `IUserInfo`, and `IdentityMiddlewareOptions`.
-
-```csharp
-builder.Services.AddIdentity<AppUser, AppRole, AppDbContext>(
-    configureMiddleware: options =>
-    {
-        options.RequirePasswordChange = true;
-        options.ChangePasswordRoute = "/Identity/Account/Manage/SetPassword";
-        options.EnforceTwoFactor = false;
-        options.TwoFactorRoute = "/Identity/Account/Manage/EnableAuthenticator";
-        options.AccessDeniedRoute = "/Identity/Account/AccessDenied";
-        options.LogoutRoute = "/Identity/Account/Logout";
-        options.ErrorRoute = "/Error";
-    },
-    configureCookie: cookie =>
-    {
-        cookie.LoginPath = "/Identity/Account/Login";
-        cookie.LogoutPath = "/Identity/Account/Logout";
-        cookie.AccessDeniedPath = "/Identity/Account/AccessDenied";
-    }
-);
-```
-
-#### `IdentityMiddlewareOptions`
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `RequirePasswordChange` | `bool` | `true` | When enabled, users with `RequiresPasswordChange = true` are redirected to the change password route |
-| `ChangePasswordRoute` | `string` | `/Identity/Account/Manage/SetPassword` | Route users are redirected to when a password change is required |
-| `EnforceTwoFactor` | `bool` | `false` | When enabled, users without 2FA configured are redirected to the 2FA setup route |
-| `TwoFactorRoute` | `string` | `/Identity/Account/Manage/EnableAuthenticator` | Route users are redirected to for 2FA setup |
-| `AccessDeniedRoute` | `string` | `/Identity/Account/AccessDenied` | Route disabled users are redirected to |
-| `LogoutRoute` | `string` | `/Identity/Account/Logout` | Logout route — excluded from middleware enforcement |
-| `ErrorRoute` | `string` | `/Error` | Error route — excluded from middleware enforcement |
-
-`ExcludedPaths` is a read-only array automatically built from `AccessDeniedRoute`, `LogoutRoute`, and `ErrorRoute`. Requests to these paths skip all middleware enforcement checks.
-
-#### `CookieAuthenticationOptions`
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `LoginPath` | `string` | `/Identity/Account/Login` | Where unauthenticated users are redirected |
-| `LogoutPath` | `string` | `/Identity/Account/Logout` | Where the sign-out handler is mapped |
-| `AccessDeniedPath` | `string` | `/Identity/Account/AccessDenied` | Where users are redirected on 403 |
-
-These are ASP.NET Core's `CookieAuthenticationOptions` — you can set any property on the options object, not just the three above. JC.Identity sets these three defaults if no `configureCookie` callback is provided.
-
-### AddIdentity with custom IUserInfo
-
-If you need additional properties on `IUserInfo`, create a class implementing `IUserInfo` and use the four-type-parameter overload:
-
-```csharp
-builder.Services.AddIdentity<AppUser, AppRole, AppDbContext, CustomUserInfo>(
-    configureMiddleware: options =>
-    {
-        options.RequirePasswordChange = true;
-        options.EnforceTwoFactor = false;
-    },
-    configureCookie: cookie =>
-    {
-        cookie.LoginPath = "/Identity/Account/Login";
-    }
-);
-```
-
-`CustomUserInfo` is registered as the scoped `IUserInfo` implementation instead of the built-in `UserInfo`.
-
-### AddIdentityBase — when ASP.NET Core Identity is already registered
-
-If your project registers ASP.NET Core Identity separately (e.g. with external auth providers), use `AddIdentityBase` to add only the JC.Identity services without re-registering Identity:
-
-```csharp
-// Two type parameters — uses built-in UserInfo
-builder.Services.AddIdentityBase<AppUser, AppRole>(
-    configureMiddleware: options =>
-    {
-        options.RequirePasswordChange = true;
-        options.EnforceTwoFactor = false;
-    }
-);
-```
-
-```csharp
-// Three type parameters — uses custom IUserInfo implementation
-builder.Services.AddIdentityBase<AppUser, AppRole, CustomUserInfo>(
-    configureMiddleware: options =>
-    {
-        options.RequirePasswordChange = true;
-        options.EnforceTwoFactor = false;
-    }
-);
-```
-
-`AddIdentityBase` does **not** accept a `configureCookie` parameter — cookie configuration is the responsibility of whichever code registered ASP.NET Core Identity.
-
-`AddIdentityBase` registers:
-- Authorisation and authentication services
-- `IUserInfo` (scoped)
-- `DefaultClaimsPrincipalFactory` as `IUserClaimsPrincipalFactory<TUser>`
-- `IdentityMiddlewareOptions`
-- `Tenant` repository context
-
-### Middleware — individual registration
-
-If you need control over middleware ordering, register each component individually instead of calling `UseIdentity()`:
-
-```csharp
-app.UseAuthentication();
-app.UseUserInfo();       // Must come after UseAuthentication — reads claims from the authenticated user
-app.UseAuthorization();
-app.UseIdentityMiddleware(); // Must come after UseUserInfo — depends on populated IUserInfo
-```
-
-### Admin and role seeding
-
-#### ConfigureAdminAndRolesAsync — combined seeding
-
-Seeds all system roles and creates a default admin user from configuration. Call after `app.Build()`.
-
-```csharp
-await app.ConfigureAdminAndRolesAsync<AppUser, AppRole, AppDbContext, AppRoles>(
-    setupTenancy: false,
-    usernameConfigKey: "Admin:Username",
-    emailConfigKey: "Admin:Email",
-    passwordConfigKey: "Admin:Password",
-    displayNameConfigKey: "Admin:DisplayName",
-    additionalRoles: null
-);
-```
-
-| Parameter | Type | Default | Description |
-|----------|------|---------|-------------|
-| `setupTenancy` | `bool` | `false` | When `true`, finds or creates a "Default Tenant" and assigns it to the admin user |
-| `usernameConfigKey` | `string` | `"Admin:Username"` | Configuration key for the admin username |
-| `emailConfigKey` | `string` | `"Admin:Email"` | Configuration key for the admin email |
-| `passwordConfigKey` | `string` | `"Admin:Password"` | Configuration key for the admin password |
-| `displayNameConfigKey` | `string` | `"Admin:DisplayName"` | Configuration key for the admin display name (falls back to "System Administrator") |
-| `additionalRoles` | `IEnumerable<string>?` | `null` | Extra roles to assign to the admin beyond the system defaults |
-
-Configuration — `appsettings.json`:
-
-```json
-{
-  "Admin": {
-    "Username": "admin",
-    "Email": "admin@example.com",
-    "Password": "YourSecurePassword123!",
-    "DisplayName": "System Administrator"
-  }
-}
-```
-
-The admin user is created with `EmailConfirmed = true` and `IsEnabled = true`. If `setupTenancy` is `false`, the admin receives both `SystemAdmin` and `Admin` roles. If `setupTenancy` is `true`, the admin receives only `SystemAdmin`.
-
-Seeding is idempotent — if a user with the configured email or username already exists, no changes are made.
-
-#### SeedRolesAsync — roles only
-
-Seeds roles without creating an admin user. Uses reflection to discover all `const string` pairs from your `SystemRoles` subclass (role name matched with `{RoleName}Desc` for descriptions).
-
-```csharp
-await app.SeedRolesAsync<AppRoles, AppRole>();
-```
-
-#### SeedDefaultAdminAsync — admin only
-
-Creates the admin user without seeding roles. Accepts the same parameters as `ConfigureAdminAndRolesAsync`.
-
-```csharp
-await app.SeedDefaultAdminAsync<AppUser, AppRole, AppDbContext>(
-    setupTenancy: false,
-    usernameConfigKey: "Admin:Username",
-    emailConfigKey: "Admin:Email",
-    passwordConfigKey: "Admin:Password",
-    displayNameConfigKey: "Admin:DisplayName",
-    additionalRoles: ["Editor", "Reviewer"]
-);
-```
-
-### Defining roles
-
-Extend `SystemRoles` to define application-specific roles. Each role needs a `const string` for the name and a matching `{Name}Desc` constant for the description:
-
-```csharp
-public class AppRoles : SystemRoles
-{
-    public const string Editor = nameof(Editor);
-    public const string EditorDesc = "Can create and edit content.";
-
-    public const string Viewer = nameof(Viewer);
-    public const string ViewerDesc = "Read-only access to content.";
-}
-```
-
-`SystemRoles` provides two built-in roles:
-- `SystemAdmin` — "Full system administrator with access to tenant management and assignment."
-- `Admin` — "Administrator with access to all features within their tenant."
-
-## 3. Apply migrations
-
-JC.Identity introduces tables for Identity (users, roles, claims, tokens, logins), audit entries, and tenants. Your `DbContext` must extend `IdentityDataDbContext<TUser, TRole>`.
-
-Generate and apply the initial migration:
-
-```bash
-dotnet ef migrations add InitialIdentity --project YourApp
-dotnet ef database update --project YourApp
-```
-
-## 4. Verify
-
-1. Run the application.
-2. Navigate to a page protected with `[Authorize]` — you should be redirected to `/Identity/Account/Login`.
-3. If admin seeding is configured, log in with the credentials from `appsettings.json`.
-
-## Next steps
-
-- [Guide](Guide.md) — multi-tenancy, custom `IUserInfo`, tenant query filters, and `UserInfoMiddleware` behaviour.
-- [API Reference](API.md)
-````
+It is linked rather than reproduced here so there is one copy to maintain. Read it alongside these rules before writing a new one, and note in particular how it handles behaviour owned by another package — the shared identity runtime is linked to rather than restated.
 
 ---
 
@@ -422,125 +139,11 @@ For each feature area in the package, create a top-level section. Within each se
 - **Cover interactions between features.** If two features work together (e.g. `IUserInfo` with audit trail, `RequestMetadata` with bot filtering), show the combined usage.
 - **Code blocks should be self-contained.** Each example should make sense on its own without needing to read three other examples first. Include enough context (constructor injection, class declaration) to be clear.
 
-#### Example — JC.Core Guide.md (partial)
+#### Reference example
 
-````markdown
-# JC.Core — Guide
+[Documentation/JC.Core/Guide.md](JC.Core/Guide.md) is the reference for this document type — repository usage, soft-delete, pagination and helpers, each with a basic case followed by the nuances.
 
-Covers repository pattern usage, soft-delete and restore, pagination, audit trail behaviour, and utility helpers. See [Setup](Setup.md) for registration.
-
-## Repository pattern
-
-### Basic CRUD
-
-Inject `IRepositoryContext<T>` for typed repository access:
-
-```csharp
-public class ProductService(IRepositoryContext<Product> products)
-{
-    public async Task<Product> CreateAsync(string name, decimal price)
-    {
-        var product = new Product { Name = name, Price = price };
-        return await products.AddAsync(product);
-    }
-
-    public async Task<Product?> GetAsync(int id)
-    {
-        return await products.GetByIdAsync(id);
-    }
-
-    public async Task<List<Product>> GetAllActiveAsync()
-    {
-        return await products.GetAllAsync(p => !p.IsDeleted);
-    }
-
-    public async Task UpdateAsync(Product product)
-    {
-        await products.UpdateAsync(product);
-    }
-}
-```
-
-Every `AddAsync` call automatically populates `CreatedById` and `CreatedUtc` on `AuditModel` entities. Every `UpdateAsync` populates `LastModifiedById` and `LastModifiedUtc`. The user ID comes from `IUserInfo.UserId` — if JC.Identity is registered, this is the authenticated user; otherwise it falls back to `IUserInfo.MissingUserInfoId`.
-
-### Batching operations
-
-By default, every repository method calls `SaveChangesAsync` immediately. Pass `saveNow: false` to batch:
-
-```csharp
-await products.AddAsync(product1, saveNow: false);
-await products.AddAsync(product2, saveNow: false);
-await products.AddAsync(product3, saveNow: false);
-await repositoryManager.SaveChangesAsync(); // Single round-trip
-```
-
-This is useful when creating related entities that should be saved atomically.
-
-### Overriding the user ID
-
-All write operations accept an optional `userId` parameter for audit purposes:
-
-```csharp
-// Attribute the change to a system process instead of the current user
-await products.UpdateAsync(product, userId: "data-migration-job");
-```
-
-## Soft-delete and restore
-
-### Soft-deleting
-
-```csharp
-await products.SoftDeleteAsync(product);
-```
-
-Sets `IsDeleted = true`, `DeletedById`, and `DeletedUtc`. The entity remains in the database. Clears any previous restore fields.
-
-### Restoring
-
-```csharp
-await products.RestoreAsync(product);
-```
-
-Sets `IsDeleted = false`, `RestoredById`, and `RestoredUtc`. Clears the deleted fields.
-
-### Querying by soft-delete status
-
-Use `FilterDeleted` to control which records are returned:
-
-```csharp
-// Only active (non-deleted) records — the most common case
-var active = products.AsQueryable().FilterDeleted(DeletedQueryType.OnlyActive).ToList();
-
-// Only soft-deleted records (e.g. for an "archive" or "recycle bin" view)
-var deleted = products.AsQueryable().FilterDeleted(DeletedQueryType.OnlyDeleted).ToList();
-
-// All records regardless of status
-var all = products.AsQueryable().FilterDeleted(DeletedQueryType.All).ToList();
-```
-
-**Nuance:** `FilterDeleted` only works on entities extending `AuditModel`. For non-`AuditModel` entities with a `bool IsDeleted` property, the repository's soft-delete operations still work (detected via reflection), but `FilterDeleted` is not available — use a manual `.Where(x => !x.IsDeleted)` instead.
-
-## Pagination
-
-### From a queryable
-
-```csharp
-var page = await products.AsQueryable()
-    .Where(p => !p.IsDeleted)
-    .OrderBy(p => p.Name)
-    .ToPagedListAsync(pageNumber: 1, pageSize: 20);
-
-// page.Items        — IReadOnlyList<Product> for this page
-// page.TotalCount   — total matching records
-// page.TotalPages   — calculated from TotalCount / PageSize
-// page.HasNextPage  — true if more pages exist
-// page.PageNumber   — current page (1-based)
-```
-
-`ToPagedListAsync` executes two queries: one `COUNT(*)` and one `Skip/Take`. Use the sync `ToPagedList` overload if you're working with an in-memory collection.
-
-**Nuance:** If `pageNumber` exceeds `TotalPages`, it auto-adjusts to the last valid page rather than returning an empty result.
-````
+[Documentation/JC.Identity.Shared/Guide.md](JC.Identity.Shared/Guide.md) is a second example worth reading for its "Nuances and gotchas" subsections, which state the failure rather than the principle.
 
 ---
 
@@ -627,10 +230,12 @@ One or two paragraphs describing the method's behaviour — what it does step by
 - **No code examples.** API.md is a reference, not a tutorial. Code belongs in Guide.md.
 - **Every public and protected member must be documented.** If a consumer can see it or override it, it belongs here. Internal and private members are excluded.
 - **Exclude registration extensions and options classes.** `IServiceCollection`, `IServiceProvider`, and `IApplicationBuilder` extension methods (e.g. `AddCore`, `UseIdentity`) and their associated options classes (e.g. `CoreBackgroundJobOptions`, `NotificationOptions`) are already fully documented in Setup.md — do not repeat them here.
+- **Where an `IServiceProvider` extension is a runtime operation rather than registration, document it here and say why.** The exclusion above exists to avoid duplicating Setup, not to hide behaviour that has no other home.
 - **Method signatures must be exact.** Show the correct method name, all parameters in order, their types, and default values. If a parameter has no default, use `—` in the default column.
 - **Combine interfaces with their implementations.** If `IFoo` is implemented by `Foo` in the same package, document them together under `Foo` (or whichever name is more recognisable). Note which type the consumer injects. Only document standalone interfaces (those with no in-package implementation) separately.
 - **Document access modifiers on properties.** If a property has a public get but a private or internal set (or vice versa), show this in the Access column (e.g. `get; internal set;`).
 - **Describe method behaviour, not usage.** Explain the flow: what the method checks, what it creates, what it persists, what it returns, what side effects occur. Think of it as the XML `<summary>` and `<remarks>` tags combined into prose.
+- **Call out inconsistencies rather than smoothing them over.** A method that omits a `CancellationToken` its siblings take, or takes a parameter they do not, is exactly what a reference is for.
 - **State included navigation properties.** If a method eagerly loads EF Core navigation properties (via `.Include()`), list them in the method description. This tells the consumer exactly what's materialised without needing to check the source.
 - **Group by category, then by class.** API.md is organised into top-level sections (Models, Enums, Services, Helpers, Extensions, Data, etc.) with individual classes documented under the appropriate section. Within each section, every member of a class appears together under that class heading. Omit any top-level section that has no entries for the package.
 - **Always include the namespace.** Every class, interface, enum, and record heading must state its full namespace (e.g. `**Namespace:** \`JC.Core.Models\``). Verify against the source code — never guess.
@@ -638,64 +243,11 @@ One or two paragraphs describing the method's behaviour — what it does step by
 - **Extension method classes are documented as their own section.** Group all extension methods under the static class name, with each method as a sub-heading.
 - **Inheritance.** If a class extends a base class from the same package, note this but don't re-document inherited members — refer the reader to the base class section.
 
-#### Example — API.md entry (partial)
+#### Reference example
 
-````markdown
-## BugReportService
+[Documentation/JC.Tenancy/API.md](JC.Tenancy/API.md) is the reference for this document type — every section shape in one file, with the behavioural prose that replaces XML comments.
 
-**Namespace:** `JC.Github.Services`
-
-Manages local persistence and GitHub synchronisation of issue reports. Inject via `BugReportService`.
-
-### Methods
-
-#### RecordIssue(string description, IssueType issueType, string? creatorId = null, string? creatorName = null)
-
-**Returns:** `Task<ReportedIssue>`
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `description` | `string` | — | The issue body text. Used as the GitHub issue body. |
-| `issueType` | `IssueType` | — | Whether this is a `Bug` or `Suggestion`. Determines the GitHub issue title. |
-| `creatorId` | `string?` | `null` | Local-only user identifier. Stored on the `ReportedIssue` but not sent to GitHub. |
-| `creatorName` | `string?` | `null` | Local-only display name. Stored on the `ReportedIssue` but not sent to GitHub. |
-
-Persists a new `ReportedIssue` to the local database, then attempts to create a corresponding GitHub issue via the configured `GitHelper`. The GitHub issue title is set to `"New Bug"` or `"New Suggestion"` based on `issueType`, with `description` as the body.
-
-If the GitHub API call succeeds, `ReportSent` is set to `true` and `ExternalId` is populated with the GitHub issue number. If it fails, the exception is logged but not thrown — `ReportSent` remains `false` and `ExternalId` remains `null`. The local record is always saved regardless of GitHub sync outcome.
-
-## ReportedIssue
-
-**Namespace:** `JC.Github.Models`
-
-Entity representing a locally persisted issue report, optionally synced with GitHub.
-
-### Properties
-
-| Property | Type | Default | Access | Description |
-|----------|------|---------|--------|-------------|
-| `Id` | `Guid` | Generated | get; set; | Local unique identifier. |
-| `Description` | `string` | — | get; set; | The issue body text. |
-| `Type` | `IssueType` | — | get; set; | Whether this is a bug or suggestion. |
-| `Created` | `DateTime` | `DateTime.UtcNow` | get; set; | Timestamp of local creation. |
-| `ReportSent` | `bool` | `false` | get; set; | Whether the GitHub API call succeeded. |
-| `ExternalId` | `int?` | `null` | get; set; | GitHub issue number, or null if not synced. |
-| `Closed` | `bool` | `false` | get; set; | Whether the issue has been closed (updated via webhook). |
-| `UserId` | `string?` | `null` | get; set; | Local-only creator identifier. |
-| `UserDisplay` | `string?` | `null` | get; set; | Local-only creator display name. |
-| `Image` | `byte[]?` | `null` | get; set; | Optional screenshot data. Not populated by `RecordIssue`. |
-
-## IssueType
-
-**Namespace:** `JC.Github.Models`
-
-Enum indicating the type of reported issue.
-
-| Member | Value | Description |
-|--------|-------|-------------|
-| `Bug` | `0` | A bug report. GitHub issue title: "New Bug". |
-| `Suggestion` | `1` | A feature suggestion. GitHub issue title: "New Suggestion". |
-````
+[Documentation/JC.Github/API.md](JC.Github/API.md) is a smaller one to read first if the above is too much at once.
 
 ---
 

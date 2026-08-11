@@ -72,7 +72,7 @@ public class UserInfoBase : IUserInfo
     public bool IsSetup { get; set; }
 
     /// <inheritdoc />
-    public bool MultiTenancyEnabled { get; set; }
+    public bool HasTenant => !string.IsNullOrEmpty(TenantId);
 
     /// <inheritdoc />
     public IReadOnlyList<string> Roles { get; set; } = [];
@@ -104,8 +104,8 @@ public class UserInfoBase : IUserInfo
     /// <param name="user">The user record to project.</param>
     /// <param name="roles">The user's role names. Null and empty entries are discarded.</param>
     /// <remarks>
-    /// Delegates to <see cref="Extensions.UserInfoExtensions.PopulateFrom{T}"/>, so constructing an
-    /// instance and seeding an existing one share a single projection.
+    /// Delegates to <see cref="Extensions.UserInfoExtensions.PopulateFrom{T}(T, IApplicationUser, IEnumerable{string})"/>,
+    /// so constructing an instance and seeding an existing one share a single projection.
     /// <para>
     /// Deliberately does not set <see cref="TenantId"/>, as
     /// <see cref="JC.Core.Models.IApplicationUser.IdentityTenantId"/> does not inherently mean the user's

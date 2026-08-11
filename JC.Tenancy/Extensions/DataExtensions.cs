@@ -59,13 +59,31 @@ public static class DataExtensions
     {
         var excluded = options?.ExcludedEntityTypes ?? [];
 
-        var tenantEntities = modelBuilder.Model.GetEntityTypes()
+        var candidates = modelBuilder.Model.GetEntityTypes()
             .Where(e => typeof(IMultiTenancy).IsAssignableFrom(e.ClrType))
             .Where(e => !excluded.Contains(e.ClrType))
             .ToList();
 
+        // EF applies a query filter only to the root of a hierarchy, and never to an owned type. A
+        // derived type whose root is also tenant-scoped is already covered by the root's filter;
+        // anything else here can never receive one, and skipping it quietly would leave its rows
+        // readable across every tenant.
+        var unfilterable = candidates
+            .Where(e => e.IsOwned()
+                || (e.BaseType is not null && !typeof(IMultiTenancy).IsAssignableFrom(e.GetRootType().ClrType)))
+            .ToList();
+
+        if (unfilterable.Count > 0)
+            throw new InvalidOperationException(
+                $"Cannot filter {string.Join(", ", unfilterable.Select(e => e.ClrType.Name))} by tenant. " +
+                $"EF Core applies a query filter only to the root of an inheritance hierarchy, and never " +
+                $"to an owned type. Move '{nameof(IMultiTenancy)}' onto the root entity, or exclude these " +
+                $"types through {nameof(TenantOptions)}.");
+
+        var tenantEntities = candidates.Where(e => e.BaseType is null).ToList();
         if (tenantEntities.Count == 0) return modelBuilder;
 
+        // ReSharper disable once SuspiciousTypeConversion.Global
         if (context is not ITenantScopedContext)
             throw new InvalidOperationException(
                 $"'{context.GetType().Name}' contains tenant-scoped entities " +

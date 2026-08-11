@@ -27,39 +27,30 @@ public class TenantSeeder(IRepositoryManager repos, ITenantStore store, ILogger<
         string? description = "Default system tenant",
         CancellationToken cancellationToken = default)
     {
-        var tenant = (await store.GetAllAsync(cancellationToken: cancellationToken))
-            .FirstOrDefault(t => string.Equals(t.Name, tenantName, StringComparison.OrdinalIgnoreCase));
+        var tenant = await store.GetByNameAsync(tenantName, cancellationToken: cancellationToken);
+        if (tenant is not null) 
+            return tenant;
+        
+        var response = await store.TryAddAsync(
+            new Tenant { Name = tenantName, Description = description },
+            cancellationToken);
 
-        if (tenant is null)
-        {
-            var response = await store.TryAddAsync(
-                new Tenant { Name = tenantName, Description = description },
-                cancellationToken);
-
-            if (!response.IsValid)
-            {
-                logger.LogError("Failed to create default tenant '{TenantName}': {Error}",
-                    tenantName, response.ErrorMessage);
-                return null;
-            }
-
-            tenant = response.ValidatedTenant;
-        }
-
-        return tenant;
+        if (response.IsValid) 
+            return response.ValidatedTenant;
+        
+        logger.LogError("Failed to create default tenant '{TenantName}': {Error}",
+            tenantName, response.ErrorMessage);
+        return null;
     }
 
     /// <summary>
     /// Finds or creates a tenant by name and assigns it to a user.
     /// </summary>
     /// <typeparam name="TUser">The user entity type.</typeparam>
+    /// <typeparam name="TUserContext">The DbContext the user's table belongs to.</typeparam>
     /// <param name="userId">The identifier of the user to assign the tenant to.</param>
     /// <param name="tenantName">The tenant name to find or create.</param>
     /// <param name="description">The description applied on creation. Ignored where the tenant exists.</param>
-    /// <param name="userContextType">
-    /// The <see cref="DbContext"/> owning the user. Leave <c>null</c> to use the repository
-    /// manager's default context.
-    /// </param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>
     /// The assigned tenant; <c>null</c> where the tenant could not be created or no user has that
@@ -69,18 +60,18 @@ public class TenantSeeder(IRepositoryManager repos, ITenantStore store, ILogger<
     /// Takes an identifier rather than an entity so the user is loaded and tracked by the context
     /// that saves it, and only the tenant column is written.
     /// </remarks>
-    public async Task<Tenant?> SeedDefaultTenantAsync<TUser>(
+    public async Task<Tenant?> SeedDefaultTenantAsync<TUser, TUserContext>(
         string userId,
         string tenantName = "Default Tenant",
         string? description = "Default system tenant",
-        Type? userContextType = null,
         CancellationToken cancellationToken = default)
         where TUser : class, IApplicationUser
+        where TUserContext : DbContext
     {
         var tenant = await SeedDefaultTenantAsync(tenantName, description, cancellationToken);
         if (tenant is null) return null;
 
-        var repo = (userContextType is null ? repos : repos.For(userContextType)).GetRepository<TUser>();
+        var repo = repos.For<TUserContext>().GetRepository<TUser>();
 
         var user = await repo.GetByIdAsync(userId, cancellationToken);
         if (user is null)

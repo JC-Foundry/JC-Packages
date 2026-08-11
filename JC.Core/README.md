@@ -62,7 +62,7 @@ public class ProductService(IRepositoryManager repos)
 }
 ```
 
-Every write stamps the audit fields from `IUserInfo` — the signed-in user where JC.Identity is registered, a fallback identifier where it is not.
+Every write stamps the audit fields from `IUserInfo.UserId` — the signed-in user in a request, whoever a background job established, or the system user where nothing has been established yet. Where no identity package is registered at all and `IUserInfo` cannot be resolved, writes are stamped `IUserInfo.MissingUserInfoId`.
 
 ### Batching and transactions
 
@@ -118,7 +118,7 @@ var page = await Products.AsQueryable()
     .ToPagedListAsync(pageNumber: 1, pageSize: 20);
 ```
 
-`PagedList<T>` carries the items, total count, page count and navigation flags. A page number beyond the last adjusts to the final page rather than returning nothing.
+`PagedList<T>` carries the items, total count, page count and navigation flags. The page number is clamped to the valid range — beyond the last page you get the final page, and below 1 you get the first — rather than an empty result.
 
 ### Audit trail
 
@@ -130,18 +130,28 @@ Several types live here purely so packages can cooperate without depending on ea
 
 | Contract | Implemented by | Used by |
 |----------|----------------|---------|
-| `IUserInfo` | JC.Identity | Audit attribution, tenant scoping, notifications, messaging, file storage |
+| `IUserInfo` | JC.Identity.Shared | Audit attribution, tenant resolution, notifications, messaging, file storage |
+| `IApplicationUser` | Your user entity, via `BaseUser` | Reading a stored user without referencing an identity package |
+| `IdentityAuthority` | — | Exposed on `IUserInfo` to name whichever authority supplied the identity |
 | `IBackgroundJob` | Your job classes | JC.BackgroundJobs, and the cleanup jobs across the suite |
-| `IMultiTenancy` / `Tenant` | Your entities | JC.Identity's global query filters, JC.FileStorage |
+| `IMultiTenancy` | Your entities | JC.Tenancy's global query filters, JC.FileStorage |
+| `ITenantContext` | JC.Tenancy | Reading the operational tenant from a package that has no tenancy reference |
 
-That is why a package can declare a background job or a tenant-scoped entity without referencing JC.BackgroundJobs or JC.Identity at all.
+That is why a package can declare a background job, mark an entity tenant-scoped, or read the current user and tenant without referencing JC.BackgroundJobs, JC.Tenancy or any identity package at all.
+
+`IMultiTenancy` marks a partition and nothing more — the concrete `Tenant` entity and the filters that act on the mark both live in JC.Tenancy, so an application without it simply carries an unused column.
 
 ### Retention jobs
 
 `AuditCleanupJob` and `SoftDeleteCleanupJob` implement `IBackgroundJob`, in both ambient and `<TContext>` forms, so a single host can clean several databases:
 
 ```csharp
-builder.Services.ConfigureCoreBackgroundJobs(o => o.EnableAuditCleanupJob = true);
+builder.Services.ConfigureCoreBackgroundJobs(o =>
+{
+    o.AuditRetentionMonths = 12;            // audit cleanup is enabled by default
+    o.EnableSoftDeleteCleanupJob = true;    // soft-delete cleanup is not
+});
+
 builder.Services.AddHangfireJob<AuditCleanupJob<AppDbContext>>(o => o.Cron = "0 3 * * *");
 ```
 

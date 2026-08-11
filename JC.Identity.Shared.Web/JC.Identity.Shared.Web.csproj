@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <PackageId>JC.Identity.Shared.Web</PackageId>
+        <Version>6.0.0</Version>
+        <Description>The ASP.NET Core half of JC.Identity.Shared. UserInfoMiddleware populates the scoped IUserInfo from the current principal once per scope, leaving alone any instance an earlier caller already established. IdentityMiddleware applies the account rules — disabled accounts, forced password changes, optional two-factor — redirecting where one is unmet and skipping static files, unauthenticated requests and configured paths. Both are thin wrappers: the claims projection and the rules themselves live in JC.Identity.Shared, which carries no framework reference, so a worker service or a future identity authority with no HTTP pipeline reaches identical behaviour without the ASP.NET Core runtime. UseUserInfo and UseIdentityMiddleware register the two in the order they have to run.</Description>
+        <PackageTags>$(PackageTags);aspnetcore;identity;middleware;claims;user-context</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+
+    <!-- The ASP.NET Core half of the shared identity runtime. Everything here is HTTP plumbing:
+         the rules and the claims projection live in JC.Identity.Shared, which stays framework-free
+         so a worker service can take identity attribution without the ASP.NET Core runtime. -->
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' == 'true'">
+        <ProjectReference Include="..\JC.Identity.Shared\JC.Identity.Shared.csproj" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' != 'true'">
+        <PackageReference Include="JC.Identity.Shared" versionOverride="6.0.0" />
+    </ItemGroup>
+
+    <!-- The README ships in the package: it is the landing page on a feed, and the
+         project's front page on GitHub. Update rather than Include - the SDK's default
+         globs already pick .md up as None. -->
+    <ItemGroup>
+        <None Update="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+</Project>

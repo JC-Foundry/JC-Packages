@@ -43,17 +43,21 @@ There is no nesting. `client/invoices` is not a path — it is an invalid folder
 ### Inspecting the registry
 
 ```csharp
-public class FolderService(FolderRegistry folders, IUserInfo userInfo)
+public class FolderService(FolderRegistry folders, ITenantContext? tenant = null)
 {
     public IReadOnlyList<string> AvailableFolders()
-        => folders.GetFolderNames(userInfo.TenantId);
+        => folders.GetFolderNames(tenant?.TenantId);
 
     public bool FolderExists(string name)
-        => folders.TryGetFolder(name, userInfo.TenantId, out _);
+        => folders.TryGetFolder(name, tenant?.TenantId, out _);
 }
 ```
 
 `GetFolderNames` returns an empty list rather than throwing when a tenant has no folders.
+
+**Resolve folders by the operational tenant, not the user's.** `ITenantContext.TenantId` is what `StorageService` stamps and filters by; `IUserInfo.TenantId` is the tenant assigned to the signed-in user, and the two differ whenever a background job or an administrator works elsewhere. Look a folder up by the wrong one and the save throws, because the folder's tenant will not match the file's.
+
+`ITenantContext` is optional — resolve it with `GetService` or an optional constructor parameter, since an application without JC.Tenancy has no implementation and belongs in the no-tenant scope.
 
 ### Size and type limits
 
@@ -90,11 +94,11 @@ new FolderModel("danger", null, null, [".exe"]);   // ArgumentException
 ### Basic usage
 
 ```csharp
-public class InvoiceService(StorageService storage, FolderRegistry folders, IUserInfo userInfo)
+public class InvoiceService(StorageService storage, FolderRegistry folders, ITenantContext? tenant = null)
 {
     public async Task<bool> StoreAsync(byte[] pdf)
     {
-        folders.TryGetFolder("invoices", userInfo.TenantId, out var folder);
+        folders.TryGetFolder("invoices", tenant?.TenantId, out var folder);
         return await storage.TrySaveFile(folder!, "invoice-001.pdf", pdf, "pdf");
     }
 }
@@ -233,7 +237,7 @@ Soft-deleted records are eventually removed for good by JC.Core's `SoftDeleteCle
 
 ### How a file gets its tenant
 
-`StorageService`'s scoped methods take the tenant from `IUserInfo.TenantId`. There is no tenant parameter on them, so they cannot reach another tenant's files:
+`StorageService`'s scoped methods take the tenant from `ITenantContext.TenantId` — the tenant the current operation is scoped to, not the tenant assigned to the signed-in user. There is no tenant parameter on them, so they cannot reach another tenant's files:
 
 ```csharp
 // Saves into the current user's tenant. Nothing here can cross a tenant boundary.
@@ -251,15 +255,24 @@ await storage.TrySaveFile(new FolderModel("invoices"), …);             // Argu
 
 ### The no-tenant scope
 
-A `null` tenant is **not** a shared or global scope. It is a scope of its own, isolated exactly like any named tenant — a tenant-a user cannot see no-tenant files, and vice versa. JC.Core's query filter treats it that way: when the current tenant is null it matches `TenantId == null`, otherwise it matches the tenant exactly.
+A `null` tenant is **not** a shared or global scope. It is a scope of its own, isolated exactly like any named tenant — a tenant-a user cannot see no-tenant files, and vice versa. JC.Tenancy's query filter treats it that way: when the current tenant is null it matches `TenantId == null`, otherwise it matches the tenant exactly.
 
-Applications without JC.Identity have no `IUserInfo`, so every file lands in the no-tenant scope and stays there. That is the normal single-tenant configuration.
+Applications without JC.Tenancy have no `ITenantContext`, so every file lands in the no-tenant scope and stays there. That is the normal single-tenant configuration.
 
-In a multi-tenant application, the no-tenant scope is effectively reachable only by a system administrator through a cross-tenant call.
+In a multi-tenant application, the no-tenant scope is effectively reachable only through a cross-tenant call.
 
-### Isolation depends on JC.Identity
+**Because the scope is operational rather than per-user, a background job scoped to a tenant writes and reads that tenant's files with no user involved.** Establish it the usual way:
 
-The global query filter that enforces isolation is applied by `IdentityDataDbContext`. If your `DbContext` does not extend it, `SavedFile` is not filtered, and tenancy is not enforced at the database level. See [Setup](Setup.md#multi-tenancy).
+```csharp
+await using var scope = await services.CreateAsyncScopeForTenant(tenantId);
+
+var storage = scope.ServiceProvider.GetRequiredService<StorageService>();
+await storage.TrySaveFile(folder, "invoice-001.pdf", pdf, "pdf");   // lands in tenantId
+```
+
+### Isolation depends on JC.Tenancy
+
+The global query filter that enforces isolation is installed by `ApplyTenantFilters`, which the consuming application calls from its own `OnModelCreating`. If your `DbContext` does not call it, `SavedFile` is not filtered and tenancy is not enforced at the database level — `IMultiTenancy` alone enforces nothing. See [Setup](Setup.md#multi-tenancy).
 
 ## Cross-tenant access
 
@@ -276,17 +289,17 @@ await storage.TryDeleteFileForTenant("tenant-b", folder, "invoice-001.pdf");
 
 When the tenant passed differs from the caller's own, these **bypass the global tenant query filter** via `IgnoreQueryFilters()` and scope the query to the tenant given instead.
 
-> **JC.FileStorage performs no authorisation check on these methods.** It cannot — the `SystemAdmin` role lives in JC.Identity, which this package does not reference. Any caller that can reach a `*ForTenant` method can reach any tenant's files. **The consuming application is responsible for authorising every call**, typically by checking `IUserInfo.IsInRole(SystemRoles.SystemAdmin)` before invoking one.
+> **JC.FileStorage performs no authorisation check on these methods.** It cannot — it references only JC.Core, so it can see neither an identity package's roles nor JC.Tenancy's bypass authoriser. Any caller that can reach a `*ForTenant` method can reach any tenant's files. **The consuming application is responsible for authorising every call.**
 
-A correct call site gates first:
+A correct call site gates first. Where JC.Tenancy is registered, its authoriser is the natural gate — it already knows which roles the application nominated:
 
 ```csharp
-public class AdminFileService(StorageService storage, IUserInfo userInfo)
+public class AdminFileService(StorageService storage, ITenantBypassAuthoriser authoriser)
 {
     public async Task<GetFileByteResponse> GetForTenantAsync(string tenantId, FolderModel folder, string fileName)
     {
         // JC.FileStorage will not do this for you
-        if (!userInfo.IsInRole(SystemRoles.SystemAdmin))
+        if (!authoriser.CanAccessAllTenants())
             throw new UnauthorizedAccessException();
 
         return await storage.GetSavedFileBytesForTenant(tenantId, folder, fileName);
@@ -294,9 +307,11 @@ public class AdminFileService(StorageService storage, IUserInfo userInfo)
 }
 ```
 
+Checking a role directly — `userInfo.IsInRole(SystemRoles.SystemAdmin)` — works equally well where the application knows its own authority. The authoriser is preferable only because the role names are then configured in one place.
+
 **Never bind the tenant argument straight from user input.** A `tenantId` taken from a route or query string and passed through unchecked hands every tenant's files to any caller.
 
-The scoped methods are the safe default and delegate to these, passing `IUserInfo.TenantId`. Because the tenant then matches the caller's own, the filter bypass never engages.
+The scoped methods are the safe default and delegate to these, passing `ITenantContext.TenantId`. Because the tenant then matches the operational scope, the filter bypass never engages.
 
 ### Reaching the no-tenant scope
 

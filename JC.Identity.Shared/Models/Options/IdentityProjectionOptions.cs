@@ -4,12 +4,12 @@ using JC.Core.Enums;
 namespace JC.Identity.Shared.Models.Options;
 
 /// <summary>
-/// How <see cref="JC.Identity.Shared.Middleware.UserInfoMiddleware"/> projects the current
+/// How <see cref="JC.Identity.Shared.Extensions.UserInfoExtensions"/> projects the current
 /// principal: the claim types it reads the user's identity from, and the authority it stamps on
 /// the result.
 /// </summary>
 /// <remarks>
-/// These exist so the middleware need not know which authority authenticated the user. JC.Identity
+/// These exist so the projection need not know which authority authenticated the user. JC.Identity
 /// copies the claim types from <c>IdentityOptions.ClaimsIdentity</c> at registration; another
 /// authority sets whatever its own tokens carry. The remaining claims are fixed constants on
 /// <see cref="JC.Identity.Shared.Authentication.DefaultClaims"/>.

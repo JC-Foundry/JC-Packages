@@ -28,6 +28,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JC.Tenancy", "JC.Tenancy\JC
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JC.Identity.Shared", "JC.Identity.Shared\JC.Identity.Shared.csproj", "{61C00DBB-A599-4220-BCD3-0D3E74F852B3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JC.Identity.Shared.Web", "JC.Identity.Shared.Web\JC.Identity.Shared.Web.csproj", "{219B64E5-21C0-4616-B88E-AFB17FD05BDA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -206,6 +208,18 @@ Global
 		{61C00DBB-A599-4220-BCD3-0D3E74F852B3}.Release|x64.Build.0 = Release|Any CPU
 		{61C00DBB-A599-4220-BCD3-0D3E74F852B3}.Release|x86.ActiveCfg = Release|Any CPU
 		{61C00DBB-A599-4220-BCD3-0D3E74F852B3}.Release|x86.Build.0 = Release|Any CPU
+		{219B64E5-21C0-4616-B88E-AFB17FD05BDA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{219B64E5-21C0-4616-B88E-AFB17FD05BDA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{219B64E5-21C0-4616-B88E-AFB17FD05BDA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{219B64E5-21C0-4616-B88E-AFB17FD05BDA}.Debug|x64.Build.0 = Debug|Any CPU
+		{219B64E5-21C0-4616-B88E-AFB17FD05BDA}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{219B64E5-21C0-4616-B88E-AFB17FD05BDA}.Debug|x86.Build.0 = Debug|Any CPU
+		{219B64E5-21C0-4616-B88E-AFB17FD05BDA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{219B64E5-21C0-4616-B88E-AFB17FD05BDA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{219B64E5-21C0-4616-B88E-AFB17FD05BDA}.Release|x64.ActiveCfg = Release|Any CPU
+		{219B64E5-21C0-4616-B88E-AFB17FD05BDA}.Release|x64.Build.0 = Release|Any CPU
+		{219B64E5-21C0-4616-B88E-AFB17FD05BDA}.Release|x86.ActiveCfg = Release|Any CPU
+		{219B64E5-21C0-4616-B88E-AFB17FD05BDA}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

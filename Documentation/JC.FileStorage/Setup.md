@@ -5,7 +5,7 @@
 - [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
 - An existing ASP.NET Core project with JC.Core registered
 - A writable directory on the host for file storage
-- JC.Identity is **optional** — it is only required for multi-tenancy. Without it, every file belongs to the no-tenant scope
+- JC.Tenancy is **optional** — it is only required for tenant isolation. Without it, every file belongs to the no-tenant scope
 - JC.FileStorage.Web is **optional** — only needed for `IFormFile` handling and the upload constraints tag helper. It brings in JC.Web
 - See [Installation](../../README.md#installation) for how to add JC-Packages to your project
 
@@ -40,7 +40,7 @@ public class AppDbContext : DataDbContext, IFileStorageDbContext
 }
 ```
 
-For a multi-tenant application, extend `IdentityDataDbContext<TUser, TRole>` instead of `DataDbContext` — see [Multi-tenancy](#multi-tenancy) below.
+For a tenant-isolated application, the same context also declares itself tenant-scoped — see [Multi-tenancy](#multi-tenancy) below.
 
 ### Services — `Program.cs`
 
@@ -87,7 +87,7 @@ When registered as above:
 | `FilePathProvider` lifetime | Singleton |
 | `StorageService` lifetime | Scoped |
 | Tenant of a folder registered by name | The no-tenant scope (`FolderModel.NullTenantName`, the literal `NO__TENANT`) |
-| Tenant of a saved file | `IUserInfo.TenantId`, or the no-tenant scope if JC.Identity is not registered |
+| Tenant of a saved file | `ITenantContext.TenantId` — the tenant the operation is scoped to, or the no-tenant scope if JC.Tenancy is not registered |
 | Overwrite behaviour | Blocked — `TrySaveFile` returns `false` if the file already exists |
 | Maximum file size | None — no limit until you set one, subject to the 10GB ceiling |
 | Accepted file types | Any, except the permanently blocked executable extensions |
@@ -114,7 +114,9 @@ Registers the following, each with `TryAdd` semantics so a prior registration of
 | `FilePathProvider` | Singleton | Resolves physical paths and creates directories |
 | `StorageService` | Scoped | The entry point consuming applications use |
 
-`StorageService` resolves `IUserInfo` optionally through the service provider. If JC.Identity is registered, the current user's tenant scopes every call. If it is not, `IUserInfo` is absent and every call operates in the no-tenant scope.
+`StorageService` resolves `ITenantContext` optionally through the service provider. If JC.Tenancy is registered, the tenant the operation is scoped to stamps every write and scopes every read. If it is not, `ITenantContext` is absent and every call operates in the no-tenant scope.
+
+It reads the **operational** tenant rather than the user's own, deliberately. `SavedFile` is filtered by the operational tenant, so writes have to be stamped from the same source or the two disagree — a background job scoped to a tenant would otherwise write files it could not then see.
 
 ### AddFolders — folder registration
 
@@ -229,7 +231,7 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 }
 ```
 
-This configures the key, all column lengths, the relationship to `Tenant`, a composite index over `TenantId`, `FolderName` and `FileName`, and the inherited `AuditModel` columns and indexes.
+This configures the key, all column lengths, a composite index over `TenantId`, `FolderName` and `FileName`, and the inherited `AuditModel` columns and indexes. `TenantId` is a plain column with no foreign key — see [Apply migrations](#3-apply-migrations).
 
 ### IFileStorageDbContext — database contract
 
@@ -264,25 +266,39 @@ The directory does not need to exist — `FilePathProvider` creates each tenant 
 
 ### Multi-tenancy
 
-Tenant isolation is provided by JC.Identity, not by JC.FileStorage. `SavedFile` implements `IMultiTenancy`, and the global query filter that scopes it to the current tenant is applied by `IdentityDataDbContext`. To get tenant-isolated file storage, your `DbContext` must extend it:
+Tenant isolation is provided by [JC.Tenancy](../JC.Tenancy/Setup.md), not by JC.FileStorage. `SavedFile` implements `IMultiTenancy`, which marks it tenant-scoped and nothing more — the global query filter that acts on the mark is installed by `ApplyTenantFilters`, which the consuming application calls per `DbContext`.
+
+To get tenant-isolated file storage, declare your context tenant-scoped:
 
 ```csharp
-public class AppDbContext : IdentityDataDbContext<AppUser, AppRole>, IFileStorageDbContext
+public class AppDbContext(DbContextOptions<AppDbContext> options, IUserInfo userInfo, ITenantInfo tenantInfo)
+    : DataDbContext(options, userInfo), IFileStorageDbContext, ITenantScopedContext
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options, IUserInfo userInfo)
-        : base(options, userInfo) { }
+    public string? CurrentTenantId => tenantInfo.TenantId;
 
     public DbSet<SavedFile> SavedFiles { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
         modelBuilder.ApplyFileStorageMappings();
+        modelBuilder.ApplyTenantFilters(this);   // last
     }
 }
 ```
 
-Without JC.Identity there is no `IUserInfo` and no query filter, so every file belongs to the no-tenant scope. This is a valid configuration for single-tenant applications — see the [Guide](Guide.md) for how the tenant scopes behave.
+Register the engine alongside JC.Core, nominating whichever context owns the tenant table:
+
+```csharp
+builder.Services.AddTenancy<AppDbContext>();
+```
+
+`ApplyTenantFilters` must be called **last**, after the file storage mappings. It reads the model as it stands when called.
+
+Without JC.Tenancy there is no query filter, so every file belongs to the no-tenant scope. This is a valid configuration for single-tenant applications — see the [Guide](Guide.md) for how the tenant scopes behave.
+
+An identity package is not required for either configuration. Where one is registered, JC.Tenancy derives the operational tenant from the signed-in user by default; where none is, tenant scope is established explicitly or stays in the null partition.
 
 ### JC.FileStorage.Web — ASP.NET Core integration
 
@@ -370,16 +386,11 @@ dotnet ef migrations add AddFileStorage --project YourApp
 dotnet ef database update --project YourApp
 ```
 
-`SavedFile` has a required relationship to `Tenant`, so the `Tenant` entity is pulled into your model whether or not you use JC.Identity. The table name differs between the two cases:
+`SavedFile.TenantId` is a plain 36-character column with no foreign key and no navigation property. `IMultiTenancy` marks a partition rather than a relationship, so no `Tenant` entity is pulled into your model and no constraint is created — the tenant record may live in another context or another database entirely.
 
-| Setup | Tenant table name |
-|-------|-------------------|
-| `IdentityDataDbContext` (JC.Identity) | `Tenants` — named after its `DbSet<Tenant> Tenants` property |
-| `DataDbContext` (JC.Core only) | `Tenant` — named after the entity type, as no `DbSet` declares it |
+That has a consequence worth knowing: **deleting a tenant does not touch its files.** There is no cascade and nothing sets `TenantId` back to `null`. `ITenantStore.TryDeleteAsync` soft-deletes the tenant record only, and its files keep pointing at the identifier — which is what allows a restore to bring everything back intact.
 
-If you are not using JC.Identity you will get a `Tenant` table you never populate. `SavedFile.TenantId` stays `null` for every row, so the relationship is never exercised.
-
-Deleting a tenant row sets `TenantId` to `null` on its files rather than deleting them, so their records survive in the no-tenant scope.
+Adding JC.Tenancy introduces its own `Tenants` table in whichever context you nominate through `AddTenancy<TContext>`, and that is a separate migration concern — see [JC.Tenancy — Setup](../JC.Tenancy/Setup.md#3-apply-migrations).
 
 ## 4. Verify
 

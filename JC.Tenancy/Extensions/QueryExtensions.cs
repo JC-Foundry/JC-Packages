@@ -42,8 +42,9 @@ public static class QueryExtensions
     /// For trusted callers with no user to authorise: reconciliation jobs, maintenance tooling,
     /// migrations, and infrastructure that legitimately spans every tenant.
     /// <para>
-    /// This also drops soft-delete and any other global filters on the entity, because
-    /// <c>IgnoreQueryFilters</c> is all-or-nothing. Re-apply what you still want explicitly.
+    /// <c>IgnoreQueryFilters</c> is all-or-nothing, so any global filter a consuming application has
+    /// added to the entity goes with the tenant one. Soft-delete is unaffected — it is applied by
+    /// <c>FilterDeleted</c>, not as a global filter.
     /// </para>
     /// </remarks>
     public static IQueryable<T> AllTenantsUnsafe<T>(this IQueryable<T> query)

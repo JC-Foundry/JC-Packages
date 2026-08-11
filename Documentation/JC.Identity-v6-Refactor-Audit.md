@@ -19,7 +19,9 @@ lookup, and `ITenantInfo` merging the old `ITenantContext` was the right call.
 
 ## Status
 
-Section 1 has been worked through. Sections 2–4 are reviewed but not yet actioned beyond §2.1.
+All four sections have been worked through. §1.8 and §1.9 were found afterwards, re-reading the
+filter installation; §1.9 is the one open code item. The rest of what remains is documentation,
+tracked as Phase 7.
 
 | # | Finding | Status |
 |---|---|---|
@@ -31,12 +33,24 @@ Section 1 has been worked through. Sections 2–4 are reviewed but not yet actio
 | 1.6 | `IsSetup` always true | **Fixed** — and uncovered §1.6a |
 | 1.6a | Tenant snapshotted at construction | **Fixed** — the most serious defect found |
 | 1.7 | Soft-deleted tenant metadata | **Withdrawn** — behaviour is correct |
+| 1.8 | Filters applied to derived and owned types | **Fixed** — found after the audit |
+| 1.9 | Filter guard unreachable when called early | **Open** — needs §4.1's option C |
 | 2.1 | No scope-level bypass | **Deferred** — cost outweighs the need |
-| 2.7 | `AllTenantsUnsafe` remark is wrong | **Open** — found while exploring §2.1 |
-| 2.2–2.6, 3.x, 4.x | — | Not yet actioned |
+| 2.2 | No tenant resolution by domain | **Fixed** |
+| 2.3 | No optional foreign-key configuration | **Resolved** — answered "no", by decision |
+| 2.4 | `GetAllAsync` unpaged; seeder loads every tenant | **Fixed** |
+| 2.6 | Vestigial `MultiTenancyEnabled` | **Fixed** — replaced by a derived `HasTenant` |
+| 2.7 | `AllTenantsUnsafe` remark is wrong | **Fixed** — found while exploring §2.1 |
+| 3.1 | Core can mark tenancy but cannot answer it | **Resolved** — by §1.1's `ITenantContext` |
+| 3.2 | Shared pulls ASP.NET Core into non-web consumers | **Fixed** — split on the `.Web` convention |
+| 3.3 | Forgetting `BypassRoles` fails closed and silently | **Fixed** |
+| 3.4 | `AddTenancy`'s duplicate guard can misfire | **Fixed** |
+| 4.1 | Repeated tenant-scoped context wiring | **Deferred** — documentation, Phase 7 |
+| 4.2 | `AllTenants` threads an authoriser | **Closed** — no change; explaining it is Phase 7 |
+| 4.3 | Seeding handoff is hard to discover | **Deferred** — documentation, Phase 7 |
+| 4.4 | `userContextType` is a `Type` | **Fixed** |
 
-The two headline risks remaining are **§2.5 (no tests)** and **§1.2**, the latter now resting on the
-change documentation being read.
+The headline risk remaining is **§1.2**, which now rests on the change documentation being read.
 
 ---
 
@@ -293,6 +307,38 @@ soft-deleted tenants for metadata purposes, or surface the state (`IsDeleted` on
 This is the concrete form of §58.1's unanswered question, and it now applies to every tenant-scoped
 package, not just `JC.FileStorage`.
 
+## 1.8 — High — `ApplyTenantFilters` applied filters to types EF cannot filter
+
+> **Found after the audit, while re-reading the guard at `DataExtensions.cs:70`. Fixed.**
+
+`modelBuilder.Model.GetEntityTypes()` returns derived and owned entity types alongside roots, and
+every one of them passes `typeof(IMultiTenancy).IsAssignableFrom(...)`. EF Core applies a query
+filter only to the root of an inheritance hierarchy, and never to an owned type — so an application
+whose model held `Document` → `Invoice : Document` with `IMultiTenancy` on `Document` would fail at
+model build, on the derived entry.
+
+Nothing in the suite trips it: `SavedFile` is the only `IMultiTenancy` entity and has no derived
+types. It was waiting for the first consuming application to use inheritance.
+
+**Fix.** Filters install on roots only — the root's filter already covers its hierarchy, so the
+derived entries were redundant as well as fatal. Silently dropping them all was not an option: a
+derived type whose root is *not* tenant-scoped, and an owned type, can never receive a filter at
+all, and skipping those would leave their rows readable from every tenant. Those throw instead,
+naming the types and the two ways out.
+
+## 1.9 — The `ITenantScopedContext` guard is unreachable when it matters — **open**
+
+Same reading, not fixed. The guard sits after the zero-entities early return, and
+`GetEntityTypes()` is evaluated when called. A context calling `ApplyTenantFilters` *before*
+registering its own mappings therefore sees an empty model, returns quietly, and ships every
+`IMultiTenancy` entity unfiltered — the §1.2 outcome, reached through an ordering mistake rather
+than an omission.
+
+Moving the check above the early return does not fix it: a genuinely tenant-free context would then
+throw, and calling it from a context that may or may not have tenant entities is documented as safe.
+The fix is to install filters from a model-finalizing convention, so the call site's position stops
+mattering — §4.1's option C, deferred.
+
 ---
 
 # 2. Gaps against the design's own intent
@@ -316,6 +362,16 @@ control exists to avoid.
 
 ## 2.2 — No tenant resolution by domain
 
+> **Fixed.** `SetTenantInfoForDomainAsync` added to `TenantInfoExtensions`, resolving through
+> `ITenantStore.GetByDomainAsync` and scoping via the existing `SetTenant(Tenant?)` override, so the
+> resolved record seeds the scope's metadata and costs no second lookup. A miss leaves scope
+> untouched rather than pinning the null partition.
+>
+> Not the `TenantOptions.ResolveTenantId` delegate suggested below: domain-to-identifier is a
+> database read, and the factory's `TenantId` is read by the query filters on every query — §25 keeps
+> that tier free deliberately. An extension leaves `TenantInfo` untouched and adds no third
+> precedence tier alongside override and user.
+
 `Tenant.Domain` is a first-class field, `TenantMap` indexes it, and the mapping carries the comment
 *"tenants are commonly resolved by domain on the way in"*. `ITenantStore.GetByDomainAsync` exists.
 
@@ -335,6 +391,13 @@ framework-free while making the documented use case reachable.
 
 ## 2.3 — No optional foreign-key configuration
 
+> **Resolved — the answer is "no", now by decision rather than by omission.** `IMultiTenancy` marks a
+> partition, not a relationship; the tenant record may live in another context or database, and the
+> marker must mean the same thing either way. An application whose model holds both can configure an
+> FK itself. `OnDelete(SetNull)` is not restored: `ITenantStore` only soft-deletes, so it would fire
+> only on a direct delete that §33 already puts out of contract, and nulling the partition key would
+> orphan a tenant's rows against the later restore §1.7 relies on. Recorded as decision 71.
+
 §58 asks whether `JC.Tenancy` should offer opt-in FK configuration for entities sharing a model with
 `Tenant`. `ApplyTenancyMappings` maps `Tenant` and nothing else, so the answer shipped as "no" by
 omission rather than by decision. §58.1 records that `JC.FileStorage` lost a real FK and its
@@ -342,33 +405,20 @@ omission rather than by decision. §58.1 records that `JC.FileStorage` lost a re
 
 ## 2.4 — `ITenantStore.GetAllAsync` is unpaged
 
+> **Fixed.** A paged `GetAllAsync(pageNumber, pageSize, …)` overload returning `IPagination<Tenant>`,
+> in the shape the suite already uses. The unpaged overload stays: §2.1 was deferred partly on
+> looping tenants being the safer route for cross-tenant work, and that needs the whole list.
+> `GetByNameAsync` added alongside it, and `TenantSeeder` now uses it instead of reading every tenant
+> and matching in memory.
+
 Returns `List<Tenant>` with no paging, in a suite that ships `IPagination` and `PagedList` in Core.
 The tenant list is the one collection an administration screen is guaranteed to want paged. Also
 means `TenantSeeder` loads every tenant to find one by name — it should use a targeted query.
 
-## 2.5 — No tests
-
-§63 specifies a substantial matrix across identity, tenancy and compatibility. The solution contains
-no test project of any kind.
-
-This matters more than the usual "we should add tests", because the riskiest behaviour in this
-refactor happens at **EF model-build time** and is invisible to the compiler:
-
-- `ApplyTenantFilters` throwing when a context has tenant entities but no `ITenantScopedContext`;
-- null-to-null partition matching in the generated filter expression;
-- the captured-`DbContext` trick in `BuildTenantFilter` surviving EF's model cache across scopes —
-  which, if it ever regresses, leaks one tenant's data into another's request and is close to
-  undetectable by inspection;
-- multiple contexts sharing one operational scope;
-- `AddTenancy` throwing on a second registration;
-- login working end to end with `BaseUser` not implementing `IMultiTenancy` (§14.1).
-
-The third item is the one to write first. It is the single assumption the entire filtering design
-rests on, it is asserted in three separate doc comments, and nothing verifies it.
-
 ## 2.7 — `AllTenantsUnsafe`'s remark is factually wrong
 
-> **Open.** Found while exploring §2.1.
+> **Fixed.** Found while exploring §2.1. The remark now states that a consuming application's own
+> global filters are dropped, and that soft-delete is not among them.
 
 Its `<remarks>` states that it *"also drops soft-delete and any other global filters on the entity"*.
 The tenant filter is the **only** global query filter in the suite — one `HasQueryFilter` call, in
@@ -381,6 +431,11 @@ concrete example is incorrect and will mislead.
 ---
 
 ## 2.6 — Vestigial `IUserInfo.MultiTenancyEnabled`
+
+> **Fixed.** Replaced by a get-only `HasTenant`, derived from `TenantId` on `UserInfoBase` and
+> mirroring `ITenantContext.HasTenant`. Both assignments are gone, so it can no longer go stale —
+> which it could, since `TenantId` is settable and nothing kept the flag in step outside those two
+> call sites.
 
 Set by `UserInfoMiddleware` and `SetUserInfoForUser` from whether the user has a tenant. Nothing in
 the suite reads it. It also reads like an application-level switch when it is a per-user fact.
@@ -413,6 +468,18 @@ that can *establish* scope.
 
 ## 3.2 — `JC.Identity.Shared` pulls ASP.NET Core into non-web consumers
 
+> **Fixed**, along the seam this section identified. `JC.Identity.Shared` drops its
+> `FrameworkReference` and keeps eight of its eleven files; a new `JC.Identity.Shared.Web` holds the
+> two middlewares and the builder extensions.
+>
+> The logic did not move with them. The claims projection is now a `PopulateFrom(ClaimsPrincipal, …)`
+> overload beside the existing `IApplicationUser` one, and the rules are `IdentityRules.GetRedirect`,
+> which returns a route or `null`. Both are plain code over `IUserInfo`, so each middleware is a
+> wrapper that supplies `HttpContext` and acts on the answer — and an authority with no HTTP
+> pipeline reaches identical behaviour without one.
+>
+> `JC.Identity` references both halves, so consumers of the full stack change nothing but a using.
+
 `JC.Tenancy` deliberately avoids a `FrameworkReference` on `Microsoft.AspNetCore.App`, and the
 csproj says so. `JC.Identity.Shared` takes one, because it houses the middleware.
 
@@ -426,6 +493,14 @@ middleware-and-builder-extensions versus contracts-and-projection.
 
 ## 3.3 — Forgetting `BypassRoles` fails closed and silently
 
+> **Fixed.** `RoleTenantBypassAuthoriser` warns once per process when it refuses because no roles are
+> configured, naming `AllowBypassForRole` and `AllTenantsUnsafe()`. Denials from the role check
+> itself stay silent — those are the mechanism working.
+>
+> Not at registration as suggested below: `AddTenancy` runs before there is a logger to write to,
+> and an application that never queries across tenants does not need telling. The first refusal is
+> the moment the missing configuration actually costs something.
+
 `RoleTenantBypassAuthoriser` denies when no roles are configured, which is the right default. But an
 application that simply forgets `options.AllowBypassForRole(SystemRoles.SystemAdmin)` gets a
 `SystemAdmin` who silently cannot see other tenants, with nothing indicating why.
@@ -434,6 +509,15 @@ Failing closed is correct; failing quietly is not. One informational log line at
 `BypassRoles` is empty would cost nothing.
 
 ## 3.4 — `AddTenancy`'s duplicate-registration guard can misfire
+
+> **Fixed.** The guard now reads a `TenantStoreOwner` marker registered by the first call, so it
+> trips only on a second `AddTenancy` and no longer on an application registering `ITenantDbContext`
+> itself.
+>
+> This also fixed something the finding did not reach. `ITenantDbContext` was registered by
+> *factory*, and a factory descriptor carries no `ImplementationType` — so `ImplementationType?.Name`
+> was always null and the message degraded to "another context" in every case, including the genuine
+> one. The marker is registered as an instance, so the owning context can actually be named.
 
 The guard detects an existing `ITenantDbContext` service registration. An application that registers
 `ITenantDbContext` itself for any reason — a test double, a decorator — trips it and gets a message
@@ -448,6 +532,15 @@ The refactor moved real complexity out of `JC.Identity`, and some of it landed o
 application rather than disappearing. These are the places where the cost is highest.
 
 ## 4.1 — Every tenant-scoped application hand-writes the same context wiring
+
+> **Deferred to the JC.Identity documentation**, as Phase 7 work rather than a code change. The
+> canonical block below is the deliverable.
+>
+> Two things to carry into that write-up. `ApplyTenantFilters` reads the model at the moment it is
+> called, so an `IMultiTenancy` entity registered after it never gets a filter — the "call it last"
+> instruction is load-bearing, not stylistic. And that is the reason a pre-wired base class is not a
+> drop-in substitute: it would have to seal `OnModelCreating` and expose a hook running before the
+> filter call, or it would silently unfilter every entity the derived context adds.
 
 The new minimum for a tenant-scoped identity application:
 
@@ -483,6 +576,11 @@ Every one of those lines is mandatory, identical across applications, and silent
 
 ## 4.2 — `AllTenants` requires threading an authoriser through every call site
 
+> **Closed, no code change.** The explicit parameter stays: it makes the permission check visible at
+> the call site, where an ambient overload would read as an ordinary query. The alternatives below
+> move the friction rather than remove it — `ITenantInfo` is not usually injected by the services
+> that run cross-tenant queries. Explaining the shape is Phase 7 documentation.
+
 ```csharp
 var all = query.AllTenants(_bypassAuthoriser);
 ```
@@ -498,6 +596,10 @@ closes over the authoriser once.
 
 ## 4.3 — The seeding handoff is discoverable only if you already know about it
 
+> **Deferred to Phase 7.** The identity half is in place — `ConfigureAdminAndRolesAsync` carries the
+> snippet in its remarks. The `AddTenancy` mirror and the `setupTenancy` migration note go with the
+> rest of the documentation.
+
 ```csharp
 var admin = await app.ConfigureAdminAndRolesAsync<AppUser, AppRole, AppRoles>();
 if (admin is not null)
@@ -512,6 +614,11 @@ Cheap fix: name the replacement in the obsolete-parameter migration notes, and a
 snippet to `ConfigureAdminAndRolesAsync`'s `<remarks>` — which is done — and to `AddTenancy`'s.
 
 ## 4.4 — `userContextType` is a `Type`, not a type argument
+
+> **Fixed.** Replaced by a `TUserContext` type parameter constrained to `DbContext`, on both
+> `TenantSeeder` and the `SeedingExtensions` wrapper, so a wrong context no longer survives to
+> runtime. Replaced rather than added alongside — a second overload taking a `Type` would keep the
+> unchecked path available for no gain.
 
 `TenantSeeder.SeedDefaultTenantAsync(..., Type? userContextType = null, ...)` takes an untyped
 `Type`, so a wrong value fails at runtime inside `RepositoryManager.For(Type)` rather than at
@@ -552,17 +659,11 @@ Recorded so a later reader does not re-audit them.
 
 **Done** — §1.1, §1.3, §1.4, §1.5, §1.6, §1.6a. §1.7 withdrawn; §1.2 and §2.1 deferred.
 
-**Remaining, highest value first**
+**Remaining**
 
-1. **§2.5** — write the model-cache/tenant-isolation test. Still the single highest-value item in the
-   suite, and §1.6a is a reminder of how invisible this class of bug is by inspection.
-2. **§2.7** — correct the `AllTenantsUnsafe` remark. One line.
-3. **§2.6** — decide `MultiTenancyEnabled`; a cheap removal while v6 is still breaking.
-4. **§2.3** — optional FK configuration, and with it the `SavedFile` delete behaviour lost in §58.1.
-5. **§4.1** — canonical context snippet, then consider the glue package.
-6. **§2.2** — domain resolution hook.
-7. **§2.4** — paging on `GetAllAsync`; also stop `TenantSeeder` loading every tenant to find one.
-8. **§3.2, §3.3, §3.4, §4.2, §4.3, §4.4** — smaller boundary and ergonomics items.
+§1.9 is the only outstanding code item, and it shares a fix with §4.1's option C — installing
+filters from a model-finalizing convention, so where `ApplyTenantFilters` is called stops mattering.
+§1.2, §4.1 and §4.3 are Phase 7 documentation; §2.1 and §4.2 are closed decisions.
 
 **For the change documentation**
 

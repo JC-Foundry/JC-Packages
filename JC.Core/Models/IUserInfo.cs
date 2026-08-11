@@ -6,9 +6,14 @@ using JC.Core.Enums;
 namespace JC.Core.Models;
 
 /// <summary>
-/// Read-only contract representing the current user's identity, profile, security state, and authorisation details.
-/// Populated per-request by middleware in JC.Identity.
+/// The current user's identity, profile, security state and authorisation details — a runtime
+/// projection of whoever is executing the current operation, not a persisted record.
 /// </summary>
+/// <remarks>
+/// Registered scoped and populated in place: by middleware in JC.Identity.Shared.Web during a
+/// request, or explicitly through <c>SetUserInfoForUser</c> outside one. Constructing an instance
+/// does not make it ambient. See <see cref="IApplicationUser"/> for the stored user record.
+/// </remarks>
 public interface IUserInfo
 {
     public const string MissingUserInfoId = "<NONE>";
@@ -68,7 +73,10 @@ public interface IUserInfo
     /// <summary>Gets the number of consecutive failed access attempts.</summary>
     int AccessFailedCount { get; set; }
 
-    /// <summary>Gets the tenant identifier the user belongs to, if multi-tenancy is active.</summary>
+    /// <summary>
+    /// Gets the tenant assigned to this user inside the consuming application. Not the tenant the
+    /// current operation is scoped to — see <see cref="MultiTenancy.ITenantContext.TenantId"/>.
+    /// </summary>
     string? TenantId { get; set; }
 
     /// <summary>Gets the user's display name.</summary>
@@ -86,11 +94,11 @@ public interface IUserInfo
     /// <summary>Gets whether the user is required to change their password.</summary>
     bool RequiresPasswordChange { get; set; }
 
-    /// <summary>Gets whether the user info has been populated for this request.</summary>
+    /// <summary>Gets whether the user info has been populated for this scope. A projection leaves an instance alone where this is already <c>true</c>.</summary>
     bool IsSetup { get; set; }
 
-    /// <summary>Gets whether multi-tenancy is enabled for the current user (i.e. they have a tenant).</summary>
-    bool MultiTenancyEnabled { get; set; }
+    /// <summary>Gets whether the user has a tenant assigned.</summary>
+    bool HasTenant { get; }
 
     /// <summary>Gets the list of role names assigned to the current user.</summary>
     IReadOnlyList<string> Roles { get; set; }
@@ -106,7 +114,12 @@ public interface IUserInfo
     bool IsInRole(string role);
 
 
-    static IUserInfo SystemUser<T>() 
+    /// <summary>
+    /// Creates and returns a default system user instance for unauthenticated requests.
+    /// </summary>
+    /// <typeparam name="T">The type implementing <see cref="IUserInfo"/>.</typeparam>
+    /// <returns>An instance of <typeparamref name="T"/> initialized with default system user properties.</returns>
+    static IUserInfo SystemUser<T>()
         where T : IUserInfo, new()
         => new T
         {
@@ -114,8 +127,13 @@ public interface IUserInfo
             Username = SYSTEM_USER_NAME, 
             Email = SYSTEM_USER_EMAIL
         };
-    
-    static IUserInfo UnknownUser<T>() 
+
+    /// <summary>
+    /// Creates a new instance of an unknown user with default fallback values.
+    /// </summary>
+    /// <typeparam name="T">A type implementing the <see cref="IUserInfo"/> interface.</typeparam>
+    /// <returns>An instance of type <typeparamref name="T"/> populated with default values for an unknown user.</returns>
+    static IUserInfo UnknownUser<T>()
         where T : IUserInfo, new()
         => new T
         {

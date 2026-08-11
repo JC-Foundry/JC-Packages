@@ -1,6 +1,6 @@
 # JC.Identity
 
-ASP.NET Core Identity wired into the JC suite. Identity, tenants and the audit trail share one `DbContext`, so every change is attributed to the signed-in user; multi-tenancy is enforced by global query filters; and middleware projects the user onto `IUserInfo` — the contract the rest of the suite depends on.
+ASP.NET Core Identity wired into the JC suite. Identity and the audit trail share one `DbContext`, so every change is attributed to the signed-in user, and a claims factory plus middleware project that user onto `IUserInfo` — the contract the rest of the suite depends on.
 
 Part of [JC-Packages](https://github.com/JC-Foundry/JC-Packages), a suite of .NET 9 packages providing shared infrastructure for .NET applications.
 
@@ -14,6 +14,8 @@ These packages are not published to NuGet.org. Reference the project directly:
 
 Or pack them to a local feed and reference by package ID. See [Installation](https://github.com/JC-Foundry/JC-Packages/blob/master/README.md#installation).
 
+`JC.Identity.Shared` and `JC.Identity.Shared.Web` arrive with this package and need no separate reference.
+
 ## Prerequisites
 
 - .NET 9.0 SDK, and an ASP.NET Core project
@@ -26,7 +28,7 @@ Or pack them to a local feed and reference by package ID. See [Installation](htt
 ### Data — `AppDbContext`
 
 ```csharp
-public class AppDbContext(DbContextOptions options, IUserInfo userInfo)
+public class AppDbContext(DbContextOptions<AppDbContext> options, IUserInfo userInfo)
     : IdentityDataDbContext<AppUser, AppRole>(options, userInfo);
 
 public class AppUser : BaseUser;
@@ -48,8 +50,8 @@ var app = builder.Build();
 // Authentication → IUserInfo → authorisation → identity rules, in that order
 app.UseIdentity();
 
-// Optional: seed system roles and a default admin from configuration
-await app.ConfigureAdminAndRolesAsync<AppUser, AppRole, AppDbContext, AppRoles>(setupTenancy: true);
+// Optional: seed system roles and a default administrator from configuration
+var admin = await app.ConfigureAdminAndRolesAsync<AppUser, AppRole, AppRoles>();
 ```
 
 ### Configuration — `appsettings.json`
@@ -67,11 +69,17 @@ Only needed when seeding an administrator:
 }
 ```
 
+## Where things live
+
+This package is the **local ASP.NET Identity authority**. The parts that any identity authority needs — the `IUserInfo` implementation, the claims projection, the account rules and their options, and the two-factor helper — live in `JC.Identity.Shared`, with its ASP.NET Core middleware in `JC.Identity.Shared.Web`. A future authority reuses those without reimplementing them.
+
+Tenancy is a separate package. `JC.Identity` has no reference to `JC.Tenancy` and applies no tenant filters; the consuming application joins the two.
+
 ## Feature areas
 
 ### IUserInfo
 
-The reason this package matters to the others. Middleware reads the authenticated principal's claims into a scoped `IUserInfo`, which JC.Core uses to attribute audit rows, JC.FileStorage uses to scope files to a tenant, and JC.Communication requires before it will register notifications or messaging at all.
+The reason this package matters to the others. The claims middleware reads the authenticated principal into a scoped `IUserInfo`, which JC.Core uses to attribute audit rows, JC.Tenancy reads to derive the operational tenant, and JC.FileStorage and JC.Communication use to scope and attribute their own work.
 
 ```csharp
 public class DashboardModel(IUserInfo userInfo) : PageModel
@@ -79,38 +87,24 @@ public class DashboardModel(IUserInfo userInfo) : PageModel
     public void OnGet()
     {
         var id = userInfo.UserId;
-        var tenant = userInfo.TenantId;
+        var authority = userInfo.Authority;   // Local
     }
 }
 ```
 
-Without JC.Identity there is no `IUserInfo` implementation, and the suite falls back to a placeholder identifier — valid, but unattributed.
+`IUserInfo` is a JC.Core contract, so packages consume it without referencing any identity package. Where no implementation is registered at all, the suite falls back to a placeholder identifier — valid, but unattributed.
 
 ### Claims
 
-`DefaultClaimsPrincipalFactory` projects twelve fields from `BaseUser` onto the principal — email and phone confirmation, two-factor and lockout state, tenant, display name, last login, enabled state and whether a password change is due. `UserInfoMiddleware` reads them back, so `IUserInfo` costs no database round trip per request.
+`DefaultClaimsPrincipalFactory` projects thirteen fields from `BaseUser` onto the principal — email and phone confirmation, two-factor and lockout state, access failures, tenant, display name, last login, registration, enabled state and whether a password change is due. The shared middleware reads them back, so `IUserInfo` costs no database round trip per request.
 
-The claim type constants are on `DefaultClaims`.
+The claim type constants are on `DefaultClaims`, in `JC.Identity.Shared`. The identifier, email and role claim types are whatever `IdentityOptions.ClaimsIdentity` says, copied at registration rather than assumed.
 
-### Multi-tenancy
-
-Entities implementing `IMultiTenancy` are filtered globally by the current tenant:
-
-```csharp
-public class Order : AuditModel, IMultiTenancy
-{
-    public string? TenantId { get; set; }
-    public Tenant? Tenant { get; set; }
-}
-```
-
-The filter reads the tenant **per query** rather than caching it when the model is built, so a request for one tenant cannot see another's rows even though the model is compiled once.
-
-`Tenant` and `IMultiTenancy` live in JC.Core, so a package can define a tenant-scoped entity without referencing JC.Identity; the filters that enforce it live here.
+**Claims are minted at sign-in.** Changing `IsEnabled`, `RequirePasswordChange` or `TenantId` in the database does not change a cookie already issued — call `UserManager.UpdateSecurityStampAsync` where the change must take effect immediately.
 
 ### Identity rules middleware
 
-Enforces business rules on every authenticated request, skipping static files and configured paths:
+Enforces account state on every authenticated request, skipping static files and configured paths:
 
 - Disabled accounts are redirected to the access-denied route
 - Users flagged for a password change are redirected until they complete it
@@ -125,6 +119,8 @@ builder.Services.AddIdentity<AppUser, AppRole, AppDbContext>(
     });
 ```
 
+The rules themselves are `IdentityRules` in `JC.Identity.Shared`, expressed as a function returning a route or nothing, so a host with no HTTP pipeline reaches the same behaviour.
+
 ### Roles and seeding
 
 Extend `SystemRoles` with a name and a matching `{Name}Desc` constant per role:
@@ -137,19 +133,42 @@ public class AppRoles : SystemRoles
 }
 ```
 
-`SeedRolesAsync` discovers them by reflection. `SeedDefaultAdminAsync` creates the administrator alone, and `ConfigureAdminAndRolesAsync` does both. All three are idempotent — an existing user or role is left untouched.
+`SeedRolesAsync` discovers them by reflection — public `const` strings only. `SeedDefaultAdminAsync` creates the administrator alone, and `ConfigureAdminAndRolesAsync` does both, returning the administrator it created *or found*. All three are idempotent.
+
+Roles belong to this package rather than the shared runtime: an authority's administrative roles are its own security domain, and another authority brings its own.
+
+### Multi-tenancy
+
+`BaseUser` carries a `TenantId` column, and that tenant reaches the runtime by claim:
+
+```text
+BaseUser.TenantId → tenant_id claim → IUserInfo.TenantId → ITenantInfo (JC.Tenancy)
+```
+
+Filtering itself is [JC.Tenancy](https://github.com/JC-Foundry/JC-Packages/blob/master/Documentation/JC.Tenancy/Setup.md)'s job, opted into per `DbContext`. `IdentityDataDbContext` applies no filters, which is what lets a single-tenant application skip that package entirely.
+
+`BaseUser` is deliberately **not** filtered by tenant, and must not be. A global query filter on the user entity breaks `UserManager` and `SignInManager`, because authentication resolves a user before any tenant scope exists.
+
+Assign the seeded administrator a tenant by joining the two packages at the call site:
+
+```csharp
+var admin = await app.ConfigureAdminAndRolesAsync<AppUser, AppRole, AppRoles>();
+
+if (admin is not null)
+    await app.Services.SeedDefaultTenantAsync<AppUser, AppDbContext>(admin.Id);
+```
 
 ### Custom IUserInfo
 
-Need more on it? Implement `IUserInfo` and use the four-type-parameter overload:
+Need more on it? Derive from `UserInfoBase` and use the four-type-parameter overload:
 
 ```csharp
-builder.Services.AddIdentity<AppUser, AppRole, AppDbContext, CustomUserInfo>();
+builder.Services.AddIdentity<AppUser, AppRole, AppDbContext, AppUserInfo>();
 ```
 
 ### Identity already registered
 
-Where the application registers ASP.NET Core Identity itself — for external providers, say — `AddIdentityBase` adds only the JC.Identity services and leaves Identity and its cookie configuration alone.
+Where the application registers ASP.NET Core Identity itself — for external providers, say — `AddIdentityServices` adds only the JC services and leaves Identity and its cookie configuration alone.
 
 ## Defaults
 
@@ -159,15 +178,18 @@ Where the application registers ASP.NET Core Identity itself — for external pr
 | Password change enforcement | Enabled, routing to `/Identity/Account/Manage/SetPassword` |
 | Two-factor enforcement | Disabled |
 | `IUserInfo` implementation | Built-in `UserInfo`, scoped |
-| Claims factory | `DefaultClaimsPrincipalFactory` — twelve custom claims |
+| `IUserInfo.Authority` | `Local` once authenticated, `None` otherwise |
+| Claims factory | `DefaultClaimsPrincipalFactory` — thirteen custom claims |
 | `UseIdentity` order | Authentication → `UseUserInfo` → authorisation → identity rules |
-| Admin roles when seeded | `SystemAdmin` and `Admin`, or `SystemAdmin` alone when tenancy is set up |
+| Admin roles when seeded | `SystemAdmin`, plus `Admin` unless `assignAdminRole` is `false` |
+| Tenant filtering | None. Opt in with JC.Tenancy |
 
 ## Documentation
 
-- [Setup](https://github.com/JC-Foundry/JC-Packages/blob/master/Documentation/JC.Identity/Setup.md) — registration, middleware options, role and admin seeding
-- [Guide](https://github.com/JC-Foundry/JC-Packages/blob/master/Documentation/JC.Identity/Guide.md) — claims, multi-tenancy, tenant settings, extending the user model
+- [Setup](https://github.com/JC-Foundry/JC-Packages/blob/master/Documentation/JC.Identity/Setup.md) — registration, cookie and rule options, role and administrator seeding
+- [Guide](https://github.com/JC-Foundry/JC-Packages/blob/master/Documentation/JC.Identity/Guide.md) — extending the user model, claims, account state, seeding, tenancy composition
 - [API Reference](https://github.com/JC-Foundry/JC-Packages/blob/master/Documentation/JC.Identity/API.md)
+- [JC.Identity.Shared](https://github.com/JC-Foundry/JC-Packages/blob/master/Documentation/JC.Identity.Shared/Setup.md) — the shared identity runtime this package builds on
 
 ## Versioning
 

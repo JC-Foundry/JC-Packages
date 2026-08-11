@@ -1,6 +1,6 @@
+using JC.Identity.Authentication;
 using JC.Identity.Models;
-using JC.Identity.Shared.Authentication;
-using JC.Identity.Shared.Extensions;
+using JC.Identity.Shared.Web.Extensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
@@ -63,7 +63,7 @@ public static class ApplicationBuilderExtensions
     /// <code>
     /// var admin = await app.ConfigureAdminAndRolesAsync&lt;AppUser, AppRole, AppRoles&gt;();
     /// if (admin is not null)
-    ///     await app.ApplicationServices.SeedDefaultTenantAsync&lt;AppUser&gt;(admin.Id);
+    ///     await app.ApplicationServices.SeedDefaultTenantAsync&lt;AppUser, AppDbContext&gt;(admin.Id);
     /// </code>
     /// </remarks>
     public static async Task<TUser?> ConfigureAdminAndRolesAsync<TUser, TRole, TRoles>(

@@ -36,7 +36,9 @@ public class ProductService(IRepositoryManager repositories)
 }
 ```
 
-Every `AddAsync` call automatically populates `CreatedById` and `CreatedUtc` on entities extending `BaseCreateModel` (which includes both `AuditModel` and `LogModel`). Every `UpdateAsync` populates `LastModifiedById` and `LastModifiedUtc` on `AuditModel` entities. The user ID comes from `IUserInfo.UserId` — if JC.Identity is registered, this is the authenticated user; otherwise it falls back to `IUserInfo.MissingUserInfoId` (`"<NONE>"`).
+Every `AddAsync` call automatically populates `CreatedById` and `CreatedUtc` on entities extending `BaseCreateModel` (which includes both `AuditModel` and `LogModel`). Every `UpdateAsync` populates `LastModifiedById` and `LastModifiedUtc` on `AuditModel` entities. The user ID comes from `IUserInfo.UserId`. Where an identity package is registered this is the authenticated user, or whoever was established for a background job; where none is registered and `IUserInfo` cannot be resolved at all, it falls back to `IUserInfo.MissingUserInfoId` (`"<NONE>"`).
+
+Those two are not the same state. An identity package that is registered but has not yet projected anything leaves the instance holding its system-user defaults, so the write is attributed to `"System__ID"` rather than `"<NONE>"`.
 
 **Nuance:** These entity audit fields (`CreatedById` and friends) are populated by the repository, which resolves `IUserInfo` from DI. The audit *trail* (`AuditEntry` rows) is written separately by the context on `SaveChangesAsync`, and `DataDbContext` now resolves the same ambient `IUserInfo` from the application service provider — so its entries record the real user when one is available and fall back to `"<NONE>"` only when no `IUserInfo` is registered. The entry additionally captures the repository-stamped actor in `ActionUserId`; see [Context user vs action user](#context-user-vs-action-user).
 
@@ -1093,4 +1095,4 @@ var consts = ConstHelper.GetAllConsts<AppRoles>();
 
 Finds `const` fields at all access levels (public, private, protected) including inherited fields. Excludes `static readonly` fields — only true compile-time constants.
 
-This is used internally by JC.Identity's role seeding, but is available for any scenario where you need to discover constants on a type at runtime.
+Nothing in the suite consumes this — it exists for applications that need to discover constants on a type at runtime. JC.Identity's role seeding looks similar but does not use it: `SystemRoles.GetAllRoles<T>()` reflects separately, over public constants only, and pairs each with its `{Name}Desc` partner.

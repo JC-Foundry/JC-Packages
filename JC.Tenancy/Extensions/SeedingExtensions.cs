@@ -20,36 +20,33 @@ public static class SeedingExtensions
     /// Finds or creates a tenant by name and assigns it to a user, in a scope of its own.
     /// </summary>
     /// <typeparam name="TUser">The user entity type.</typeparam>
+    /// <typeparam name="TUserContext">The <see cref="DbContext"/> owning the user's table.</typeparam>
     /// <param name="services">The root service provider.</param>
     /// <param name="userId">The identifier of the user to assign the tenant to.</param>
     /// <param name="tenantName">The tenant name to find or create. Defaults to <c>"Default Tenant"</c>.</param>
     /// <param name="description">The description applied when the tenant is created. Ignored where it already exists.</param>
-    /// <param name="userContextType">
-    /// The <see cref="DbContext"/> type owning the user record. Leave <c>null</c> to use the
-    /// repository manager's default context.
-    /// </param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>The tenant now assigned to the user, or <c>null</c> where it could not be created.</returns>
     /// <example>
     /// <code>
     /// var admin = await app.ConfigureAdminAndRolesAsync&lt;AppUser, AppRole, AppRoles&gt;();
     /// if (admin is not null)
-    ///     await app.Services.SeedDefaultTenantAsync&lt;AppUser&gt;(admin.Id);
+    ///     await app.Services.SeedDefaultTenantAsync&lt;AppUser, AppDbContext&gt;(admin.Id);
     /// </code>
     /// </example>
-    public static async Task<Tenant?> SeedDefaultTenantAsync<TUser>(
+    public static async Task<Tenant?> SeedDefaultTenantAsync<TUser, TUserContext>(
         this IServiceProvider services,
         string userId,
         string tenantName = "Default Tenant",
         string? description = "Default system tenant",
-        Type? userContextType = null,
         CancellationToken cancellationToken = default)
         where TUser : class, IApplicationUser
+        where TUserContext : DbContext
     {
         using var scope = services.CreateScope();
         var seeder = scope.ServiceProvider.GetRequiredService<TenantSeeder>();
 
-        return await seeder.SeedDefaultTenantAsync<TUser>(
-            userId, tenantName, description, userContextType, cancellationToken);
+        return await seeder.SeedDefaultTenantAsync<TUser, TUserContext>(
+            userId, tenantName, description, cancellationToken);
     }
 }

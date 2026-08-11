@@ -3,17 +3,15 @@
     <PropertyGroup>
         <PackageId>JC.Identity.Shared</PackageId>
         <Version>6.0.0</Version>
-        <Description>TBD</Description>
-        <PackageTags>$(PackageTags);TBD</PackageTags>
+        <Description>The identity runtime shared by JC.Identity and any future identity authority, with no dependency on ASP.NET Core or ASP.NET Identity. UserInfoBase implements JC.Core's IUserInfo, and UserInfoExtensions projects onto it from either direction — an authoritative IApplicationUser record, or a ClaimsPrincipal read through IdentityProjectionOptions, which names the identifier, email and role claim types plus the authority to stamp, so one projection serves whichever package authenticated the user. The remaining claim types are fixed constants in DefaultClaims, written by the authority and read back here. IdentityRules evaluates the account rules — disabled accounts, forced password changes, optional two-factor — against a request path and returns a route to redirect to or nothing at all, so enforcement is plain code rather than middleware. IdentityHelper formats the otpauth:// URI and grouped shared key an authenticator setup screen needs. Role definitions are deliberately absent: an authority's administrative roles are its own security domain, so each brings its own. SetUserInfoForUser and its scope-creating overloads establish an ambient identity outside an HTTP request, so a background job takes attribution without a fake user. The ASP.NET Core middleware wrapping all of this is JC.Identity.Shared.Web.</Description>
+        <PackageTags>$(PackageTags);identity;claims;user-context;system-roles;two-factor</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
-    <!-- The middleware, its DI seams and the builder extensions are ASP.NET Core types.
-         ASP.NET *Identity* is deliberately absent - that is what keeps this package usable
-         by a future JC.CAP. -->
-    <ItemGroup>
-        <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    </ItemGroup>
+    <!-- Deliberately no FrameworkReference on ASP.NET Core, and none on ASP.NET Identity. The
+         claims projection and the identity rules are plain code over IUserInfo, so a worker
+         service can take identity attribution without the ASP.NET Core runtime. The HTTP
+         plumbing that wraps them lives in JC.Identity.Shared.Web. -->
 
     <ItemGroup Condition="'$(UseLocalProjectReferences)' == 'true'">
         <ProjectReference Include="..\JC.Core\JC.Core.csproj" />
@@ -30,6 +28,5 @@
     </ItemGroup>
     <ItemGroup>
       <Folder Include="Authentication\" />
-      <Folder Include="Middleware\" />
     </ItemGroup>
 </Project>

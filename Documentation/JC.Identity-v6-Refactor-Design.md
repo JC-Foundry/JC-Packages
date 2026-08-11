@@ -259,10 +259,17 @@ It is deliberately **not** an abstractions-only package. It ships working code.
 ```text
 JC.Core
     ↓
-JC.Identity.Shared
+JC.Identity.Shared              [no ASP.NET Core]
     ↓                ↓
-JC.Identity     future JC.CAP
+JC.Identity.Shared.Web     future JC.CAP
+    ↓
+JC.Identity
 ```
+
+`JC.Identity.Shared` carries no `FrameworkReference`: the claims projection and the identity rules
+are plain code over `IUserInfo`, so a worker service can take identity attribution without the
+ASP.NET Core runtime. `JC.Identity.Shared.Web` holds the middleware that wraps them, and owns the
+only ASP.NET Core dependency. See decision 74.
 
 `JC.Identity.Shared` and `JC.Tenancy` are **siblings**. Neither depends on the other. An application can take tenancy without identity, or identity without tenancy.
 
@@ -858,10 +865,12 @@ that can drift.
 Explicit scope, for work with no user or work deliberately crossing tenants:
 
 ```text
-SetTenantInfoForTenant(tenantId)      set the scope's tenant
-SetTenantInfoForTenant(tenant)        set it from an already-loaded record
-CreateScopeForTenant(tenantId)        a new scope, already scoped
-CreateAsyncScopeForTenant(tenantId)   the same, for async disposal
+SetTenantInfoForTenant(tenantId)           set the scope's tenant
+SetTenantInfoForTenant(tenant)             set it from an already-loaded record
+SetTenantInfoForDomainAsync(domain)        resolve by domain, then set it
+CreateScopeForTenant(tenantId | tenant)    a new scope, already scoped
+CreateAsyncScopeForTenant(tenantId | tenant)   the same, for async disposal
+CreateAsyncScopeForTenantByDomain(domain)  the same, resolving by domain
 ```
 
 These mirror the identity equivalents in `JC.Identity.Shared` deliberately. A job needing both an
@@ -1265,9 +1274,15 @@ reaches it by accident.
 
 # 43. SystemRoles
 
-`SystemRoles` now live in `JC.Identity.Shared`, not `JC.Identity` — a future `JC.CAP` needs the same
-role vocabulary, and neither package should reimplement it. Applications on local Identity see no
-change beyond the namespace.
+> **Reversed. `SystemRoles` stays in `JC.Identity`.** An earlier draft moved it to
+> `JC.Identity.Shared` on the grounds that a future `JC.CAP` would want the same role vocabulary.
+> That contradicts §44 and §69, which state that CAP administrative roles are a **separate security
+> domain** — a portal supplies its own role structure rather than borrowing this one. The other
+> reason for the move also expired: §65.2 needed `SystemRoles.SystemAdmin` reachable from
+> `AllTenants`, and decision 59 answered that with role *names* from configuration, so JC.Tenancy
+> never references the constant. Recorded as decision 75.
+
+`SystemRoles` lives in `JC.Identity` and defines the roles of the local ASP.NET Identity authority.
 
 They define generic high-level roles for an application whose identity comes from one of the JC
 identity packages.
@@ -1603,6 +1618,9 @@ Do not force impossible cross-context relationships.
 
 Document migration implications.
 
+**Resolved: no.** `JC.Tenancy` configures no foreign keys — `ApplyTenancyMappings` maps `Tenant` and
+nothing else, and that is now the decision rather than the omission. See decision 71.
+
 ## 58.1 This has already happened once
 
 `SavedFile` in `JC.FileStorage` carried a `Tenant` navigation with `[ForeignKey(nameof(TenantId))]`,
@@ -1625,6 +1643,15 @@ Removing the navigation from `IMultiTenancy` removed both. Two consequences wort
 Whether `JC.Tenancy` should offer opt-in FK configuration for entities that share a model with
 `Tenant` is exactly the question this section raises. `JC.FileStorage` is the first concrete case to
 answer it against, and the answer decides whether that delete behaviour comes back.
+
+**It does not come back.** Decision 71 answers the section "no" on both counts. The FK stays absent
+because the marker has to mean the same thing whether or not `Tenant` shares the model. `SetNull`
+stays absent because it was designed against hard deletes: `ITenantStore` soft-deletes, so the
+cascade would fire only on a direct delete that §33 already places outside the supported boundary —
+and nulling `TenantId` would orphan the rows a later restore expects to find.
+
+An application that wants the constraint back configures it in its own mapping, where it can see
+both entities.
 
 ---
 
@@ -1828,7 +1855,7 @@ split rather than moved whole, the split is stated in the notes.
 | `UserInfoMiddleware` | `Middleware/UserInfoMiddleware.cs` | Move to JC.Identity.Shared | Blocked on one dependency: it resolves `IOptions<IdentityOptions>` purely to read three claim-type names (`EmailClaimType`, `UserIdClaimType`, `RoleClaimType`). Abstract that source first. |
 | `DefaultClaims` | `Authentication/DefaultClaims.cs` | Move to JC.Identity.Shared | Twelve `const string` claim types, no dependencies. Written by the factory, read by the middleware; CAP needs the same names. |
 | `DefaultClaimsPrincipalFactory<TUser, TRole>` | `Authentication/DefaultClaimsPrincipalFactory.cs` | Stay in JC.Identity | Derives from `UserClaimsPrincipalFactory<TUser, TRole>` and takes `UserManager`, `RoleManager` and `IdentityOptions`. Local-login only by construction — CAP receives claims, it does not mint them. |
-| `SystemRoles` | `Authentication/SystemRoles.cs` | Move to JC.Identity.Shared | Constants plus a reflection helper; no dependencies. See §65.2 for the consequence for JC.Tenancy. |
+| `SystemRoles` | `Authentication/SystemRoles.cs` | ~~Move to JC.Identity.Shared~~ **Stay in JC.Identity** | Reversed by decision 75 — local administrative roles are this authority's own security domain (§43, §44). |
 | `IdentityMiddleware` | `Middleware/IdentityMiddleware.cs` | Move to JC.Identity.Shared | Depends only on `IUserInfo`, its own options and ASP.NET Core HTTP. No ASP.NET Identity reference at all — it moves as-is. |
 | `IdentityMiddlewareOptions` | `Models/Options/IdentityMiddlewareOptions.cs` | Move to JC.Identity.Shared | Plain options object. Moves with the middleware it configures. |
 | `IdentityHelper` | `Helpers/IdentityHelper.cs` | Move to JC.Identity.Shared | 2FA support: authenticator URI and key formatting. `UrlEncoder` and string building only. Not DI-registered — consumers construct it. |
@@ -2005,12 +2032,12 @@ JC.Core
         ▼                          ▼
 JC.Tenancy                   JC.Identity.Shared
 │                            │
-├── Tenant                   ├── IApplicationUser
-├── TenantSettings           ├── UserInfo (IUserInfo impl)
-├── ITenantStore             ├── UserInfoMiddleware
-├── tenant cache             ├── IdentityMiddleware + options
-├── tenant context impl      ├── DefaultClaims, SystemRoles
-├── EF tenant filters        └── IdentityHelper (2FA)
+├── Tenant                   ├── UserInfoBase (IUserInfo impl)
+├── TenantSettings           ├── claims projection + IdentityRules
+├── ITenantStore             ├── DefaultClaims
+├── tenant cache             ├── IdentityHelper (2FA), options
+├── tenant context impl      └── JC.Identity.Shared.Web
+├── EF tenant filters              (middleware + builder extensions)
 ├── tenant switching                │
 └── safe/unsafe bypass              ├──────────────┐
         │                           ▼              ▼
@@ -2180,6 +2207,45 @@ Treat these as current working decisions unless implementation proves them wrong
     made concrete, and it is what lets a single-tenant Identity application avoid JC.Tenancy
     entirely.
 
+### Added while actioning the implementation audit
+
+71. **`JC.Tenancy` configures no tenant foreign keys**, answering §58 "no" by decision rather than by
+    omission. `IMultiTenancy` marks a partition, not a relationship, and it must mean the same thing
+    whether or not `Tenant` shares the model — which it often does not. `OnDelete(SetNull)` is not
+    restored with it: the store soft-deletes, so the cascade would fire only on a direct delete §33
+    already excludes, and nulling the partition key would orphan rows against a later restore.
+    Applications wanting the constraint configure it in their own mapping.
+72. **Domain resolution is an extension, not a resolver hook.** `SetTenantInfoForDomainAsync` joins
+    the explicit-scope API in §26. It is deliberately not a `TenantOptions` delegate feeding the
+    scoped factory: domain-to-identifier is a database read, and §25 keeps `TenantId` free of those
+    because the query filters read it on every query. A miss leaves scope untouched rather than
+    pinning the null partition.
+73. **`IUserInfo.MultiTenancyEnabled` becomes a get-only `HasTenant`**, derived from `TenantId`
+    rather than assigned alongside it. Nothing read the old flag, and being settable it could
+    disagree with the tenant it described.
+74. **`JC.Identity.Shared` splits, and keeps the logic.** The middleware and builder extensions move
+    to `JC.Identity.Shared.Web`; `JC.Identity.Shared` drops its `FrameworkReference` and becomes
+    framework-free like `JC.Tenancy` and `JC.BackgroundJobs`. Crucially the projection and the rules
+    did *not* move — they are a `PopulateFrom(ClaimsPrincipal, …)` overload and
+    `IdentityRules.GetRedirect`, both plain code over `IUserInfo`, with each middleware reduced to
+    supplying `HttpContext` and acting on the result. §50's background-job scenario was the forcing
+    case: `UserInfoExtensions` exists for hosts with no HTTP pipeline, and requiring the ASP.NET Core
+    shared runtime to reach it contradicted that.
+75. **`SystemRoles` returns to `JC.Identity`, reversing §43.** Role definitions are an authority's
+    own security domain, not shared vocabulary — §44 and §69 already say CAP administrative roles
+    are a separate domain, so a portal supplies its own structure rather than deriving from this
+    class. The move to Shared was originally forced by `AllTenants` needing
+    `SystemRoles.SystemAdmin`, and decision 59 removed that need by matching configured role
+    *names*. `JC.Identity.Shared` therefore defines no roles at all; what it shares is the shape
+    roles arrive in — `IUserInfo.Roles` and `IsInRole` — not their values.
+76. **JC.Identity exposes no `configureProjection` hook, and that is deliberate.**
+    `AddSharedIdentityServices` takes one because an arbitrary authority must state its own claim
+    types; JC.Identity must not, because ASP.NET Identity's claims factory writes whatever
+    `IdentityOptions.ClaimsIdentity` holds. A hook here would let the projection read a claim type
+    nothing is writing. The `IConfigureOptions<IdentityProjectionOptions>` already copies from
+    `IdentityOptions`, so configuring Identity is the single supported way to change them, and
+    `Authority` is not configurable at all — it is `Local` by definition for this package.
+
 ---
 
 # 73. Open Questions
@@ -2274,8 +2340,9 @@ second look.
 `JC.Identity/README.md` and `Documentation-Writing-Guide.md` all still describe the pre-v6
 namespaces and `AddIdentityBase`. Phase 7 work, but the volume is now significant.
 
-**Packaging is incomplete for both new packages.** `JC.Identity.Shared` and `JC.Tenancy` both carry
-`Description: TBD`, neither has a `README.md`, and neither has a Central Package Management entry.
+**Packaging is incomplete for all three new packages.** `JC.Identity.Shared`, `JC.Identity.Shared.Web`
+and `JC.Tenancy` all carry `Description: TBD`, none has a `README.md`, and none has a Central Package
+Management entry.
 `dotnet pack` fails `NU5039` on the missing readme; a build with `UseLocalProjectReferences` off
 fails `NU1010` on the missing versions.
 
@@ -2353,7 +2420,8 @@ proves the boundary while JC.Identity is otherwise unchanged.
 - ~~create package~~;
 - ~~add `IApplicationUser`; `BaseUser` implements it~~ — `IdentityTenantId` projects the existing
   `TenantId` column and is `[NotMapped]`, so no migration;
-- ~~move `DefaultClaims`, `SystemRoles`, `IdentityHelper`, `IdentityMiddleware` and its options~~ —
+- ~~move `DefaultClaims`, `IdentityHelper`, `IdentityMiddleware` and its options~~ — `SystemRoles`
+  was moved too and later returned to JC.Identity; see decision 75 —
   moved as-is;
 - ~~abstract the claim-type source, then move `UserInfoMiddleware`~~ — `IdentityClaimTypeOptions`,
   populated from `IdentityOptions` by an `IConfigureOptions<>` so the copy happens after the

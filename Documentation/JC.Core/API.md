@@ -127,77 +127,9 @@ Entity representing a single audit trail record capturing who performed what act
 | `EntityKey` | `string?` | `null` | get; set; | JSON-serialised primary key of the audited entity, keyed by property name (e.g. `{"Id":"abc"}` or, for composite keys, `{"ThreadId":"abc","UserId":"xyz"}`). `null` for keyless entities or if serialisation fails. |
 | `ActionData` | `string?` | `null` | get; set; | JSON-serialised entity data. For creates, contains all non-null property values. For updates, contains a `From`/`To` diff of modified properties. |
 
----
+Every column except `ActionData` is length-constrained: `Id` 36, `UserId` and `ActionUserId` 50, `UserName` 256, `SourceApplication` and `TableName` 512, `EntityKey` 1024. `ActionData` is deliberately unbounded, since an entity snapshot has no sensible ceiling.
 
-## Tenant
-
-**Namespace:** `JC.Core.Models.MultiTenancy`
-
-Sealed entity representing a tenant in a multi-tenancy system. Extends `AuditModel` for full audit trail support. Tenant settings are stored as serialised JSON and managed through the `SetSettings`/`GetSettings`/`SetSetting` methods. Inherits all audit properties from `AuditModel` — see [AuditModel](#auditmodel).
-
-Tenants live in JC.Core so that any package with domain models can implement [IMultiTenancy](#imultitenancy). The global query filter that scopes those entities is applied by `IdentityDataDbContext` in JC.Identity — see the [JC.Identity API reference](../JC.Identity/API.md).
-
-### Properties
-
-| Property | Type | Default | Access | Description |
-|----------|------|---------|--------|-------------|
-| `Id` | `string` | `Guid.NewGuid().ToString()` | get; set; | Unique identifier for this tenant. |
-| `Name` | `string` | — | get; set; | The tenant name. Marked `required`. |
-| `Description` | `string?` | `null` | get; set; | An optional description of the tenant. |
-| `Domain` | `string?` | `null` | get; set; | The domain associated with the tenant. Indexed for lookup. |
-| `MaxUsers` | `uint?` | `null` | get; set; | The maximum number of users allowed in this tenant. |
-| `ExpiryDateUtc` | `DateTime?` | `null` | get; set; | UTC timestamp when this tenant expires. |
-| `Settings` | `string` | `"[]"` | get; private set; | JSON-serialised tenant settings. Managed through the `SetSettings`/`GetSettings`/`SetSetting` methods. |
-
-### Methods
-
-#### SetSettings(IEnumerable\<TenantSettings\> settings)
-
-**Returns:** `void`
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `settings` | `IEnumerable<TenantSettings>` | — | The settings to serialise and store. |
-
-Replaces all tenant settings by serialising the provided collection to JSON and storing it in the `Settings` property.
-
----
-
-#### SetSetting(string key, string value, bool isActive = true)
-
-**Returns:** `void`
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `key` | `string` | — | The setting key. |
-| `value` | `string` | — | The setting value. |
-| `isActive` | `bool` | `true` | Whether the setting is active. |
-
-Adds or updates a single setting by key. Deserialises the current settings, finds an existing entry by key (or creates a new one), updates the value and active flag, then re-serialises and stores the result.
-
----
-
-#### GetSettings()
-
-**Returns:** `List<TenantSettings>`
-
-Deserialises and returns the current tenant settings from the JSON-stored `Settings` property. Returns an empty list if deserialisation yields `null`.
-
----
-
-## TenantSettings
-
-**Namespace:** `JC.Core.Models.MultiTenancy`
-
-Sealed class representing a single key-value tenant setting with an active/inactive flag. Serialised into `Tenant.Settings`.
-
-### Properties
-
-| Property | Type | Default | Access | Description |
-|----------|------|---------|--------|-------------|
-| `Key` | `string?` | `null` | get; set; | The setting key. |
-| `Value` | `string?` | `null` | get; set; | The setting value. |
-| `IsActive` | `bool` | `false` | get; set; | Whether this setting is active. |
+The audit service truncates each value to fit before writing, so an over-long table name or key never fails the save. Truncation is silent — a value longer than its column is shortened rather than rejected.
 
 ---
 
@@ -205,9 +137,11 @@ Sealed class representing a single key-value tenant setting with an active/inact
 
 **Namespace:** `JC.Core.Models.MultiTenancy`
 
-Contract for entities that belong to a tenant. It lives in JC.Core so that any package with domain models can implement it without depending on JC.Identity. Within the suite it is implemented by `SavedFile` (JC.FileStorage); other packages' entities are scoped by their owning user or are deliberately system-wide, so they do not implement it.
+Contract for entities that belong to a tenant. It lives in JC.Core so that any package with domain models can mark an entity tenant-scoped without depending on the tenancy engine. Within the suite it is implemented by `SavedFile` (JC.FileStorage); other packages' entities are scoped by their owning user or are deliberately system-wide, so they do not implement it.
 
-Entities implementing this interface are automatically scoped by the global query filters applied by `IdentityDataDbContext<TUser, TRole>` in JC.Identity. **Without JC.Identity there is no query filter**, so implementing this interface alone does not enforce isolation — every entity resolves to the no-tenant scope instead.
+Nothing in JC.Core acts on the mark. JC.Tenancy's `ApplyTenantFilters` installs the global query filters, and it is the consuming application that calls it, per DbContext. **Without JC.Tenancy there is no query filter**, so implementing this interface alone enforces nothing — the column is simply carried unused.
+
+This marks a partition, not a relationship. No foreign key is configured and there is no navigation property, because the tenant record may live in another context or another database entirely; an application whose model holds both may configure one itself.
 
 A `null` `TenantId` is not a shared or global scope. It is a scope of its own, isolated exactly like any named tenant: the filter matches `TenantId == null` when the current tenant is null, and matches the tenant exactly otherwise.
 
@@ -216,7 +150,88 @@ A `null` `TenantId` is not a shared or global scope. It is a scope of its own, i
 | Property | Type | Access | Description |
 |----------|------|--------|-------------|
 | `TenantId` | `string?` | get; set; | The tenant identifier this entity belongs to. |
-| `Tenant` | `Tenant?` | get; set; | Navigation property to the `Tenant` entity. |
+
+---
+
+## ITenantContext
+
+**Namespace:** `JC.Core.Models.MultiTenancy`
+
+The tenant the current operation is scoped to, and what is known about it. Registered scoped by JC.Tenancy, whose `ITenantInfo` extends this interface with the members that need the concrete tenant record.
+
+It lives in JC.Core so a package can read the operational tenant for entities it has marked `IMultiTenancy` without referencing JC.Tenancy. Resolve it **optionally** — with `GetService` rather than `GetRequiredService` — because an application without tenancy registered has no implementation, which means the null partition.
+
+This is not `IUserInfo.TenantId`. That is the tenant assigned to the current user; this is the tenant the operation is running against, and the two differ whenever a background job or an administrator deliberately works elsewhere. Data access follows this one.
+
+### Properties
+
+| Property | Type | Access | Description |
+|----------|------|--------|-------------|
+| `TenantId` | `string?` | get; set; | The tenant this operation is scoped to, or `null` for the null partition. Read live from the current user unless assigned; assigning overrides that for the rest of the scope, including assigning `null` to pin the null partition deliberately. |
+| `HasTenant` | `bool` | get; | Whether a tenant is in scope, as opposed to the null partition. |
+| `IsOverridden` | `bool` | get; | Whether the tenant was set explicitly rather than derived from the current user. |
+| `Name` | `string?` | get; | The tenant's name, or `null` in the null partition. |
+| `Description` | `string?` | get; | The tenant's description, if it has one. |
+| `Domain` | `string?` | get; | The domain associated with the tenant, if it has one. |
+| `MaxUsers` | `uint?` | get; | The maximum number of users allowed in this tenant, if one is set. |
+| `ExpiryDateUtc` | `DateTime?` | get; | When this tenant expires, if an expiry is set. |
+| `IsExpired` | `bool` | get; | Whether the tenant's expiry has passed. Reported, never enforced — whether an expired tenant may still be used is application policy. |
+
+### Methods
+
+#### GetSetting(string key)
+
+**Returns:** `string?`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `key` | `string` | — | The setting key. |
+
+Returns the value of an active tenant setting, or `null` where the key is absent or the setting is inactive.
+
+---
+
+#### GetSetting\<T\>(string key, T? defaultValue = default)
+
+**Returns:** `T?`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `key` | `string` | — | The setting key. |
+| `defaultValue` | `T?` | `default` | The value returned when the key is absent, inactive, or cannot be converted. |
+
+Reads the setting and converts it to `T`. Returns `defaultValue` rather than throwing where the key is missing or the stored value cannot be converted, because a malformed setting is consuming-application data rather than a framework fault.
+
+---
+
+## IApplicationUser
+
+**Namespace:** `JC.Core.Models`
+
+How the suite stores a user. Describes **any** user record, not only the one currently signed in — an administrator loading somebody else's account holds an `IApplicationUser`, not an `IUserInfo`.
+
+Read/write, because storage is not a one-way concern. Which store stands behind it — ASP.NET Identity, an externally supplied record, something else — is not this contract's business, which is what lets a package read a user without referencing an identity package.
+
+### Properties
+
+| Property | Type | Access | Description |
+|----------|------|--------|-------------|
+| `Id` | `string` | get; set; | Unique identifier of the user record. |
+| `UserName` | `string?` | get; set; | The username, if one is set. |
+| `Email` | `string?` | get; set; | The email address, if one is set. |
+| `EmailConfirmed` | `bool` | get; set; | Whether the email address has been confirmed. |
+| `PhoneNumber` | `string?` | get; set; | The phone number, if one is set. |
+| `PhoneNumberConfirmed` | `bool` | get; set; | Whether the phone number has been confirmed. |
+| `TwoFactorEnabled` | `bool` | get; set; | Whether two-factor authentication is enabled. |
+| `LockoutEnabled` | `bool` | get; set; | Whether lockout is enabled for this account. |
+| `LockoutEnd` | `DateTimeOffset?` | get; set; | When the lockout ends, if the account is locked out. Note the offset type — `IUserInfo.LockoutEnd` is a plain `DateTime?`. |
+| `AccessFailedCount` | `int` | get; set; | Consecutive failed access attempts. |
+| `DisplayName` | `string?` | get; set; | The display name, if one is set. |
+| `IsEnabled` | `bool` | get; set; | Whether the account is enabled. |
+| `RequirePasswordChange` | `bool` | get; set; | Whether the user must change their password before continuing. Projected onto `IUserInfo.RequiresPasswordChange` — note the differing names. |
+| `LastLoginUtc` | `DateTime?` | get; set; | When the user last logged in, if ever. |
+| `RegistrationUtc` | `DateTime?` | get; set; | When the user registered. |
+| `IdentityTenantId` | `string?` | get; set; | The tenant that owns the authoritative identity record. **Not** interchangeable with `IUserInfo.TenantId`, which means the tenant assigned to the user inside the consuming application. For local ASP.NET Identity the two commonly hold the same value; for an externally supplied identity they need not. |
 
 ---
 
@@ -224,7 +239,11 @@ A `null` `TenantId` is not a shared or global scope. It is a scope of its own, i
 
 **Namespace:** `JC.Core.Models`
 
-Read-only contract representing the current user's identity, profile, security state, and authorisation details. Populated per-request by `UserInfoMiddleware` in JC.Identity. When JC.Identity is not registered, `IUserInfo` may not be available — the repository falls back to `IUserInfo.MissingUserInfoId` for audit fields.
+The current user's identity, profile, security state and authorisation details — a runtime projection of whoever is executing the current operation, not a persisted record. For that, see [IApplicationUser](#iapplicationuser).
+
+Registered scoped and populated **in place**, so constructing an instance and passing it around does not make it ambient. In a web application `UserInfoMiddleware` (JC.Identity.Shared.Web) projects the current principal onto it per request; outside one, `UserInfoExtensions` in JC.Identity.Shared establishes it explicitly. When no implementation is registered at all, the repository layer falls back to `IUserInfo.MissingUserInfoId` for audit fields.
+
+Despite the read-only intent implied by the name, every member has a setter — the projection depends on filling an existing instance rather than replacing it.
 
 ### Constants
 
@@ -242,6 +261,7 @@ Read-only contract representing the current user's identity, profile, security s
 
 | Property | Type | Access | Description |
 |----------|------|--------|-------------|
+| `Authority` | `IdentityAuthority` | get; set; | Which authority authenticated the current user and supplied their identity. Implementations other than local ASP.NET Identity must set this explicitly. |
 | `UserId` | `string` | get; set; | Unique identifier of the current user. |
 | `Username` | `string` | get; set; | Username of the current user. |
 | `Email` | `string` | get; set; | Email address of the current user. |
@@ -252,14 +272,15 @@ Read-only contract representing the current user's identity, profile, security s
 | `LockoutEnabled` | `bool` | get; set; | Whether lockout is enabled for the user. |
 | `LockoutEnd` | `DateTime?` | get; set; | UTC timestamp when the user's lockout expires, if locked out. |
 | `AccessFailedCount` | `int` | get; set; | Number of consecutive failed access attempts. |
-| `TenantId` | `string?` | get; set; | Tenant identifier the user belongs to, if multi-tenancy is active. |
+| `TenantId` | `string?` | get; set; | The tenant assigned to this user inside the consuming application. Distinct from `ITenantContext.TenantId`, which is the tenant the current operation runs against — data access follows that one, not this. |
 | `DisplayName` | `string?` | get; set; | The user's display name. |
 | `LastLoginUtc` | `DateTime?` | get; set; | UTC timestamp of the user's last login. |
+| `RegistrationUtc` | `DateTime?` | get; set; | UTC timestamp of the user's registration. |
 | `IsEnabled` | `bool` | get; set; | Whether the user account is enabled. |
-| `RequiresPasswordChange` | `bool` | get; set; | Whether the user must change their password. |
-| `IsSetup` | `bool` | get; set; | Whether the user info has been populated for this request. |
-| `MultiTenancyEnabled` | `bool` | get; set; | Whether the current user has a tenant assigned. |
-| `Roles` | `IReadOnlyList<string>` | get; set; | Role names assigned to the current user. |
+| `RequiresPasswordChange` | `bool` | get; set; | Whether the user must change their password. Note the name — the persisted counterpart on `IApplicationUser` is `RequirePasswordChange`. |
+| `IsSetup` | `bool` | get; set; | Whether the user info has been populated for this scope. A projection leaves an instance alone where this is already `true`. |
+| `HasTenant` | `bool` | get; | Whether the user has a tenant assigned. Derived from `TenantId`, so it cannot disagree with it. |
+| `Roles` | `IReadOnlyList<string>` | get; set; | Role names assigned to the current user, in the consuming application's own authorisation domain. |
 | `Claims` | `IReadOnlyList<Claim>` | get; set; | All claims associated with the current user. |
 
 ### Methods
@@ -273,6 +294,28 @@ Read-only contract representing the current user's identity, profile, security s
 | `role` | `string` | — | The role name to check. |
 
 Determines whether the current user belongs to the specified role. Returns `true` if the user has the role; otherwise `false`.
+
+---
+
+#### SystemUser\<T\>()
+
+**Returns:** `IUserInfo`
+
+**Constraint:** `where T : IUserInfo, new()`
+
+Static interface member constructing a new `T` populated with `SYSTEM_USER_ID`, `SYSTEM_USER_NAME` and `SYSTEM_USER_EMAIL`. Called as `IUserInfo.SystemUser<UserInfoBase>()`.
+
+Constructs an instance; it does **not** make it ambient. `IUserInfo` is registered scoped and populated in place, so nothing that injects `IUserInfo` will observe the returned object. Use JC.Identity.Shared's scope helpers to establish an ambient identity.
+
+---
+
+#### UnknownUser\<T\>()
+
+**Returns:** `IUserInfo`
+
+**Constraint:** `where T : IUserInfo, new()`
+
+As `SystemUser<T>`, but populated with `UNKNOWN_USER_ID`, `UNKNOWN_USER_NAME` and `UNKNOWN_USER_EMAIL`. The same caveat about ambience applies.
 
 ---
 
@@ -376,6 +419,25 @@ Enum specifying how soft-deleted records should be filtered in queries.
 | `All` | `0` | Include all records regardless of deletion status. |
 | `OnlyActive` | `1` | Exclude soft-deleted records, returning only active records. |
 | `OnlyDeleted` | `2` | Return only soft-deleted records. |
+
+---
+
+## IdentityAuthority
+
+**Namespace:** `JC.Core.Enums`
+
+Identifies which authority authenticated the current user and supplied their identity to the consuming application. Exposed as `IUserInfo.Authority`.
+
+This is **not** the login method. Somebody who signs into a central portal with an external provider and is then passed through to a consuming application has an authority of `CAP` — the authority is whoever handed the application the identity, not however that party established it in the first place.
+
+Each member also carries a `[Description]` attribute, readable through `EnumExtensions.GetDescription()`.
+
+| Member | Value | Description |
+|--------|-------|-------------|
+| `None` | `0` | No authentication took place. The user info holds its system or unknown defaults, which is the expected state for unauthenticated requests and background work. The zero value deliberately, so an authority that never declares itself cannot pass as local. |
+| `Local` | `1` | The application authenticated the user against its own persisted identity store. Stated by JC.Identity at registration. |
+| `CAP` | `2` | The Central Admin Portal authenticated the user and supplied the identity by SSO. |
+| `Custom` | `3` | An authentication mechanism the consuming application supplied itself. |
 
 ---
 

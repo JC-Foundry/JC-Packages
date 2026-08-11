@@ -1,6 +1,7 @@
 using JC.Core.Models;
 using JC.Tenancy.Models.Options;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace JC.Tenancy.Services;
@@ -33,18 +34,35 @@ public interface ITenantBypassAuthoriser
 /// the role.
 /// <para>
 /// Denies when no roles are configured, and denies when no user is resolvable, so an unconfigured
-/// application is closed rather than open.
+/// application is closed rather than open. The unconfigured case is warned about once, since a
+/// silent refusal is indistinguishable from the role check simply failing.
 /// </para>
 /// </remarks>
 public class RoleTenantBypassAuthoriser(IOptions<TenantOptions> options, IServiceProvider services)
     : ITenantBypassAuthoriser
 {
+    private static int _warnedUnconfigured;
+
     private readonly TenantOptions _options = options.Value;
 
     /// <inheritdoc />
     public bool CanAccessAllTenants()
     {
-        if (_options.BypassRoles.Count == 0) return false;
+        if (_options.BypassRoles.Count == 0)
+        {
+            // Denying because nothing is configured and denying because this user lacks the role are
+            // the same answer for different reasons, and only the first is a mistake. Said once: it
+            // is a startup-shaped problem reported at the first call that cares.
+            if (Interlocked.Exchange(ref _warnedUnconfigured, 1) == 0)
+                services.GetService<ILogger<RoleTenantBypassAuthoriser>>()?.LogWarning(
+                    "A cross-tenant query was refused because no bypass roles are configured. Call " +
+                    "{Method} when registering tenancy to permit one, or use {Unsafe} where there is " +
+                    "no user to authorise.",
+                    $"{nameof(TenantOptions)}.{nameof(TenantOptions.AllowBypassForRole)}",
+                    "AllTenantsUnsafe()");
+
+            return false;
+        }
 
         // Resolved rather than injected: tenancy works without an identity package registered,
         // and no user means no bypass.

@@ -12,7 +12,7 @@ Complete reference of all public types, properties, and methods in JC.FileStorag
 
 **Namespace:** `JC.FileStorage.Models`
 
-Entity representing a stored file. Extends `AuditModel` (JC.Core) for full audit trail and soft-delete support, and implements `IMultiTenancy` so it is scoped by the tenant query filter applied by `IdentityDataDbContext`. See the JC.Core API reference for inherited members.
+Entity representing a stored file. Extends `AuditModel` (JC.Core) for full audit trail and soft-delete support, and implements `IMultiTenancy` so it is scoped by the tenant query filter, where the consuming application has installed one through JC.Tenancy's `ApplyTenantFilters`. See the JC.Core API reference for inherited members.
 
 The file name and its extension are held in separate columns, and the physical file on disk is named after `Id`, not `FileName`.
 
@@ -22,7 +22,6 @@ The file name and its extension are held in separate columns, and the physical f
 |----------|------|---------|--------|-------------|
 | `Id` | `string` | New GUID | get; private set; | Primary key. Also the physical file name on disk, combined with `Extension`. Max length 36. |
 | `TenantId` | `string?` | `null` | get; set; | The tenant this file belongs to. `null` places the file in the no-tenant scope. Max length 36. |
-| `Tenant` | `Tenant?` | `null` | get; set; | Navigation to the owning tenant. Foreign key is `TenantId`. |
 | `FileName` | `string` | `""` | get; private set; | The file name **without** its extension. Set via `SetFileName`. Required, max length 256. |
 | `Extension` | `string` | `""` | get; private set; | The extension including its leading dot (e.g. `.pdf`). Set via `SetFileName`. Required, max length 64. |
 | `FolderName` | `string` | `""` | get; private set; | The name of the folder holding this file. Set via `SetFolderName`. Required, max length 256. |
@@ -554,11 +553,13 @@ Returns whether a file exists at `path`.
 
 The entry point for consuming applications. Registered as scoped. Inject via `StorageService`.
 
-Every operation exists in two forms. The scoped form takes no tenant and operates on the current user's tenant, read from `IUserInfo.TenantId`. The `*ForTenant` form takes a tenant explicitly and, when it differs from the caller's own, **bypasses the global tenant query filter**.
+Every operation exists in two forms. The scoped form takes no tenant and operates on the tenant the current operation is scoped to, read from `ITenantContext.TenantId`. The `*ForTenant` form takes a tenant explicitly and, when it differs from the operational one, **bypasses the global tenant query filter**.
 
-`IUserInfo` is resolved optionally from the service provider. When JC.Identity is not registered it is absent, `IUserInfo.TenantId` reads as null, and every scoped call operates in the no-tenant scope.
+`ITenantContext` is resolved optionally from the service provider. When JC.Tenancy is not registered it is absent, the tenant reads as null, and every scoped call operates in the no-tenant scope.
 
-> **The `*ForTenant` methods perform no authorisation check.** JC.FileStorage cannot check the `SystemAdmin` role, which lives in JC.Identity. Any caller reaching these methods can reach any tenant's files. The consuming application must authorise every call — see the [Guide](Guide.md#cross-tenant-access).
+It reads the operational tenant rather than `IUserInfo.TenantId` deliberately. `SavedFile` is *filtered* by the operational tenant, so stamping writes from anything else would let the two disagree — a background job scoped to a tenant would write files it could not then read back.
+
+> **The `*ForTenant` methods perform no authorisation check.** JC.FileStorage references only JC.Core, so it can see neither an identity package's roles nor JC.Tenancy's bypass authoriser. Any caller reaching these methods can reach any tenant's files. The consuming application must authorise every call — see the [Guide](Guide.md#cross-tenant-access).
 
 All methods validate that the folder's tenant matches the tenant being operated on, throwing `ArgumentException` before any read or write when it does not.
 
@@ -569,7 +570,7 @@ All methods validate that the folder's tenant matches the tenant being operated 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `repos` | `IRepositoryManager` | — | Repository manager bound to the ambient DbContext registered by `AddCore`. |
-| `serviceProvider` | `IServiceProvider` | — | Used to resolve `IUserInfo` optionally. |
+| `serviceProvider` | `IServiceProvider` | — | Used to resolve `ITenantContext` optionally. |
 | `logger` | `ILogger<StorageService>` | — | Receives errors from failed reads, writes and deletes, and warnings from rejected files. |
 | `pathProvider` | `FilePathProvider` | — | Resolves physical paths. |
 | `folderRegistry` | `FolderRegistry` | — | Supplies the size and type limits enforced on save. |
@@ -1011,14 +1012,14 @@ Reads the limits through `FolderRegistry.ResolveAllowedExtensions` and `ResolveM
 | Property | Type | Default | Access | Description |
 |----------|------|---------|--------|-------------|
 | `Folder` | `string` | — | get; set; | Attribute `folder`. The folder name. Required. |
-| `TenantId` | `string?` | `null` | get; set; | Attribute `tenant-id`. The tenant owning the folder. Defaults to the current user's tenant, or the no-tenant scope when JC.Identity is not registered. |
+| `TenantId` | `string?` | `null` | get; set; | Attribute `tenant-id`. The tenant owning the folder. Defaults to the operational tenant from `ITenantContext`, or the no-tenant scope when JC.Tenancy is not registered. |
 | `ShowTypes` | `bool` | `true` | get; set; | Attribute `show-types`. Whether to show the accepted types. |
 | `ShowSize` | `bool` | `true` | get; set; | Attribute `show-size`. Whether to show the maximum size. |
 | `TypesLabel` | `string` | `Accepted types` | get; set; | Attribute `types-label`. Label before the accepted types. |
 | `SizeLabel` | `string` | `Maximum size` | get; set; | Attribute `size-label`. Label before the maximum size. |
 | `AnyTypeText` | `string` | `Any type except executable files` | get; set; | Attribute `any-type-text`. Shown when no type restriction applies. |
 | `CssClass` | `string?` | `null` | get; set; | Attribute `css-class`. Classes applied to the wrapper `div`. Falls back to `IFileStorageFrameworkDictionary.UploadConstraints.Container` when null or whitespace. |
-| `ViewContext` | `ViewContext` | — | get; set; | Not bound. Supplies the request services used to resolve `IUserInfo`. |
+| `ViewContext` | `ViewContext` | — | get; set; | Not bound. Supplies the request services used to resolve `ITenantContext`. |
 
 ### Methods
 
@@ -1066,6 +1067,6 @@ Marker interface for a DbContext that supports file storage entities. Implement 
 
 Configures `Id` as the key with a maximum length of 36; `TenantId` at 36; `FileName` and `FolderName` as required at 256; and `Extension` as required at 64.
 
-Configures the optional relationship to `Tenant` over the `TenantId` foreign key with `DeleteBehavior.SetNull`, so deleting a tenant moves its files into the no-tenant scope rather than deleting their records.
+Configures no relationship to the tenant. `TenantId` is a plain column: `IMultiTenancy` marks a partition rather than a relationship, and the tenant record may live in another context or another database, so no foreign key can be assumed. Deleting a tenant therefore leaves its files untouched, pointing at an identifier that no longer resolves — which is what lets a restore bring them back intact.
 
 Adds a composite index over `TenantId`, `FolderName` and `FileName` covering the lookup every read, save and delete performs, then applies the `AuditModel` column configuration and indexes via `AuditModelMapping<SavedFile>`.

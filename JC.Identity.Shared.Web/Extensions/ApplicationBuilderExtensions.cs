@@ -1,7 +1,7 @@
-using JC.Identity.Shared.Middleware;
+using JC.Identity.Shared.Web.Middleware;
 using Microsoft.AspNetCore.Builder;
 
-namespace JC.Identity.Shared.Extensions;
+namespace JC.Identity.Shared.Web.Extensions;
 
 /// <summary>
 /// Extension methods for <see cref="IApplicationBuilder"/> registering the shared identity

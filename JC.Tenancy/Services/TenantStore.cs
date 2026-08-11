@@ -1,5 +1,6 @@
 using JC.Core.Enums;
 using JC.Core.Extensions;
+using JC.Core.Models.Pagination;
 using JC.Core.Services.DataRepositories;
 using JC.Tenancy.Data;
 using JC.Tenancy.Models;
@@ -33,11 +34,25 @@ public class TenantStore<TContext>(IRepositoryManager repos, TenantCache cache) 
             .FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken);
 
     /// <inheritdoc />
-    public async Task<Tenant?> GetByDomainAsync(string domain, CancellationToken cancellationToken = default)
+    public async Task<Tenant?> GetByNameAsync(string name, 
+        DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive,
+        CancellationToken cancellationToken = default)
         => await Repository.AsQueryable()
             .AsNoTracking()
-            .FilterDeleted(DeletedQueryType.OnlyActive)
-            .FirstOrDefaultAsync(t => t.Domain == domain, cancellationToken);
+            .FilterDeleted(deletedQueryType)
+            .FirstOrDefaultAsync(t => t.Name.ToUpper() == name.ToUpper(), cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<Tenant?> GetByDomainAsync(string? domain, 
+        DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive,
+        CancellationToken cancellationToken = default)
+        => await Repository.AsQueryable()
+            .AsNoTracking()
+            .FilterDeleted(deletedQueryType)
+            .FirstOrDefaultAsync(t => !string.IsNullOrEmpty(t.Domain) 
+                                      && !string.IsNullOrEmpty(domain) 
+                                      && t.Domain.ToLower() == domain.ToLower(), 
+                cancellationToken);
 
     /// <inheritdoc />
     public async Task<List<Tenant>> GetAllAsync(DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive,
@@ -47,6 +62,15 @@ public class TenantStore<TContext>(IRepositoryManager repos, TenantCache cache) 
             .FilterDeleted(deletedQueryType)
             .OrderBy(t => t.Name)
             .ToListAsync(cancellationToken);
+    
+    /// <inheritdoc />
+    public async Task<IPagination<Tenant>> GetAllAsync(int pageNumber, int pageSize,
+        DeletedQueryType deletedQueryType = DeletedQueryType.OnlyActive)
+        => await Repository.AsQueryable()
+            .AsNoTracking()
+            .FilterDeleted(deletedQueryType)
+            .OrderBy(t => t.Name)
+            .ToPagedListAsync(pageNumber, pageSize);
 
     #endregion
 

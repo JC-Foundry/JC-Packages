@@ -1,135 +1,111 @@
 # JC.Identity — API reference
 
-Complete reference of all public types, properties, and methods in JC.Identity. See [Setup](Setup.md) for registration and [Guide](Guide.md) for usage examples.
+Every public and protected type and member in JC.Identity. See [Setup](Setup.md) for registration and [Guide](Guide.md) for usage.
 
-> **Note:** Registration extensions (`IServiceCollection`, `IServiceProvider`, `IApplicationBuilder`) and options classes are documented in [Setup](Setup.md), not here.
+> **Note:** Registration extensions (`IServiceCollection`, `IServiceProvider`, `IApplicationBuilder`) and options classes are documented in [Setup](Setup.md), not here. That covers `AddIdentity`, `AddIdentityServices`, `UseIdentity`, `ConfigureAdminAndRolesAsync`, `SeedRolesAsync` and `SeedDefaultAdminAsync`.
+>
+> The authority-agnostic runtime — `UserInfoBase`, `UserInfoExtensions`, `IdentityRules`, `DefaultClaims` and `IdentityHelper` — belongs to JC.Identity.Shared and is documented in [its API reference](../JC.Identity.Shared/API.md).
 
----
+## Models
 
-# Models
-
-## BaseUser
+### BaseUser
 
 **Namespace:** `JC.Identity.Models`
 
-Base user entity extending ASP.NET Core `IdentityUser` with multi-tenancy, display name, login tracking, and account management properties. All standard `IdentityUser` properties (e.g. `Id`, `UserName`, `Email`, `PasswordHash`) are inherited and not re-documented here.
+The local ASP.NET Identity user entity. Extends `Microsoft.AspNetCore.Identity.IdentityUser` and implements `JC.Core.Models.IApplicationUser`, so the record can be read by code that has no reference to ASP.NET Identity.
 
-### Properties
+Inherited `IdentityUser` members — `Id`, `UserName`, `Email`, `EmailConfirmed`, `PhoneNumber`, `PhoneNumberConfirmed`, `TwoFactorEnabled`, `LockoutEnabled`, `LockoutEnd`, `AccessFailedCount`, `PasswordHash`, `SecurityStamp`, `ConcurrencyStamp` and the rest — are not re-documented here; they behave exactly as ASP.NET Identity defines them, and together with the properties below they satisfy `IApplicationUser`.
+
+`BaseUser` does **not** implement `IMultiTenancy`, and must not. A global query filter on the user entity breaks `UserManager` and `SignInManager`, because authentication resolves a user before any tenant scope exists.
+
+#### Properties
 
 | Property | Type | Default | Access | Description |
 |----------|------|---------|--------|-------------|
-| `TenantId` | `string?` | `null` | get; set; | The tenant identifier this user belongs to. |
-| `DisplayName` | `string?` | `null` | get; set; | The user's display name. |
-| `LastLoginUtc` | `DateTime?` | `null` | get; set; | UTC timestamp of the user's last login. |
-| `IsEnabled` | `bool` | `true` | get; set; | Whether the user account is enabled. |
-| `RequirePasswordChange` | `bool` | `false` | get; set; | Whether the user must change their password on next login. |
+| `TenantId` | `string?` | `null` | get; set; | The tenant this user belongs to. Persisted, with a maximum length of 36. Carries no query filter. |
+| `IdentityTenantId` | `string?` | `null` | get; set; | `IApplicationUser`'s tenant member. Reads and writes `TenantId`, and is `[NotMapped]` — a second way to reach the same column, not a column of its own, so no migration is needed to expose it. |
+| `DisplayName` | `string?` | `null` | get; set; | The user's display name. Maximum length 256. |
+| `LastLoginUtc` | `DateTime?` | `null` | get; set; | When the user last signed in. Not maintained by this package; the consuming application sets it. |
+| `RegistrationUtc` | `DateTime?` | `null` | get; set; | When the user registered. Set by `SeedDefaultAdminAsync` for the accounts it creates. |
+| `IsEnabled` | `bool` | `true` | get; set; | Whether the account is enabled. Defaults to `true`, so a newly constructed user is usable without being explicitly enabled. |
+| `RequirePasswordChange` | `bool` | `false` | get; set; | Whether the user must change their password before continuing. Projected onto `IUserInfo.RequiresPasswordChange`, which is what the account rules read. |
 
----
-
-## BaseRole
+### BaseRole
 
 **Namespace:** `JC.Identity.Models`
 
-Base role entity extending ASP.NET Core `IdentityRole` with a description field. All standard `IdentityRole` properties (e.g. `Id`, `Name`, `NormalizedName`) are inherited and not re-documented here.
+The local ASP.NET Identity role entity. Extends `Microsoft.AspNetCore.Identity.IdentityRole`, adding a description. Inherited members are not re-documented.
 
-### Properties
+#### Properties
 
 | Property | Type | Default | Access | Description |
 |----------|------|---------|--------|-------------|
-| `Description` | `string?` | `null` | get; set; | An optional description of the role's purpose. Used by `SystemRoles.GetAllRoles` for role seeding. |
+| `Description` | `string?` | `null` | get; set; | An optional description of the role's purpose. Populated from the matching `{Name}Desc` constant when a role is seeded. |
 
----
-
-## Tenant, TenantSettings and IMultiTenancy — moved to JC.Core
-
-**Namespace:** `JC.Core.Models.MultiTenancy`
-
-These three types are no longer part of JC.Identity. They live in **JC.Core**, so that any package with domain models can implement `IMultiTenancy` without taking a dependency on JC.Identity. See the JC.Core API reference:
-
-- [Tenant](../JC.Core/API.md#tenant)
-- [TenantSettings](../JC.Core/API.md#tenantsettings)
-- [IMultiTenancy](../JC.Core/API.md#imultitenancy)
-
-JC.Identity still owns the *mechanism* that makes them work. `IdentityDataDbContext<TUser, TRole>` applies the global query filter that scopes every `IMultiTenancy` entity to the current tenant, and `QueryExtensions.AllTenants` is the only sanctioned way to bypass it. Both are documented below.
-
----
-
-## UserInfo
+### UserInfo
 
 **Namespace:** `JC.Identity.Models`
 
-Default `IUserInfo` implementation populated per-request by `UserInfoMiddleware`. Provides system and unknown user constants for unauthenticated and fallback scenarios. Registered as scoped. Inject via `IUserInfo`.
+The local ASP.NET Identity `IUserInfo`. Extends `UserInfoBase`, whose members are documented in the [JC.Identity.Shared API reference](../JC.Identity.Shared/API.md#userinfobase); this type adds only the constructors that project a `BaseUser`.
 
-For the `IUserInfo` interface definition (properties and `IsInRole` method), see the [JC.Core API reference](../JC.Core/API.md#iuserinfo).
+Registered as the scoped `IUserInfo` by `AddIdentity` unless a different implementation is supplied.
 
-### Constants
+#### Constructors
 
-| Constant | Type | Value | Description |
-|----------|------|-------|-------------|
-| `SYSTEM_USER_ID` | `string` | `"System__ID"` | User ID assigned for unauthenticated requests. |
-| `SYSTEM_USER_NAME` | `string` | `"System"` | Username assigned for unauthenticated requests. |
-| `SYSTEM_USER_EMAIL` | `string` | `"<SYSTEM@EMAIL>"` | Email assigned for unauthenticated requests. |
-| `UNKNOWN_USER_ID` | `string` | `"Unknown__ID"` | User ID assigned when an identity is present but not authenticated. |
-| `UNKNOWN_USER_NAME` | `string` | `"Unknown"` | Username assigned when an identity is present but not authenticated. |
-| `UNKNOWN_USER_EMAIL` | `string` | `"<UNKNOWN@EMAIL>"` | Email assigned when an identity is present but not authenticated. |
+##### UserInfo()
 
-### Constructors
+Initialises an unpopulated instance for dependency injection to activate. The claims middleware fills it in per request.
 
-#### UserInfo()
+Leaves `Authority` at `IdentityAuthority.None`. The projection stamps the authority only once a principal is authenticated, so an anonymous request does not name an authority that never ran.
 
-Parameterless constructor. `UserId`, `Username`, and `Email` default to the system identity (`SYSTEM_USER_ID`, `SYSTEM_USER_NAME`, `SYSTEM_USER_EMAIL`); all other properties default to empty values. Populated later by `UserInfoMiddleware`.
-
----
-
-#### UserInfo(BaseUser user, IEnumerable\<string?\> roles)
+##### UserInfo(BaseUser user, IEnumerable&lt;string?&gt; roles)
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `user` | `BaseUser` | — | The user entity to populate properties from. |
-| `roles` | `IEnumerable<string?>` | — | The role names to assign. |
+| `user` | `BaseUser` | — | The user entity to project. |
+| `roles` | `IEnumerable<string?>` | — | The user's role names. Null and empty entries are discarded. |
 
-Creates a `UserInfo` populated directly from a `BaseUser` entity and a list of role name strings.
+Projects the user through the base constructor, then sets the two members the base deliberately leaves alone: `TenantId` from `BaseUser.TenantId`, because for local Identity the tenant owning the record and the user's application tenant are the same value; and `Authority` to `IdentityAuthority.Local`, which this package can state outright.
 
----
-
-#### UserInfo(BaseUser user, IEnumerable\<BaseRole\> roles)
+##### UserInfo(BaseUser user, IEnumerable&lt;BaseRole&gt; roles)
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `user` | `BaseUser` | — | The user entity to populate properties from. |
-| `roles` | `IEnumerable<BaseRole>` | — | The role entities to extract names from. |
+| `user` | `BaseUser` | — | The user entity to project. |
+| `roles` | `IEnumerable<BaseRole>` | — | The user's role entities. |
 
-Creates a `UserInfo` populated directly from a `BaseUser` entity and a list of role entities.
+Projects each role's `Name` and delegates to the constructor above, so behaviour is identical.
 
-### Methods
+## Services
 
-#### IsInRole(string role)
-
-**Returns:** `bool`
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `role` | `string` | — | The role name to check. |
-
-Returns `false` immediately if `role` is null or empty. Otherwise checks both the `Roles` list (populated from role claims) and the full `Claims` list for any claim with type `ClaimTypes.Role` matching the value.
-
----
-
-# Services
-
-## DefaultClaimsPrincipalFactory\<TUser, TRole\>
+### DefaultClaimsPrincipalFactory&lt;TUser, TRole&gt;
 
 **Namespace:** `JC.Identity.Authentication`
 
-Custom claims principal factory that extends the default ASP.NET Core Identity claims with 12 additional claims from `BaseUser` properties. Registered as `IUserClaimsPrincipalFactory<TUser>` during service registration.
+Claims principal factory extending ASP.NET Identity's `UserClaimsPrincipalFactory<TUser, TRole>` with every `DefaultClaims` value read from the user entity. Registered as `IUserClaimsPrincipalFactory<TUser>` by `AddIdentityServices`, replacing the framework default.
 
-**Constraints:** `TUser : BaseUser`, `TRole : BaseRole`
+Local sign-in only by construction — it takes `UserManager` and `RoleManager`, so it mints claims rather than receiving them. An external authority supplies its own claims instead.
 
-**Extends:** `UserClaimsPrincipalFactory<TUser, TRole>`
+| Type parameter | Constraint | Description |
+|----------------|-----------|-------------|
+| `TUser` | `BaseUser` | The user entity type. |
+| `TRole` | `BaseRole` | The role entity type. |
 
-### Methods
+#### Constructor
 
-#### GenerateClaimsAsync(TUser user)
+##### DefaultClaimsPrincipalFactory(UserManager&lt;TUser&gt; userManager, RoleManager&lt;TRole&gt; roleManager, IOptions&lt;IdentityOptions&gt; options)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `userManager` | `UserManager<TUser>` | — | Passed to the base factory. |
+| `roleManager` | `RoleManager<TRole>` | — | Passed to the base factory. |
+| `options` | `IOptions<IdentityOptions>` | — | Passed to the base factory, which reads the configured claim types from it. |
+
+All three are forwarded to the base constructor unchanged.
+
+#### Methods
+
+##### GenerateClaimsAsync(TUser user)
 
 **Returns:** `Task<ClaimsIdentity>`
 
@@ -137,259 +113,115 @@ Custom claims principal factory that extends the default ASP.NET Core Identity c
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `user` | `TUser` | — | The user entity to generate claims for. |
+| `user` | `TUser` | — | The user whose claims are being generated. |
 
-Calls the base implementation to generate standard identity claims (name, user ID, roles, security stamp), then adds the following 12 custom claims from the user entity:
+Calls the base implementation, which produces the identifier, username and role claims under the types configured on `IdentityOptions.ClaimsIdentity`, then adds thirteen further claims using the fixed names on `DefaultClaims`: email confirmation, phone number and its confirmation, two-factor state, lockout state, lockout end, access failure count, tenant identifier, display name, last login, registration timestamp, enabled state, and the password-change requirement.
 
-| Claim type | Source property | Serialisation |
-|------------|----------------|---------------|
-| `email_confirmed` | `EmailConfirmed` | `ToString()` |
-| `phone_number` | `PhoneNumber` | Value or `""` |
-| `phone_number_confirmed` | `PhoneNumberConfirmed` | `ToString()` |
-| `two_factor_enabled` | `TwoFactorEnabled` | `ToString()` |
-| `lockout_enabled` | `LockoutEnabled` | `ToString()` |
-| `lockout_end` | `LockoutEnd` | ISO 8601 (`"O"`) or `""` |
-| `access_failed_count` | `AccessFailedCount` | `ToString()` |
-| `tenant_id` | `TenantId` | Value or `""` |
-| `display_name` | `DisplayName` | Value or `""` |
-| `last_login_utc` | `LastLoginUtc` | ISO 8601 (`"O"`) or `""` |
-| `is_enabled` | `IsEnabled` | `ToString()` |
-| `require_password_change` | `RequirePasswordChange` | `ToString()` |
+`LockoutEnd`, `LastLoginUtc` and `RegistrationUtc` are written in round-trip (`"O"`) format. A null value on any of the thirteen is written as an empty string rather than omitted, so every claim is always present on the principal.
 
----
+## Helpers
 
-# Helpers
-
-## DefaultClaims
+### SystemRoles
 
 **Namespace:** `JC.Identity.Authentication`
 
-Defines the custom claim type constants used by the JC.Identity claims pipeline.
+The built-in roles of the local ASP.NET Identity authority, and the reflection helper that discovers them. Designed to be extended by a consuming application — `class AppRoles : SystemRoles` — with role descriptions following the `{RoleName}Desc` naming convention.
 
-### Constants
+Local to this package rather than shared with other identity authorities. An authority with its own administrative plane brings its own role structure, and those roles are a separate security domain that must not be mixed into an application's own authorisation roles.
 
-| Constant | Type | Value | Description |
-|----------|------|-------|-------------|
-| `EmailConfirmed` | `string` | `"email_confirmed"` | Whether the user's email has been confirmed. |
-| `PhoneNumber` | `string` | `"phone_number"` | The user's phone number. |
-| `PhoneNumberConfirmed` | `string` | `"phone_number_confirmed"` | Whether the phone number has been confirmed. |
-| `TwoFactorEnabled` | `string` | `"two_factor_enabled"` | Whether 2FA is enabled. |
-| `LockoutEnabled` | `string` | `"lockout_enabled"` | Whether lockout is enabled. |
-| `LockoutEnd` | `string` | `"lockout_end"` | UTC lockout expiry timestamp. |
-| `AccessFailedCount` | `string` | `"access_failed_count"` | Failed access attempt count. |
-| `TenantId` | `string` | `"tenant_id"` | The user's tenant identifier. |
-| `DisplayName` | `string` | `"display_name"` | The user's display name. |
-| `LastLoginUtc` | `string` | `"last_login_utc"` | UTC last login timestamp. |
-| `IsEnabled` | `string` | `"is_enabled"` | Whether the account is enabled. |
-| `RequirePasswordChange` | `string` | `"require_password_change"` | Whether a password change is required. |
+#### Fields
 
----
+| Field | Type | Value | Access | Description |
+|-------|------|-------|--------|-------------|
+| `SystemAdmin` | `const string` | `SystemAdmin` | public | Full system administrator with access to tenant management and assignment. |
+| `SystemAdminDesc` | `const string` | Description text | public | The description paired with `SystemAdmin` when seeding. |
+| `Admin` | `const string` | `Admin` | public | Administrator with access to all features within their tenant. |
+| `AdminDesc` | `const string` | Description text | public | The description paired with `Admin` when seeding. |
 
-## IdentityHelper
+#### Methods
 
-**Namespace:** `JC.Identity.Helpers`
-
-Builds the authenticator URI and formatted shared key used when setting up TOTP-based two-factor authentication (for example, to render an authenticator-app QR code and its manual-entry fallback). Not registered in DI — construct directly, supplying a `UrlEncoder`. It does not manage the authenticator secret itself; obtain the unformatted key from ASP.NET Core Identity's `UserManager`.
-
-### Constructors
-
-#### IdentityHelper(UrlEncoder urlEncoder)
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `urlEncoder` | `UrlEncoder` | — | Used to URL-encode the email when building the authenticator URI. |
-
-Uses the default authenticator URI format `otpauth://totp/{0}:{1}?secret={2}&issuer={0}`, where `{0}` is the issuer/app name, `{1}` is the URL-encoded email, and `{2}` is the unformatted key.
-
----
-
-#### IdentityHelper(UrlEncoder urlEncoder, string authenticatorUriFormat)
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `urlEncoder` | `UrlEncoder` | — | Used to URL-encode the email when building the authenticator URI. |
-| `authenticatorUriFormat` | `string` | — | A custom composite format string overriding the default. Uses the same placeholder positions: `{0}` = issuer/app name, `{1}` = URL-encoded email, `{2}` = unformatted key. |
-
-### Methods
-
-#### Generate2faQrCodeUri(string name, string email, string unformattedKey)
-
-**Returns:** `string`
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `name` | `string` | — | The issuer/app name. Inserted at `{0}` — both the label prefix and the `issuer` parameter. |
-| `email` | `string` | — | The account email. URL-encoded via the supplied `UrlEncoder` and inserted at `{1}`. |
-| `unformattedKey` | `string` | — | The raw authenticator secret. Inserted verbatim at `{2}`. |
-
-Formats the authenticator URI from the configured format string using `CultureInfo.InvariantCulture`. Only the email is URL-encoded; `name` and `unformattedKey` are inserted as-is.
-
----
-
-#### Format2faKey(string unformattedKey)
-
-**Returns:** `string`
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `unformattedKey` | `string` | — | The raw authenticator secret to format for display. |
-
-Groups the key into space-separated blocks of four characters and lowercases the result, producing the human-readable shared key shown as a manual-entry fallback beneath the QR code.
-
----
-
-#### Generate2faKey(string name, string email, string secret)
-
-**Returns:** `(string AuthenticatorUri, string FormattedKey)`
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `name` | `string` | — | The issuer/app name. |
-| `email` | `string` | — | The account email. |
-| `secret` | `string` | — | The raw authenticator secret. |
-
-Convenience method that returns both the authenticator URI (via `Generate2faQrCodeUri`) and the formatted shared key (via `Format2faKey`) in a single call.
-
----
-
-## SystemRoles
-
-**Namespace:** `JC.Identity.Authentication`
-
-Defines built-in system roles. Designed to be extended by consuming applications (e.g. `class AppRoles : SystemRoles`). Role descriptions follow the naming convention `{RoleName}Desc` and are discovered automatically by `GetAllRoles`.
-
-### Constants
-
-| Constant | Type | Value | Description |
-|----------|------|-------|-------------|
-| `SystemAdmin` | `string` | `"SystemAdmin"` | Full system administrator with access to tenant management and assignment. |
-| `SystemAdminDesc` | `string` | `"Full system administrator with access to tenant management and assignment."` | Description for `SystemAdmin`. |
-| `Admin` | `string` | `"Admin"` | Administrator with access to all features within their tenant. |
-| `AdminDesc` | `string` | `"Administrator with access to all features within their tenant."` | Description for `Admin`. |
-
-### Methods
-
-#### GetAllRoles\<T\>()
+##### GetAllRoles&lt;T&gt;()
 
 **Returns:** `List<(string Role, string Description)>`
 
-**Constraint:** `T : SystemRoles`
+**Constraint:** `where T : SystemRoles`
 
-Discovers all `const string` fields on `T` (including inherited fields from `SystemRoles`) using reflection. Fields ending in `"Desc"` are treated as descriptions, not roles. Each role field is paired with its description by looking for a corresponding `{FieldName}Desc` constant. Returns a list of tuples containing the role name and its description (empty string if no description field exists).
+| Type parameter | Constraint | Description |
+|----------------|-----------|-------------|
+| `T` | `SystemRoles` | The roles class to read, including anything it inherits. |
 
----
+Reflects over `T` for public static fields, flattening the hierarchy so a derived class returns its own roles and the two inherited ones in a single call.
 
-# Extensions
+Only literal string fields are considered — a field must be `const`, since `static readonly` is not a literal and is skipped, as is any non-public or non-string field. Fields whose name ends in `Desc` are excluded from the results, because they are descriptions rather than roles.
 
-## QueryExtensions
+For each remaining field, the role value is the field's constant value, falling back to the field name where the constant cannot be read. The description is taken from a field named `{FieldName}Desc` on the same type, or an empty string where none exists.
 
-**Namespace:** `JC.Identity.Extensions`
+## Data
 
-Static extension methods for multi-tenancy query filtering.
-
-### Methods
-
-#### AllTenants\<T\>(this IQueryable\<T\> query, IUserInfo userInfo)
-
-**Returns:** `IQueryable<T>`
-
-**Constraint:** `T : class`
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `query` | `IQueryable<T>` | — | The source queryable. |
-| `userInfo` | `IUserInfo` | — | The current user information, used to check the `SystemAdmin` role. |
-
-If the user has the `SystemAdmin` role, calls `IgnoreQueryFilters()` on the queryable to bypass tenant scoping. Otherwise returns the queryable unchanged. Use this to allow system administrators to query across all tenants.
-
----
-
-#### ApplyTenantQueryFilters(this ModelBuilder modelBuilder, DbContext context)
-
-**Returns:** `ModelBuilder`
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `modelBuilder` | `ModelBuilder` | — | The model builder to apply filters to. |
-| `context` | `DbContext` | — | The `DbContext` instance whose `CurrentTenantId` property is referenced in the filter expression. |
-
-Iterates all entity types in the model and applies a global query filter to those implementing `IMultiTenancy`. The filter logic: if `CurrentTenantId` is null or empty, only entities with `TenantId == null` are returned; otherwise, only entities matching `CurrentTenantId` are returned.
-
----
-
-# Data
-
-## IdentityDataDbContext\<TUser, TRole\>
+### IdentityDataDbContext&lt;TUser, TRole&gt;
 
 **Namespace:** `JC.Identity.Data`
 
-Identity-aware data context extending `IdentityDbContext<TUser, TRole, string>` and implementing `IDataDbContext`. Configures core entities (`AuditEntry`), tenant entities, and applies multi-tenancy global query filters to all entities implementing `IMultiTenancy`.
+Identity-aware data context extending `IdentityDbContext<TUser, TRole, string>` and implementing `JC.Core.Data.IDataDbContext`. Configures the Identity model and the JC.Core audit trail.
 
-**Constraints:** `TUser : BaseUser`, `TRole : BaseRole`
+Does **not** filter by tenant. A tenant-scoped application derives from this type, implements `JC.Tenancy.Data.ITenantScopedContext` and calls `ApplyTenantFilters` from its own `OnModelCreating` — which is what lets a single-tenant application skip JC.Tenancy entirely.
 
-### Properties
+| Type parameter | Constraint | Description |
+|----------------|-----------|-------------|
+| `TUser` | `BaseUser` | The user entity type. |
+| `TRole` | `BaseRole` | The role entity type. |
 
-| Property | Type | Access | Description |
-|----------|------|--------|-------------|
-| `CurrentTenantId` | `string?` | get; | The current user's tenant identifier, read from `IUserInfo.TenantId`. Referenced by global query filters. |
-| `AuditEntries` | `DbSet<AuditEntry>` | get; set; | The set of audit trail records. |
-| `Tenants` | `DbSet<Tenant>` | get; | The set of tenants. |
+#### Constructor
 
-Overrides `SaveChangesAsync` to automatically create audit trail entries via the change tracker, identically to `DataDbContext` in JC.Core — see the [JC.Core API reference](../JC.Core/API.md#datadbcontext) for audit behaviour details.
-
----
-
-# Middleware
-
-## UserInfoMiddleware
-
-**Namespace:** `JC.Identity.Middleware`
-
-Middleware that populates the scoped `IUserInfo` instance from the current `ClaimsPrincipal` on first access per request. Skips population if `IUserInfo.IsSetup` is already `true`.
-
-### Methods
-
-#### InvokeAsync(HttpContext context)
-
-**Returns:** `Task`
+##### IdentityDataDbContext(DbContextOptions options, IUserInfo userInfo)
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `context` | `HttpContext` | — | The HTTP context for the current request. |
+| `options` | `DbContextOptions` | — | The options configuring the context. Non-generic, so a derived context passes its own `DbContextOptions<TContext>`. |
+| `userInfo` | `IUserInfo` | — | The current user, used to attribute audit entries. |
 
-Resolves `IUserInfo` from the request's service provider. If not already set up:
+Retains `userInfo`, and reads the application service provider from the options' `CoreOptionsExtension` so the audit service can resolve what it needs without a second injected dependency.
 
-For requests with **no identity** (`context.User.Identity` is null): assigns `SYSTEM_USER_ID`, `SYSTEM_USER_NAME`, and `SYSTEM_USER_EMAIL`.
+#### Properties
 
-For requests with an **identity present but not authenticated**: assigns `UNKNOWN_USER_ID`, `UNKNOWN_USER_NAME`, and `UNKNOWN_USER_EMAIL`.
+| Property | Type | Default | Access | Description |
+|----------|------|---------|--------|-------------|
+| `AuditEntries` | `DbSet<AuditEntry>` | — | get; set; | The audit trail, satisfying `IDataDbContext`. Mapped by JC.Core's audit configuration. |
 
-For **authenticated requests**: reads the user ID, username, and email from the claims principal using the claim types configured in `IdentityOptions.ClaimsIdentity`. Reads all 12 custom claims defined by `DefaultClaims` and parses them into the corresponding `IUserInfo` properties. Populates `Roles` by filtering claims with the configured `RoleClaimType`, and `Claims` with the full claim list. Sets `MultiTenancyEnabled` to `true` if `TenantId` is non-empty.
+#### Methods
 
-Sets `IsSetup = true` after population and invokes the next middleware.
+##### SaveChangesAsync(CancellationToken cancellationToken = default)
 
----
+**Returns:** `Task<int>`
 
-## IdentityMiddleware
-
-**Namespace:** `JC.Identity.Middleware`
-
-Middleware that enforces identity business rules for authenticated requests. Evaluates checks in order: disabled account, password change, 2FA. Skips static files (`.css`, `.js`, `.jpg`, `.jpeg`, `.png`, `.gif`, `.svg`, `.ico`, `.woff`, `.woff2`, `.ttf`, `.eot`, `.map`, `.json`, `.xml`), unauthenticated requests, and excluded paths.
-
-### Methods
-
-#### InvokeAsync(HttpContext context, IUserInfo userInfo)
-
-**Returns:** `Task`
+**Access:** `public override`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `context` | `HttpContext` | — | The HTTP context for the current request. |
-| `userInfo` | `IUserInfo` | — | The current user information, injected by the DI container. |
+| `cancellationToken` | `CancellationToken` | `default` | A token to cancel the operation. |
 
-Evaluates the following checks in order, redirecting on the first failure:
+Performs a two-phase audit save. It constructs a JC.Core `AuditService` over this context, the application services and the injected `IUserInfo`, and asks it to process the change tracker — which stamps audit fields and returns any create entries that cannot be written until the entities have keys.
 
-1. **Disabled account** — if `userInfo.IsEnabled` is `false`, redirects to `IdentityMiddlewareOptions.AccessDeniedRoute`.
-2. **Password change** — if `RequirePasswordChange` is enabled in options and `userInfo.RequiresPasswordChange` is `true`, redirects to `ChangePasswordRoute`. Skipped if the current path already starts with `ChangePasswordRoute`.
-3. **Two-factor authentication** — if `EnforceTwoFactor` is enabled in options and `userInfo.TwoFactorEnabled` is `false`, redirects to `TwoFactorRoute`. Skipped if the current path already starts with `TwoFactorRoute`.
+The base `SaveChangesAsync` then runs. Where create entries are pending, they are processed and the base save runs a second time.
 
-If all checks pass, invokes the next middleware.
+**Returns the row count from the first save only.** Rows written by the second save — the audit entries for newly created entities — are not included in the figure.
+
+##### OnModelCreating(ModelBuilder modelBuilder)
+
+**Returns:** `void`
+
+**Access:** `protected override`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `modelBuilder` | `ModelBuilder` | — | The model builder being configured. |
+
+Calls the base implementation to configure the Identity model, applies JC.Core's `AuditEntry` mapping, and constrains `TUser.TenantId` to a maximum length of 36.
+
+A derived context overriding this must call `base.OnModelCreating(modelBuilder)` first, or the Identity model and the audit mapping are lost.
+
+## Next steps
+
+- [Setup](Setup.md) — registration, options and their defaults.
+- [Guide](Guide.md) — usage, scenarios and nuances.
+- [JC.Identity.Shared — API reference](../JC.Identity.Shared/API.md) — the shared runtime this package builds on.
