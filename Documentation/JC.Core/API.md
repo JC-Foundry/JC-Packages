@@ -127,7 +127,9 @@ Entity representing a single audit trail record capturing who performed what act
 | `EntityKey` | `string?` | `null` | get; set; | JSON-serialised primary key of the audited entity, keyed by property name (e.g. `{"Id":"abc"}` or, for composite keys, `{"ThreadId":"abc","UserId":"xyz"}`). `null` for keyless entities or if serialisation fails. |
 | `ActionData` | `string?` | `null` | get; set; | JSON-serialised entity data. For creates, contains all non-null property values. For updates, contains a `From`/`To` diff of modified properties. |
 
-Every column except `ActionData` is length-constrained: `Id` 36, `UserId` and `ActionUserId` 50, `UserName` 256, `SourceApplication` and `TableName` 512, `EntityKey` 1024. `ActionData` is deliberately unbounded, since an entity snapshot has no sensible ceiling.
+Every column except `ActionData` is length-constrained: `Id` 36, `EntityKey` 512, and `UserId`, `UserName`, `ActionUserId`, `SourceApplication` and `TableName` 256 each. `ActionData` is deliberately unbounded, since an entity snapshot has no sensible ceiling.
+
+These lengths come from `AuditEntryMapping`, not from the model's attributes — fluent configuration wins over data annotations in EF Core, so the mapping is what shapes the columns.
 
 The audit service truncates each value to fit before writing, so an over-long table name or key never fails the save. Truncation is silent — a value longer than its column is shortened rather than rejected.
 

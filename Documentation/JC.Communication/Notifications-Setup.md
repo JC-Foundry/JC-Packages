@@ -4,7 +4,7 @@
 
 - [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
 - An existing ASP.NET Core project with JC.Core registered
-- JC.Identity registered (`IUserInfo` must be available — notifications are user-scoped)
+- An identity package registered, so that JC.Core's `IUserInfo` resolves — notifications are user-scoped. JC.Identity supplies it for local ASP.NET Identity; JC.Identity.Shared alone is enough for any other authority
 - See [Installation](../../README.md#installation) for how to add JC-Packages to your project
 
 ## 0. Add the package

@@ -9,7 +9,7 @@ A suite of .NET 9 NuGet packages providing shared infrastructure for .NET applic
 | **JC.Core** | Repository pattern with multi-DbContext support, automatic audit trail on SaveChanges, soft-delete, pagination, and utility helpers | [Documentation](Documentation/JC.Core/) |
 | **JC.Web** | Security headers, cookie management, client profiling, rate limiting, SEO (sitemap, robots, meta, JSON-LD), and a swappable UI framework for tag helpers | [Documentation](Documentation/JC.Web/) |
 | **JC.Identity** | ASP.NET Core Identity integration — users, roles, claims, account rules, and role and administrator seeding | [Documentation](Documentation/JC.Identity/) |
-| **JC.Identity.Shared** | The identity runtime shared by every authority — `IUserInfo`, the claims projection, account rules, two-factor helpers. No ASP.NET Core dependency | [Documentation](Documentation/JC.Identity.Shared/) |
+| **JC.Identity.Shared** | The identity runtime shared by every authority — the default `IUserInfo` implementation, the claims projection, account rules, two-factor helpers. The contract itself lives in JC.Core. No ASP.NET Core dependency | [Documentation](Documentation/JC.Identity.Shared/) |
 | **JC.Identity.Shared.Web** | The ASP.NET Core half of JC.Identity.Shared — the claims and account-rule middleware | [Documentation](Documentation/JC.Identity.Shared/) |
 | **JC.Tenancy** | Application tenancy — tenant scope, EF Core query filters, a tenant store with caching, and safe and unsafe cross-tenant access | [Documentation](Documentation/JC.Tenancy/) |
 | **JC.MySql** | MySQL database provider extensions using Pomelo.EntityFrameworkCore.MySql | [Database Setup](Documentation/JC.Core/Database-Setup.md) |

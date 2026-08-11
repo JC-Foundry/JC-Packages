@@ -128,12 +128,14 @@ internal class AuditService
         var entry = new AuditEntry
         {
             Action = action,
-            TableName = tableName.Truncate(512, string.Empty),
-            EntityKey = entityKey?.Truncate(1024, string.Empty),
-            UserId = _userId.Truncate(50, string.Empty),
+            // Lengths mirror AuditEntryMapping, which is what actually shapes the columns —
+            // fluent configuration wins over the model's attributes, so these must follow it.
+            TableName = tableName.Truncate(256, string.Empty),
+            EntityKey = entityKey?.Truncate(512, string.Empty),
+            UserId = _userId.Truncate(256, string.Empty),
             UserName = _userName.Truncate(256, string.Empty),
-            ActionUserId = actionUserId?.Truncate(50, string.Empty),
-            SourceApplication = _sourceApplication?.Truncate(512, string.Empty),
+            ActionUserId = actionUserId?.Truncate(256, string.Empty),
+            SourceApplication = _sourceApplication?.Truncate(256, string.Empty),
             IsActionIdPreferred = IsActionPreferred(actionUserId),
             ActionData = data,
             AuditDate = DateTime.UtcNow
