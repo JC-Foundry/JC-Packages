@@ -74,4 +74,39 @@ public static class ServiceProviderExtensions
 
         return services;
     }
+
+
+    /// <summary>
+    /// Registers static files by name and other properties in the application's storage system.
+    /// </summary>
+    /// <param name="services">The built service provider, used to resolve <see cref="StaticFileRegistry"/>.</param>
+    /// <param name="throwOnFail">
+    /// Indicates whether a static file that cannot be added should throw an exception.
+    /// When <c>false</c>, any file that fails to register is skipped, and the rest are processed.
+    /// </param>
+    /// <param name="files">The collection of static files to be registered.</param>
+    /// <returns>The service provider for chaining.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when a static file cannot be added and <paramref name="throwOnFail"/> is <c>true</c>.
+    /// The usual cause is a conflict preventing the file from being registered.
+    /// </exception>
+    public static IServiceProvider AddStaticFiles(this IServiceProvider services,
+        bool throwOnFail = true, params IEnumerable<StaticFile> files)
+    {
+        var registry = services.GetRequiredService<StaticFileRegistry>();
+
+        foreach (var file in files)
+        {
+            var result = registry.TryAddStaticFile(file);
+            switch (result)
+            {
+                case false when !throwOnFail:
+                    continue;
+                case false:
+                    throw new InvalidOperationException($"Unable to add static file '{file.Name}'");
+            }
+        }
+        
+        return services;
+    }
 }

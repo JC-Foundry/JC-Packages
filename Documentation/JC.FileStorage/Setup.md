@@ -7,6 +7,7 @@
 - A writable directory on the host for file storage
 - JC.Tenancy is **optional** — it is only required for tenant isolation. Without it, every file belongs to the no-tenant scope
 - JC.FileStorage.Web is **optional** — only needed for `IFormFile` handling and the upload constraints tag helper. It brings in JC.Web
+- Static files are **opt-in** and need a second directory, `FileStorage:StaticPath`, holding files put there at deploy time. They need no database table
 - See [Installation](../../README.md#installation) for how to add JC-Packages to your project
 
 ## 0. Add the package
@@ -48,8 +49,10 @@ For a tenant-isolated application, the same context also declares itself tenant-
 // JC.Core must be registered first — JC.FileStorage resolves its repositories through IRepositoryManager
 builder.Services.AddCore<AppDbContext>();
 
-// Registers the folder registry, path provider, and storage service
-builder.Services.AddFileStorage();
+// Registers the folder registry, path provider and storage service.
+// useStaticFiles is opt-in: it adds the static file registry, reader and cache,
+// and requires FileStorage:StaticPath. Omit it if you only store managed files.
+builder.Services.AddFileStorage(useStaticFiles: true);
 ```
 
 ### Folders — `Program.cs`
@@ -67,12 +70,13 @@ app.Services.AddFolders(true, "invoices", "reports");
 
 ### Configuration — `appsettings.json`
 
-`FileStorage:BasePath` is required. `FilePathProvider` throws `InvalidOperationException` if it is missing:
+`FileStorage:BasePath` is required. `FilePathProvider` throws `InvalidOperationException` if it is missing. `FileStorage:StaticPath` is only read when static files are enabled:
 
 ```json
 {
   "FileStorage": {
-    "BasePath": "C:\\app-data\\file-storage"
+    "BasePath": "C:\\app-data\\file-storage",
+    "StaticPath": "C:\\app-data\\static-files"
   }
 }
 ```
@@ -86,6 +90,9 @@ When registered as above:
 | `FolderRegistry` lifetime | Singleton — folders are registered once at startup and shared across requests |
 | `FilePathProvider` lifetime | Singleton |
 | `StorageService` lifetime | Scoped |
+| Static files | Off — `useStaticFiles` defaults to `false`, so nothing reads `FileStorage:StaticPath` |
+| Static file discovery | On when static files are enabled — every file beneath the static path is registered at startup |
+| Static file caching | 10 minutes, content held in `IMemoryCache` |
 | Tenant of a folder registered by name | The no-tenant scope (`FolderModel.NullTenantName`, the literal `NO__TENANT`) |
 | Tenant of a saved file | `ITenantContext.TenantId` — the tenant the operation is scoped to, or the no-tenant scope if JC.Tenancy is not registered |
 | Overwrite behaviour | Blocked — `TrySaveFile` returns `false` if the file already exists |
@@ -100,19 +107,35 @@ When registered as above:
 
 ### AddFileStorage — service registration
 
-Takes no parameters and no options callback.
+Takes three parameters and no options callback. All three concern static files; the managed file services are always registered.
 
 ```csharp
-builder.Services.AddFileStorage();
+builder.Services.AddFileStorage(
+    useStaticFiles: false,
+    autoDiscoverStaticFiles: true,
+    staticFileCacheDurationMinutes: 10);
 ```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `useStaticFiles` | `bool` | `false` | Registers the static file services. When `false`, the method returns after the three managed file services and nothing reads `FileStorage:StaticPath`. |
+| `autoDiscoverStaticFiles` | `bool` | `true` | Walks the static path at startup and registers every file beneath it. Ignored when `useStaticFiles` is `false`. Set to `false` to register files by hand through `AddStaticFiles`. |
+| `staticFileCacheDurationMinutes` | `int` | `10` | How long `StaticFileCache` holds a file's content. `0` disables caching so every read goes to disk. A negative value throws `ArgumentOutOfRangeException`. Ignored when `useStaticFiles` is `false`. |
 
 Registers the following, each with `TryAdd` semantics so a prior registration of the same type wins:
 
-| Service | Lifetime | Purpose |
-|---------|----------|---------|
-| `FolderRegistry` | Singleton | Holds the registered folders, keyed by tenant |
-| `FilePathProvider` | Singleton | Resolves physical paths and creates directories |
-| `StorageService` | Scoped | The entry point consuming applications use |
+| Service | Lifetime | Registered | Purpose |
+|---------|----------|------------|---------|
+| `FolderRegistry` | Singleton | Always | Holds the registered folders, keyed by tenant |
+| `FilePathProvider` | Singleton | Always | Resolves physical paths and creates directories |
+| `StorageService` | Scoped | Always | The entry point consuming applications use for managed files |
+| `StaticFileRegistry` | Singleton | `useStaticFiles` | Holds the registered static files, keyed by their path beneath the static root |
+| `StaticFileService` | Singleton | `useStaticFiles` | Reads a registered static file from disk |
+| `StaticFileCache` | Singleton | `useStaticFiles` | Holds static file content in memory. The type most applications inject |
+
+Enabling static files also calls `AddMemoryCache()`, since `StaticFileCache` resolves `IMemoryCache` as required and a worker or console host has none by default.
+
+**`StaticFileRegistry` is built by a factory that runs discovery during construction.** Because it is a singleton, that happens the first time something resolves it rather than at startup, so a missing `FileStorage:StaticPath` surfaces as an `InvalidOperationException` on first use.
 
 `StorageService` resolves `ITenantContext` optionally through the service provider. If JC.Tenancy is registered, the tenant the operation is scoped to stamps every write and scopes every read. If it is not, `ITenantContext` is absent and every call operates in the no-tenant scope.
 
@@ -182,7 +205,7 @@ app.Services.AddFolders(true,
 |-----------|------|---------|-------------|
 | `name` | `string` | — | The folder name. |
 | `tenantId` | `string?` | — | The owning tenant. `null` for the no-tenant scope. |
-| `maxBytes` | `long?` | — | Maximum file size in bytes, or `null` to use `FolderRegistry.DefaultMaxBytes`. Must be greater than zero and no more than `FolderModel.MaxAllowedBytes`. |
+| `maxBytes` | `long?` | — | Maximum file size in bytes, or `null` to use `FolderRegistry.DefaultMaxBytes`. Must be greater than zero and no more than `ValidationHelper.MaxAllowedBytes`. |
 | `allowedExtensions` | `IEnumerable<string>?` | — | Accepted extensions, or `null` to use `FolderRegistry.DefaultAllowedExtensions`. Normalised to lower case with a leading dot, so `PDF`, `.pdf` and `.PDF` are the same thing. |
 
 Limits are a four-argument constructor rather than optional parameters: `new FolderModel("x", null)` would otherwise be ambiguous between `tenantId` and `maxBytes`. Pass `null` for the tenant on a no-tenant folder.
@@ -205,9 +228,9 @@ registry.DefaultAllowedExtensions = [".pdf", ".png", ".csv"];
 
 A folder's own value always wins; the default applies only where the folder left it `null`. `ResolveMaxBytes` and `ResolveAllowedExtensions` return whichever is in force.
 
-**The 10GB ceiling.** `FolderModel.MaxAllowedBytes` is a hard limit of 10GB (`10737418240` bytes). Neither a folder nor `DefaultMaxBytes` can be set above it — both throw `ArgumentOutOfRangeException`.
+**The 10GB ceiling.** `ValidationHelper.MaxAllowedBytes` is a hard limit of 10GB (`10737418240` bytes). Neither a folder nor `DefaultMaxBytes` can be set above it — both throw `ArgumentOutOfRangeException`.
 
-**Blocked extensions cannot be re-enabled.** `FolderModel.BlockedExtensions` lists around sixty executable and script extensions — `.exe`, `.bat`, `.cmd`, `.ps1`, `.sh`, `.dll`, `.msi`, `.vbs`, `.js`, `.jar`, `.lnk` and similar — that can never be stored. The list is checked **before** any allow-list, so it wins over one:
+**Blocked extensions cannot be re-enabled.** `ValidationHelper.BlockedExtensions` lists around sixty executable and script extensions — `.exe`, `.bat`, `.cmd`, `.ps1`, `.sh`, `.dll`, `.msi`, `.vbs`, `.js`, `.jar`, `.lnk` and similar — that can never be stored. The list is checked **before** any allow-list, so it wins over one:
 
 ```csharp
 // Throws ArgumentException — a blocked extension cannot be allowed
@@ -215,9 +238,64 @@ new FolderModel("danger", null, null, [".exe"]);
 registry.DefaultAllowedExtensions = [".exe"];
 ```
 
-Even with no limits configured anywhere, a `.exe` is refused. Use `FolderModel.IsBlockedExtension(ext)` to test one.
+Even with no limits configured anywhere, a `.exe` is refused. Use `ValidationHelper.IsBlockedExtension(ext)` to test one.
 
 > **`AllowedExtensions` is a usability guard, not a security control.** It compares the extension only, so renaming `evil.exe` to `evil.pdf` passes. Verifying a file really is what it claims means inspecting its content. Treat the blocked list as a safety net against obvious mistakes, not as protection against a determined uploader.
+
+**The blocked list applies to managed files only.** Static files are put in place at deploy time by a developer or a build step rather than uploaded, so nothing about them is untrusted and no extension check is applied to them — see [Static files](#addstaticfiles--static-file-registration).
+
+### AddStaticFiles — static file registration
+
+Static files are read-only files placed beneath `FileStorage:StaticPath` at deploy time — a privacy policy, a pricing table, a configuration document. There is no database record, no audit trail, no upload, no save and no delete. The only operation is reading one.
+
+They are only registered if `AddFileStorage(useStaticFiles: true)` was called. With `autoDiscoverStaticFiles` left at its default of `true`, every file beneath the static path is registered when `StaticFileRegistry` is first resolved, and nothing else is needed:
+
+```text
+C:\app-data\static-files\
+  privacy-policy.md
+  legal\
+    terms.md
+  config\
+    v2\
+      pricing.json
+```
+
+Turn discovery off to register files by hand instead. `AddStaticFiles` is an `IServiceProvider` extension, matching `AddFolders`:
+
+```csharp
+builder.Services.AddFileStorage(useStaticFiles: true, autoDiscoverStaticFiles: false);
+
+var app = builder.Build();
+
+// throwOnFail must always be passed — see the note below
+app.Services.AddStaticFiles(true,
+    new StaticFile("privacy-policy.md"),
+    new StaticFile("terms.md", "legal"),
+    new StaticFile("pricing.json", "config", "v2"));
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `throwOnFail` | `bool` | `true` | When `true`, a file that fails to register throws `InvalidOperationException`. When `false`, the failure is skipped and the remaining files are still registered. |
+| `files` | `params IEnumerable<StaticFile>` | — | The files to register. Each carries its name, extension and any subfolders. |
+
+**`throwOnFail` must always be passed**, for the same reason as on `AddFolders` — it precedes a `params` parameter, so its default can never be used.
+
+`StaticFile` takes the file name, then any subfolders relative to the static path:
+
+| Constructor | Result |
+|-------------|--------|
+| `new StaticFile("privacy-policy.md")` | `{StaticPath}/privacy-policy.md` |
+| `new StaticFile("terms.md", "legal")` | `{StaticPath}/legal/terms.md` |
+| `new StaticFile("pricing.json", "config", "v2")` | `{StaticPath}/config/v2/pricing.json` |
+
+The name must carry an extension — `new StaticFile("privacy-policy")` throws `ArgumentException`. Directory components in the name are stripped, so a name cannot escape the static root.
+
+Registration and discovery can be combined: leave `autoDiscoverStaticFiles` on and call `AddStaticFiles` as well. Discovery runs first, inside the singleton factory, so a hand-registered file that discovery already found returns `false` and, with `throwOnFail: true`, throws.
+
+Files are keyed by their path beneath the static root, compared case-insensitively, so `legal/terms.md` and `docs/terms.md` are different files while `Legal/Terms.md` and `legal/terms.md` are the same one. Discovery throws `InvalidOperationException` if two files collide — on a case-sensitive file system, `Terms.md` and `TERMS.md` in one directory is the case that does it.
+
+**No extension check applies to static files.** The blocked list exists because an uploaded file is untrusted; a static file was put there by whoever deployed the application, so the same reasoning does not hold. If a static file is served to a browser, the application decides what it is willing to serve.
 
 ### ApplyFileStorageMappings — entity configuration
 
@@ -263,6 +341,25 @@ The root directory under which all files are written. Required.
 `FilePathProvider` reads this key in its constructor and throws `InvalidOperationException` if it is missing or empty. Because `FilePathProvider` is a singleton, this surfaces the first time it is resolved rather than at startup.
 
 The directory does not need to exist — `FilePathProvider` creates each tenant and folder directory on demand. The account running the application needs write access to the base path.
+
+### FileStorage:StaticPath — static file location
+
+The root directory holding static files. Read only when `AddFileStorage(useStaticFiles: true)` was called, and required in that case.
+
+```json
+{
+  "FileStorage": {
+    "BasePath": "/var/lib/myapp/file-storage",
+    "StaticPath": "/var/lib/myapp/static-files"
+  }
+}
+```
+
+`FilePathProvider` reads the key in its constructor but does not validate it there — `GetStaticPath` throws `InvalidOperationException` when it is missing or empty. That happens the first time `StaticFileRegistry` is resolved, not at startup.
+
+Point it somewhere separate from `BasePath`. Nothing enforces that, but the managed store writes tenant directories beneath its own root, and mixing the two makes the layout hard to reason about.
+
+The directory is created if it does not exist, which means a mistyped path produces an empty directory and zero registered files rather than an error. The application account only needs read access to it.
 
 ### Multi-tenancy
 
@@ -397,6 +494,8 @@ Adding JC.Tenancy introduces its own `Tenants` table in whichever context you no
 1. Run the application and save a file through `StorageService.TrySaveFile` — it should return `true`.
 2. Check `{BasePath}/NO__TENANT/{folder}/` (or `{BasePath}/{tenantId}/{folder}/` for a tenanted user) — it should contain one file named with a GUID and your extension.
 3. Query the `SavedFiles` table — it should hold one row with `FileName` stored **without** its extension and `Extension` stored separately.
+
+With static files enabled, put a `test.txt` in `{StaticPath}` and read it through `StaticFileCache.GetStaticFileText("test.txt")` — `Result` should be `true` and `FileContentText` should hold its contents.
 
 ## Next steps
 

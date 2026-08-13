@@ -1,8 +1,10 @@
 # JC.FileStorage — Guide
 
-Covers folder registration, saving, reading and deleting files, how file names and extensions are stored, tenant scoping, cross-tenant access, and using multiple DbContexts. See [Setup](Setup.md) for registration.
+Covers folder registration, saving, reading and deleting files, how file names and extensions are stored, tenant scoping, cross-tenant access, static files, and using multiple DbContexts. See [Setup](Setup.md) for registration.
 
 JC.FileStorage is deliberately small. It is **not** a document management package — there is no archiving, no versioning, and no nested folder structure. Folders provide a single level of separation, and files are addressed by folder and name within a tenant.
+
+The package holds two separate things. **Managed files** are uploaded at runtime, backed by a `SavedFile` row, tenant-scoped and audited — everything up to [Cross-tenant access](#cross-tenant-access) concerns them. **[Static files](#static-files)** are put in place at deploy time and only ever read: no record, no tenancy, no audit, no writing of any kind.
 
 ## Folders
 
@@ -81,7 +83,7 @@ if (!check.Result)
     return BadRequest(check.ErrorMessage);   // check.Error tells the reasons apart
 ```
 
-**Nuance:** the ceiling is 10GB (`FolderModel.MaxAllowedBytes`) — a folder or default above it throws `ArgumentOutOfRangeException`. And `FolderModel.BlockedExtensions` (`.exe`, `.bat`, `.ps1`, `.dll`, `.js` and about fifty more) is checked **before** any allow-list, so it always wins. Trying to allow one throws:
+**Nuance:** the ceiling is 10GB (`ValidationHelper.MaxAllowedBytes`) — a folder or default above it throws `ArgumentOutOfRangeException`. And `ValidationHelper.BlockedExtensions` (`.exe`, `.bat`, `.ps1`, `.dll`, `.js` and about fifty more) is checked **before** any allow-list, so it always wins. Trying to allow one throws:
 
 ```csharp
 new FolderModel("danger", null, null, [".exe"]);   // ArgumentException
@@ -328,6 +330,107 @@ The folder and the tenant must always agree, in both directions:
 await storage.GetSavedFileBytesForTenant(null, new FolderModel("invoices", "tenant-b"), …); // ArgumentException
 await storage.GetSavedFileBytesForTenant("tenant-b", new FolderModel("invoices"), …);       // ArgumentException
 ```
+
+## Static files
+
+Static files are files put beneath `FileStorage:StaticPath` at deploy time — a privacy policy, a pricing table, a configuration document. They are deliberately not manageable: there is no `SavedFile` row, no audit trail, no tenancy, and no upload, save, overwrite or delete. The only operation is reading one.
+
+They are opt-in. See [Setup](Setup.md#addstaticfiles--static-file-registration) for enabling them and for how files get registered.
+
+### Basic usage
+
+`StaticFileCache` is the type to inject — it holds content in memory, so a file read on every page render reaches the disk once per cache window:
+
+```csharp
+public class PrivacyModel(StaticFileCache staticFiles) : PageModel
+{
+    public string? Policy { get; private set; }
+
+    public async Task OnGetAsync(CancellationToken ct)
+    {
+        var response = await staticFiles.GetStaticFileText("privacy-policy.md", ct);
+        if (response.Result)
+            Policy = response.FileContentText;
+    }
+}
+```
+
+Like the managed file reads, this returns a response object rather than throwing. `Result` says whether the file was read; on success `File` holds the `StaticFile` and `FileContentText` the content; on failure `ErrorMessage` explains why.
+
+### Files in subfolders
+
+Subfolders are given after the cancellation token, relative to the static path:
+
+```csharp
+// {StaticPath}/legal/terms.md
+var terms = await staticFiles.GetStaticFileText("terms.md", ct, "legal");
+
+// {StaticPath}/config/v2/pricing.json
+var pricing = await staticFiles.GetStaticFileText("pricing.json", ct, "config", "v2");
+```
+
+**Nuance:** the token has a default but can never be omitted when subfolders are given, because it precedes a `params` parameter. `GetStaticFileText("terms.md", "legal")` does not compile — pass `default` if you have no token to hand.
+
+### Reading bytes
+
+```csharp
+var response = await staticFiles.GetStaticFileBytes("logo.png", ct);
+if (!response.Result)
+    return NotFound(response.ErrorMessage);
+
+return File(response.FileContent!, "image/png");
+```
+
+**Nuance:** a cached response is handed to every caller as the same instance, and `FileContent` is a `byte[]`. Writing into that array changes what every later caller sees until the entry expires. Copy it before mutating.
+
+### Bypassing the cache
+
+Inject `StaticFileService` where a read should always reach the disk — reloading a configuration document that an operator edits in place, for instance:
+
+```csharp
+public class PricingReloader(StaticFileService staticFiles)
+{
+    public Task<GetStaticFileTextResponse> ReadAsync(CancellationToken ct)
+        => staticFiles.GetStaticFileText("pricing.json", ct, "config", "v2");
+}
+```
+
+The two types expose the same method names, arguments and responses, so swapping one for the other changes only what you inject. Setting `staticFileCacheDurationMinutes: 0` achieves the same thing globally — `StaticFileCache` then passes every call straight through.
+
+### Registering a file at runtime
+
+Discovery runs once, when `StaticFileRegistry` is first resolved. A file that appears in the directory afterwards is not registered, and reading it returns not-found. Register it through the registry when that matters:
+
+```csharp
+public class StaticFileAdmin(StaticFileRegistry registry)
+{
+    public bool Register(string fileName)
+        => registry.TryAddStaticFile(fileName);
+
+    public bool IsRegistered(string fileName)
+        => registry.TryGetStaticFile(fileName, out _);
+}
+```
+
+`TryAddStaticFile` returns `false` if a file is already registered under the same key, and `TryGetStaticFile` gives the registered `StaticFile` — including the casing it was discovered with, which is what the read then uses to build the path.
+
+**Nuance:** the two are not symmetric on a bad name. `TryGetStaticFile("privacy-policy", out _)` is a miss and returns `false`, but `TryAddStaticFile("privacy-policy")` throws `ArgumentException` — the `StaticFile` is built in the argument expression, outside the guard that makes the lookup safe. Registering a name that came from outside the application means validating it first, or catching.
+
+### Nuances and gotchas
+
+**Only registered files can be read.** The registry is the gate: `StaticFileService` resolves the name through it before touching the disk, so a name that was never registered returns `"Static file not found"` without a file system call. That is also what stops a crafted name reaching outside the static path.
+
+**A name without an extension is a miss, not an error.** `GetStaticFileText("privacy-policy")` returns not-found — `StaticFile` cannot be built without an extension, and the registry treats that as a failed lookup, logging at debug level. Nothing is thrown.
+
+**Registration does not mean the file is still there.** The registry records what discovery found. If the file is later removed from disk, the lookup still succeeds and the read then returns `"Static file not found"`.
+
+**Names are matched case-insensitively, but the path is not.** The registry key is lower-cased, so `Privacy-Policy.md` finds the file discovered as `privacy-policy.md`. The path used to read it comes from the registered `StaticFile`, which keeps the casing it was discovered with — so the read works on a case-sensitive file system too.
+
+**Failed reads are not cached.** A file locked during a deployment copy returns `"Error reading file."`, and that response is not held, so the next call retries rather than being stuck with the failure for the rest of the cache window.
+
+**Dot files work.** `.gitignore` and similar are registered with an empty name and the whole thing as the extension, and read back under their full name.
+
+**No extension check applies.** The blocked list guards uploads, which are untrusted. A static file was put there by whoever deployed the application, so nothing about it is filtered — including `.exe` and `.ps1`, which discovery will register and the service will read. What an application does with those bytes is its own decision.
 
 ## Web applications
 

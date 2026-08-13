@@ -30,6 +30,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JC.Identity.Shared", "JC.Id
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JC.Identity.Shared.Web", "JC.Identity.Shared.Web\JC.Identity.Shared.Web.csproj", "{219B64E5-21C0-4616-B88E-AFB17FD05BDA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JC.Content", "JC.Content\JC.Content.csproj", "{C004B503-CC42-41AC-9B80-3B4E98A29E47}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -220,6 +222,18 @@ Global
 		{219B64E5-21C0-4616-B88E-AFB17FD05BDA}.Release|x64.Build.0 = Release|Any CPU
 		{219B64E5-21C0-4616-B88E-AFB17FD05BDA}.Release|x86.ActiveCfg = Release|Any CPU
 		{219B64E5-21C0-4616-B88E-AFB17FD05BDA}.Release|x86.Build.0 = Release|Any CPU
+		{C004B503-CC42-41AC-9B80-3B4E98A29E47}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C004B503-CC42-41AC-9B80-3B4E98A29E47}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C004B503-CC42-41AC-9B80-3B4E98A29E47}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C004B503-CC42-41AC-9B80-3B4E98A29E47}.Debug|x64.Build.0 = Debug|Any CPU
+		{C004B503-CC42-41AC-9B80-3B4E98A29E47}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C004B503-CC42-41AC-9B80-3B4E98A29E47}.Debug|x86.Build.0 = Debug|Any CPU
+		{C004B503-CC42-41AC-9B80-3B4E98A29E47}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C004B503-CC42-41AC-9B80-3B4E98A29E47}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C004B503-CC42-41AC-9B80-3B4E98A29E47}.Release|x64.ActiveCfg = Release|Any CPU
+		{C004B503-CC42-41AC-9B80-3B4E98A29E47}.Release|x64.Build.0 = Release|Any CPU
+		{C004B503-CC42-41AC-9B80-3B4E98A29E47}.Release|x86.ActiveCfg = Release|Any CPU
+		{C004B503-CC42-41AC-9B80-3B4E98A29E47}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

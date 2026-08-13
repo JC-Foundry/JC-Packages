@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using JC.FileStorage.Helpers;
 using JC.FileStorage.Models;
 
 namespace JC.FileStorage.Services;
@@ -14,13 +15,13 @@ public class FolderRegistry
     /// <summary>
     /// Size limit applied to folders that set no <see cref="FolderModel.MaxBytes"/> of their own.
     /// <c>null</c> (the default) means no size limit for those folders.
-    /// Cannot be set above <see cref="FolderModel.MaxAllowedBytes"/> (10GB).
+    /// Cannot be set above <see cref="ValidationHelper.MaxAllowedBytes"/> (10GB).
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The value is zero or negative, or above the 10GB ceiling.</exception>
     public long? DefaultMaxBytes
     {
         get => _defaultMaxBytes;
-        set => _defaultMaxBytes = FolderModel.ValidateMaxBytes(value, nameof(DefaultMaxBytes));
+        set => _defaultMaxBytes = ValidationHelper.ValidateMaxBytes(value, nameof(DefaultMaxBytes));
     }
 
     /// <summary>
@@ -33,7 +34,7 @@ public class FolderRegistry
     {
         get => _defaultAllowedExtensions;
         set => _defaultAllowedExtensions =
-            FolderModel.ValidateAllowedExtensions(value, nameof(DefaultAllowedExtensions));
+            ValidationHelper.ValidateAllowedExtensions(value, nameof(DefaultAllowedExtensions));
     }
 
     /// <summary>
@@ -59,10 +60,10 @@ public class FolderRegistry
     /// <param name="sizeBytes">The file's size in bytes.</param>
     public FileValidationResponse ValidateFile(FolderModel folder, string extension, long sizeBytes)
     {
-        var ext = FolderModel.NormaliseExtension(extension);
+        var ext = NormalisationHelper.NormaliseExtension(extension);
 
         //Always first - a blocked extension cannot be allowed back in by a folder or a default
-        if(FolderModel.IsBlockedExtension(ext))
+        if(ValidationHelper.IsBlockedExtension(ext))
             return FileValidationResponse.Invalid(FileValidationError.BlockedExtension,
                 $"Files of type '{ext}' cannot be stored.");
 

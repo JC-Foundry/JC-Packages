@@ -35,7 +35,7 @@ public static class EnumExtensions
     /// </param>
     /// <returns>A formatted string representation of the enum value's name.</returns>
     public static string ToDisplayName(this Enum value, bool splitDigits = true)
-        => InternalHelpers.ToDisplayName(value.ToString(), splitDigits);
+        => CoreHelpers.ToDisplayName(value.ToString(), splitDigits);
 
     /// <summary>
     /// Retrieves the description of an enum value based on the DescriptionAttribute.

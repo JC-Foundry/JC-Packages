@@ -28,18 +28,6 @@ The file name and its extension are held in separate columns, and the physical f
 
 ### Methods
 
-#### NormaliseFileName(string fileName)
-
-**Returns:** `string`
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `fileName` | `string` | — | A file name, with or without an extension or directory components. |
-
-Static. Strips any directory and extension from `fileName`, returning the value `SetFileName` would store in `FileName`. Delegates to `Path.GetFileNameWithoutExtension`.
-
-Anything querying on `FileName` must key off this method, or the comparison will not match what was persisted.
-
 #### SetFileName(string fileName, string? ext = null)
 
 **Returns:** `void`
@@ -65,6 +53,14 @@ Assigns `FolderName` from `folder.Name` after checking that the folder's tenant 
 
 Throws `ArgumentException` on a mismatch in either direction. `TenantId` must therefore be assigned before this is called.
 
+### Obsolete members
+
+| Member | Kind | Replaced by |
+|--------|------|-------------|
+| `NormaliseFileName(string fileName)` | `static string` | `NormalisationHelper.NormaliseFileName` |
+
+Marked `[Obsolete]` as a warning, not an error, and behaves exactly as the member it forwards to.
+
 ## FolderModel
 
 **Namespace:** `JC.FileStorage.Models`
@@ -78,7 +74,6 @@ Immutable descriptor of a folder within a tenant, and of the size and type limit
 | Field | Type | Value | Description |
 |-------|------|-------|-------------|
 | `NullTenantName` | `const string` | `NO__TENANT` | Sentinel used as `Tenant` for folders in the no-tenant scope, and as the directory name on disk. |
-| `MaxAllowedBytes` | `const long` | `10737418240` | Hard ceiling (10GB) on any configured size limit. No folder or registry default may exceed it. |
 
 ### Properties
 
@@ -88,8 +83,7 @@ Immutable descriptor of a folder within a tenant, and of the size and type limit
 | `Tenant` | `string` | `NullTenantName` | get; | The tenant path segment. Either a tenant identifier or `NullTenantName`. Never null. |
 | `TenantId` | `string?` | `null` | get; | The raw tenant identifier as passed to the constructor. Null for a no-tenant folder. |
 | `MaxBytes` | `long?` | `null` | get; | Maximum size of a file in this folder. Null falls back to `FolderRegistry.DefaultMaxBytes`. |
-| `AllowedExtensions` | `IReadOnlyList<string>?` | `null` | get; | Extensions this folder accepts, normalised to lower case with a leading dot. Null falls back to `FolderRegistry.DefaultAllowedExtensions`. Never overrides `BlockedExtensions`. |
-| `BlockedExtensions` | `IReadOnlyCollection<string>` | ~60 entries | static get; | Extensions that can never be stored, whatever a folder or the registry allows. Executables, libraries, installers, shell scripts, scripts the Windows shell runs on open, shell and registry entry points, and platform packages. Compared case-insensitively. |
+| `AllowedExtensions` | `IReadOnlyList<string>?` | `null` | get; | Extensions this folder accepts, normalised to lower case with a leading dot. Null falls back to `FolderRegistry.DefaultAllowedExtensions`. Never overrides `ValidationHelper.BlockedExtensions`. |
 
 ### Constructors
 
@@ -125,31 +119,80 @@ Throws `ArgumentException` if the resolved tenant exceeds 36 characters, in addi
 
 Creates a folder with its own limits. Applies the name and tenant validation above, then:
 
-Throws `ArgumentOutOfRangeException` if `maxBytes` is zero or negative, or exceeds `MaxAllowedBytes`. Throws `ArgumentException` if `allowedExtensions` is supplied but empty once blanks are removed, or names any extension in `BlockedExtensions`.
+Throws `ArgumentOutOfRangeException` if `maxBytes` is zero or negative, or exceeds `ValidationHelper.MaxAllowedBytes`. Throws `ArgumentException` if `allowedExtensions` is supplied but empty once blanks are removed, or names any extension in `ValidationHelper.BlockedExtensions`.
 
 Limits take a four-argument constructor rather than optional parameters, because `new FolderModel("x", null)` would otherwise be ambiguous between `tenantId` and `maxBytes`. Pass `null` for the tenant on a no-tenant folder.
 
-### Methods
+### Obsolete members
 
-#### IsBlockedExtension(string extension)
+Validation and normalisation live in `ValidationHelper` and `NormalisationHelper`, which the static file types share. These members forward to them and are marked `[Obsolete]` as warnings, not errors.
 
-**Returns:** `bool`
+| Member | Kind | Replaced by |
+|--------|------|-------------|
+| `MaxAllowedBytes` | `const long` | `ValidationHelper.MaxAllowedBytes` |
+| `BlockedExtensions` | `static IReadOnlyCollection<string>` | `ValidationHelper.BlockedExtensions` |
+| `IsBlockedExtension(string extension)` | `static bool` | `ValidationHelper.IsBlockedExtension` |
+| `NormaliseExtension(string extension, bool lowerCase = true)` | `static string` | `NormalisationHelper.NormaliseExtension` |
+
+Each behaves exactly as the member it forwards to. `MaxAllowedBytes` is a `const`, so a consumer that reads it has the value baked in at their own compile time.
+
+## StaticFile
+
+**Namespace:** `JC.FileStorage.Models`
+
+Immutable descriptor of a static file — one placed beneath `FileStorage:StaticPath` at deploy time and only ever read. It carries no tenant, no identifier and no audit information, because a static file has no database record.
+
+Both constructors take the file name whole. The two-part `(name, extension)` forms are private, so `new StaticFile("terms.md", "legal")` unambiguously means a file in the `legal` subfolder rather than a file named `terms.md.legal`. Compose a name from separate parts with `NormalisationHelper.GetFileName`.
+
+### Properties
+
+| Property | Type | Default | Access | Description |
+|----------|------|---------|--------|-------------|
+| `Name` | `string` | — | get; | The file name without its extension, in the casing it was created with. Empty for a dot file such as `.gitignore`. |
+| `Extension` | `string` | — | get; | The extension including its leading dot, in the casing it was created with. |
+| `FileName` | `string` | — | get; | `Name` and `Extension` rejoined. The name used to build the physical path. |
+| `SubFolders` | `IReadOnlyList<string>` | empty | get; | The subfolders beneath the static path, outermost first. Empty for a file at the root. |
+| `Key` | `string` | — | get; | `SubFolders` and `FileName` combined into a relative path and lower-cased. The registry's dictionary key, which is why static file lookups are case-insensitive. Recomputed on each access. |
+
+Casing is preserved on `Name`, `Extension` and `SubFolders` because they build a path that must match what is actually on disk; only `Key` is lower-cased, because it is only ever compared.
+
+### Constructors
+
+#### StaticFile(string fileName)
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `extension` | `string` | — | The extension to test. The leading dot is optional. |
+| `fileName` | `string` | — | The file name including its extension. Any directory component is stripped. |
 
-Static. Whether `extension` is in `BlockedExtensions`. Normalises before comparing, so `EXE`, `.exe` and `.EXE` all return `true`. Returns `false` for null or whitespace.
+Creates a file at the root of the static path. Splits `fileName` through `Path.GetFileNameWithoutExtension` and `Path.GetExtension`, so a name containing directory separators or `..` cannot address anything outside the static path.
 
-#### NormaliseExtension(string extension)
+Throws `ArgumentException` if `fileName` is null, or carries no extension.
 
-**Returns:** `string`
+#### StaticFile(string fileName, params IEnumerable\<string\> subFolders)
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `extension` | `string` | — | The extension to normalise. |
+| `fileName` | `string` | — | The file name including its extension. Any directory component is stripped. |
+| `subFolders` | `params IEnumerable<string>` | empty | The subfolders beneath the static path, outermost first. |
 
-Static. Trims `extension`, lower-cases it, and gives it a leading dot if it lacks one — so `PDF` returns `.pdf`. Used wherever extensions are compared, so they behave the same whatever form they arrive in.
+Creates a file within one or more subfolders. `subFolders` is copied on construction, so a later change to the collection passed in does not affect the file.
+
+The subfolders are not validated here — `FilePathProvider.GetStaticPath` drops any that are unusable when the path is built. Throws the same `ArgumentException` as the single-argument constructor.
+
+## ResponseBase
+
+**Namespace:** `JC.FileStorage.Models`
+
+Abstract record and the root of every response in the package — managed and static, byte and text. Its constructors are internal, so it cannot be extended outside the package; it exists so a caller can treat any response uniformly.
+
+### Properties
+
+| Property | Type | Default | Access | Description |
+|----------|------|---------|--------|-------------|
+| `Result` | `bool` | `false` | get; | Whether the operation succeeded. |
+| `ErrorMessage` | `string?` | `null` | get; | Why it failed, when `Result` is `false`. Null on success. |
+
+Both are get-only. The derived records add their payload as `init` properties, all of which stay nullable even on success — check `Result` first, then dereference.
 
 ## FileValidationResponse
 
@@ -188,15 +231,15 @@ Static. A failing result carrying the reason and its category.
 
 **Namespace:** `JC.FileStorage.Models`
 
-Abstract record and base of the file retrieval responses. Not returned directly — see `GetFileByteResponse` and `GetFileTextResponse`.
+Abstract record and base of the managed file retrieval responses. Extends `ResponseBase`. Not returned directly — see `GetFileByteResponse` and `GetFileTextResponse`.
 
 ### Properties
 
 | Property | Type | Default | Access | Description |
 |----------|------|---------|--------|-------------|
-| `Result` | `bool` | `false` | get; init; | Whether the file was retrieved. |
 | `File` | `SavedFile?` | `null` | get; init; | The record, when `Result` is `true`. Null on failure. |
-| `ErrorMessage` | `string?` | `null` | get; init; | Why retrieval failed, when `Result` is `false`. Null on success. |
+
+Inherits `Result` and `ErrorMessage` from `ResponseBase`.
 
 ### Constructors
 
@@ -251,6 +294,66 @@ Success. Sets `Result` to `true`, `File`, and `FileContentText`.
 #### GetFileTextResponse(string errorMessage)
 
 Failure. Sets `Result` to `false` and `ErrorMessage`. `FileContentText` remains null.
+
+## GetStaticFileResponseBase
+
+**Namespace:** `JC.FileStorage.Models`
+
+Abstract record and base of the static file retrieval responses. Extends `ResponseBase`. Not returned directly — see `GetStaticFileByteResponse` and `GetStaticFileTextResponse`.
+
+### Properties
+
+| Property | Type | Default | Access | Description |
+|----------|------|---------|--------|-------------|
+| `File` | `StaticFile?` | `null` | get; init; | The registered file, when `Result` is `true`. Null on failure. |
+
+Inherits `Result` and `ErrorMessage` from `ResponseBase`.
+
+## GetStaticFileByteResponse
+
+**Namespace:** `JC.FileStorage.Models`
+
+Record returned by `StaticFileService.GetStaticFileBytes` and `StaticFileCache.GetStaticFileBytes`. Extends `GetStaticFileResponseBase`.
+
+### Properties
+
+| Property | Type | Default | Access | Description |
+|----------|------|---------|--------|-------------|
+| `FileContent` | `byte[]?` | `null` | get; init; | The file's bytes, when `Result` is `true`. Null on failure. |
+
+A successful response may be held in `StaticFileCache` and handed to every later caller as the same instance, so writing into `FileContent` changes what those callers see. Copy the array before mutating it.
+
+### Constructors
+
+#### GetStaticFileByteResponse(StaticFile file, byte[] fileContent)
+
+Success. Sets `Result` to `true`, `File`, and `FileContent`.
+
+#### GetStaticFileByteResponse(string errorMessage)
+
+Failure. Sets `Result` to `false` and `ErrorMessage`. `File` and `FileContent` remain null.
+
+## GetStaticFileTextResponse
+
+**Namespace:** `JC.FileStorage.Models`
+
+Record returned by `StaticFileService.GetStaticFileText` and `StaticFileCache.GetStaticFileText`. Extends `GetStaticFileResponseBase`.
+
+### Properties
+
+| Property | Type | Default | Access | Description |
+|----------|------|---------|--------|-------------|
+| `FileContentText` | `string?` | `null` | get; init; | The file's contents as text, when `Result` is `true`. Null on failure. |
+
+### Constructors
+
+#### GetStaticFileTextResponse(StaticFile file, string fileContentText)
+
+Success. Sets `Result` to `true`, `File`, and `FileContentText`.
+
+#### GetStaticFileTextResponse(string errorMessage)
+
+Failure. Sets `Result` to `false` and `ErrorMessage`. `File` and `FileContentText` remain null.
 
 ## FileUploadResponse
 
@@ -342,7 +445,7 @@ Why a file failed validation. Lets a caller tell the reasons apart without parsi
 | Member | Value | Description |
 |--------|-------|-------------|
 | `None` | `0` | The file passed validation. |
-| `BlockedExtension` | `1` | The extension is in `FolderModel.BlockedExtensions` and can never be stored. |
+| `BlockedExtension` | `1` | The extension is in `ValidationHelper.BlockedExtensions` and can never be stored. |
 | `ExtensionNotAllowed` | `2` | The extension is not in the folder's allowed list, or the registry default list. |
 | `TooLarge` | `3` | The file is larger than the folder's limit, or the registry default limit. |
 
@@ -362,7 +465,7 @@ Folders are keyed by tenant, then matched by name case-insensitively. The no-ten
 
 | Property | Type | Default | Access | Description |
 |----------|------|---------|--------|-------------|
-| `DefaultMaxBytes` | `long?` | `null` | get; set; | Size limit for folders with no `FolderModel.MaxBytes`. Null means no limit for those folders. Setting throws `ArgumentOutOfRangeException` if the value is zero, negative, or above `FolderModel.MaxAllowedBytes`. |
+| `DefaultMaxBytes` | `long?` | `null` | get; set; | Size limit for folders with no `FolderModel.MaxBytes`. Null means no limit for those folders. Setting throws `ArgumentOutOfRangeException` if the value is zero, negative, or above `ValidationHelper.MaxAllowedBytes`. |
 | `DefaultAllowedExtensions` | `IReadOnlyList<string>?` | `null` | get; set; | Extensions accepted by folders with no `FolderModel.AllowedExtensions`. Null means any non-blocked extension. Entries are normalised on set. Setting throws `ArgumentException` if the list is empty or names a blocked extension. |
 
 ### Methods
@@ -444,7 +547,7 @@ The allowed extensions in force for `folder` — its own `AllowedExtensions` if 
 
 Checks the file in three steps, returning on the first failure.
 
-`FolderModel.BlockedExtensions` is checked first and always applies, so a blocked extension can never be re-enabled by a folder or a default. Next, the resolved allowed extensions — if a list is in force and does not contain the extension, the file is rejected. Last, the resolved size limit — if one is in force and `sizeBytes` exceeds it, the file is rejected.
+`ValidationHelper.BlockedExtensions` is checked first and always applies, so a blocked extension can never be re-enabled by a folder or a default. Next, the resolved allowed extensions — if a list is in force and does not contain the extension, the file is rejected. Last, the resolved size limit — if one is in force and `sizeBytes` exceeds it, the file is rejected.
 
 `StorageService` calls this itself before writing anything, so a rejected file never reaches disk or the database whichever entry point was used. Callers may also invoke it directly to fail fast and report the reason, which is what `WebStorageService` does.
 
@@ -454,7 +557,7 @@ Checks the file in three steps, returning on the first failure.
 
 Resolves physical paths for folders and files, and creates directories on demand. Registered as a singleton.
 
-Paths are built as `{BasePath}/{folder.Tenant}/{folder.Name}/{savedFileId}{extension}`, so each tenant's files occupy their own directory.
+Managed file paths are built as `{BasePath}/{folder.Tenant}/{folder.Name}/{savedFileId}{extension}`, so each tenant's files occupy their own directory. Static file paths are built as `{StaticPath}/{subFolders}/{fileName}` and carry no tenant.
 
 ### Constructor
 
@@ -462,10 +565,10 @@ Paths are built as `{BasePath}/{folder.Tenant}/{folder.Name}/{savedFileId}{exten
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `config` | `IConfiguration` | — | Application configuration. Read for `FileStorage:BasePath`. |
+| `config` | `IConfiguration` | — | Application configuration. Read for `FileStorage:BasePath` and `FileStorage:StaticPath`. |
 | `folderRegistry` | `FolderRegistry` | — | The registry used to resolve folders. |
 
-Reads `FileStorage:BasePath` and caches it. Throws `InvalidOperationException` if the key is missing.
+Reads `FileStorage:BasePath` and caches it, throwing `InvalidOperationException` if the key is missing. `FileStorage:StaticPath` is cached without validation — a missing key throws from `GetStaticPath` instead, so an application that stores no static files never needs to set it.
 
 ### Methods
 
@@ -491,6 +594,20 @@ Throws `ArgumentException` if no folders are registered for the folder's tenant,
 | `tenantId` | `string?` | — | The owning tenant. Null or whitespace resolves the no-tenant scope. |
 
 Constructs a `FolderModel` from the arguments and delegates to `GetPath(FolderModel)`, with the same directory creation and exceptions. The name is validated by `FolderModel`'s constructor.
+
+#### GetStaticPath(params IEnumerable\<string\> subFolders)
+
+**Returns:** `string`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `subFolders` | `params IEnumerable<string>` | empty | Subfolders to append to the static path, outermost first. |
+
+Combines `FileStorage:StaticPath` with `subFolders`, creates the directory if it does not exist, and returns the path. Called with no arguments it returns the static root, creating it if absent — which is why a mistyped `StaticPath` yields an empty directory rather than an error.
+
+Unusable subfolder names are **dropped rather than rejected**: any that is null or whitespace, starts with `..`, `/` or `\`, or contains `..`, `/`, `\`, `*`, `?`, `"`, `<`, `>` or `|`. A dropped name resolves to the parent directory, so the caller sees a file-not-found rather than an exception. A leading dot is allowed, so `.well-known` resolves normally.
+
+Throws `InvalidOperationException` if `FileStorage:StaticPath` is missing or empty.
 
 #### GetFilePath(string path, string id, string ext)
 
@@ -740,6 +857,173 @@ Any failure rolls the transaction back, logs the exception, and returns `false`,
 
 Throws `ArgumentException` if `folder`'s tenant does not match `tenantId`, or if `folder` is not registered.
 
+## StaticFileRegistry
+
+**Namespace:** `JC.FileStorage.Services`
+
+Thread-safe in-memory registry of static files. Registered as a singleton by `AddFileStorage(useStaticFiles: true)`, and only then — see [Setup](Setup.md#addstaticfiles--static-file-registration).
+
+Files are keyed by `StaticFile.Key`, the path beneath the static root lower-cased, so lookups are case-insensitive and a file in one subfolder does not collide with the same name in another.
+
+The registry is the gate on reading: `StaticFileService` resolves a name through it before touching the disk, so an unregistered name never reaches the file system.
+
+Its factory calls the internal `AutoDiscoverStaticFiles` during construction when `autoDiscoverStaticFiles` is on. Because the registration is a singleton, that runs the first time the registry is resolved rather than at startup.
+
+### Constructor
+
+#### StaticFileRegistry(FilePathProvider pathProvider, ILogger&lt;StaticFileRegistry&gt; logger)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `pathProvider` | `FilePathProvider` | — | Supplies the static root that discovery walks. |
+| `logger` | `ILogger<StaticFileRegistry>` | — | Receives failures from `TryAddStaticFile` and `TryGetStaticFile`. |
+
+### Methods
+
+#### TryAddStaticFile(StaticFile file)
+
+**Returns:** `bool`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `file` | `StaticFile` | — | The file to register, under its own `Key`. |
+
+Adds `file` to the registry. Returns `false` without replacing anything if a file is already registered under the same key.
+
+Also returns `false` rather than propagating if the add itself throws, logging the exception at error level. Writes are serialised under a lock.
+
+#### TryAddStaticFile(string fileName, params IEnumerable\<string\> subFolders)
+
+**Returns:** `bool`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `fileName` | `string` | — | The file name including its extension. |
+| `subFolders` | `params IEnumerable<string>` | empty | The subfolders beneath the static path, outermost first. |
+
+Constructs a `StaticFile` and delegates to the overload above.
+
+**This overload throws where `TryGetStaticFile` does not.** The `StaticFile` is built in the argument expression, outside the other overload's `try`, so a name `StaticFile` rejects — one carrying no extension — propagates `ArgumentException` rather than returning `false`. `TryGetStaticFile` builds its own inside the `try` and treats the same input as a miss. Validate a name before registering it, or catch.
+
+#### TryGetStaticFile(string fileName, out StaticFile? file, params IEnumerable\<string\> subFolders)
+
+**Returns:** `bool`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `fileName` | `string` | — | The file name including its extension. Matched case-insensitively. |
+| `file` | `out StaticFile?` | — | The registered file, or null. |
+| `subFolders` | `params IEnumerable<string>` | empty | The subfolders beneath the static path, outermost first. |
+
+Builds the key from the arguments and returns the registered file matching it. Returns `false` with `file` set to null when nothing matches.
+
+Returns `false` rather than throwing when the arguments cannot form a file name — a name without an extension is an ordinary miss, logged at debug level. Anything else is logged at error level.
+
+The instance returned is the registered one, not one built from the arguments, so it carries the casing and subfolders discovery found. That is what lets a case-insensitive lookup still produce a path that matches disk.
+
+The `out` parameter sits between `fileName` and `subFolders`, so unlike the service and cache methods this one needs no placeholder argument to reach the subfolders.
+
+## StaticFileService
+
+**Namespace:** `JC.FileStorage.Services`
+
+Reads registered static files from disk. Registered as a singleton by `AddFileStorage(useStaticFiles: true)`. Holds no per-request state.
+
+Most applications should inject `StaticFileCache` instead, which wraps this and holds content in memory. Inject this directly where every read must reach the disk.
+
+Every read resolves the name through `StaticFileRegistry` first, so an unregistered name returns a failed response without a file system call. Failures are returned, never thrown.
+
+### Constructor
+
+#### StaticFileService(FilePathProvider pathProvider, ILogger&lt;StaticFileService&gt; logger, StaticFileRegistry registry)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `pathProvider` | `FilePathProvider` | — | Resolves the static path and checks the file exists. |
+| `logger` | `ILogger<StaticFileService>` | — | Receives exceptions thrown while reading a file. |
+| `registry` | `StaticFileRegistry` | — | Resolves a name to a registered file. |
+
+### Methods
+
+#### GetStaticFileBytes(string fileName, CancellationToken ct = default, params IEnumerable\<string\> subfolders)
+
+**Returns:** `Task<GetStaticFileByteResponse>`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `fileName` | `string` | — | The file name including its extension. Matched case-insensitively. |
+| `ct` | `CancellationToken` | `default` | Cancels the read. Cannot be omitted when `subfolders` is given, since it precedes a `params` parameter. |
+| `subfolders` | `params IEnumerable<string>` | empty | The subfolders the file sits under, outermost first. |
+
+Resolves the file through the registry, builds its path from the registered `SubFolders` and `FileName`, and reads its bytes.
+
+Returns `"Static file not found"` when the name is not registered, when it cannot be formed into a file name, or when the registered file no longer exists on disk. Returns `"Error reading file."` if the read throws, logging the exception. On success `Result` is `true`, `File` holds the registered `StaticFile`, and `FileContent` holds the bytes.
+
+#### GetStaticFileText(string fileName, CancellationToken ct = default, params IEnumerable\<string\> subfolders)
+
+**Returns:** `Task<GetStaticFileTextResponse>`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `fileName` | `string` | — | The file name including its extension. Matched case-insensitively. |
+| `ct` | `CancellationToken` | `default` | Cancels the read. Cannot be omitted when `subfolders` is given. |
+| `subfolders` | `params IEnumerable<string>` | empty | The subfolders the file sits under, outermost first. |
+
+Behaves as `GetStaticFileBytes`, reading the file as text instead of bytes and returning it in `FileContentText`. The bytes are decoded regardless of whether they are textual.
+
+## StaticFileCache
+
+**Namespace:** `JC.FileStorage.Services`
+
+Holds static file content in `IMemoryCache`, so a file read on every request reaches the disk once per cache window. Registered as a singleton by `AddFileStorage(useStaticFiles: true)`, which also calls `AddMemoryCache`. The type most applications inject.
+
+Text and bytes are held under separate keys — `StaticFile:Text:{key}` and `StaticFile:Bytes:{key}` — so reading a file one way does not hand back the other form.
+
+Its read methods carry the same names and signatures as `StaticFileService`'s, so switching between the two to bypass the cache changes only the injected type.
+
+### Constructor
+
+#### StaticFileCache(IMemoryCache cache, StaticFileService staticFileService, StaticFileRegistry registry, int cacheDurationMinutes = 10)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `cache` | `IMemoryCache` | — | The application's memory cache. |
+| `staticFileService` | `StaticFileService` | — | Reads a file when it is not held in the cache. |
+| `registry` | `StaticFileRegistry` | — | Resolves a name to a registered file, before the cache key is built. |
+| `cacheDurationMinutes` | `int` | `10` | How long content is held. `0` disables caching, so every read passes through to the service. Supplied by `AddFileStorage`'s `staticFileCacheDurationMinutes`. |
+
+Throws `ArgumentOutOfRangeException` if `cacheDurationMinutes` is negative. Zero is rejected by `IMemoryCache` as an expiry, so it is treated as "no caching" rather than passed on.
+
+### Methods
+
+#### GetStaticFileBytes(string fileName, CancellationToken ct = default, params IEnumerable\<string\> subFolders)
+
+**Returns:** `Task<GetStaticFileByteResponse>`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `fileName` | `string` | — | The file name including its extension. Matched case-insensitively. |
+| `ct` | `CancellationToken` | `default` | Cancels the read when the content is not cached. Cannot be omitted when `subFolders` is given. |
+| `subFolders` | `params IEnumerable<string>` | empty | The subfolders the file sits under, outermost first. |
+
+Resolves the name through the registry, returning `"Static file not found"` without consulting the cache when nothing matches. Otherwise returns the cached response if one is held, and otherwise reads through `StaticFileService` and caches the result.
+
+Only a successful response is cached, so a transient read failure is retried on the next call rather than held for the cache window. The registered file is passed to the service directly, so the lookup is not repeated.
+
+The cached response is a single shared instance. Its `FileContent` array is not copied per caller — see `GetStaticFileByteResponse`.
+
+#### GetStaticFileText(string fileName, CancellationToken ct = default, params IEnumerable\<string\> subFolders)
+
+**Returns:** `Task<GetStaticFileTextResponse>`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `fileName` | `string` | — | The file name including its extension. Matched case-insensitively. |
+| `ct` | `CancellationToken` | `default` | Cancels the read when the content is not cached. Cannot be omitted when `subFolders` is given. |
+| `subFolders` | `params IEnumerable<string>` | empty | The subfolders the file sits under, outermost first. |
+
+Behaves as `GetStaticFileBytes`, against the text cache key and returning the content in `FileContentText`.
+
 ## WebStorageService
 
 **Namespace:** `JC.FileStorage.Web.Services`
@@ -907,6 +1191,84 @@ It exists as a distinct type so the framework is a deliberate choice rather than
 ---
 
 # Helpers
+
+## NormalisationHelper
+
+**Namespace:** `JC.FileStorage.Helpers`
+
+Static class holding the name and extension normalisation both halves of the package share. `SavedFile`, `StaticFile` and `FolderRegistry` all route through it, so a name or extension behaves the same whichever entry point it arrives at.
+
+### Methods
+
+#### NormaliseExtension(string extension, bool lowerCase = true)
+
+**Returns:** `string`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `extension` | `string` | — | The extension to normalise. The leading dot is optional. |
+| `lowerCase` | `bool` | `true` | Whether to lower-case the result. |
+
+Static. Trims `extension`, lower-cases it when `lowerCase` is `true`, and gives it a leading dot if it lacks one — so `PDF` returns `.pdf` by default and `.PDF` with `lowerCase: false`.
+
+Leave `lowerCase` at its default for any value that will be compared: a blocked-extension check, an allowed-extension list, a lookup key. Pass `false` where the result becomes part of a physical path, because the file on disk keeps whatever casing it was given and a case-sensitive file system will not match a lower-cased spelling of it. `StaticFile` takes the second route; `FolderRegistry.ValidateFile` takes the first.
+
+#### NormaliseFileName(string fileName)
+
+**Returns:** `string`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `fileName` | `string` | — | A file name, with or without an extension or directory components. |
+
+Static. Strips any directory and extension from `fileName`, returning the value `SavedFile.SetFileName` would store in `FileName`. Delegates to `Path.GetFileNameWithoutExtension`.
+
+Anything querying on `SavedFile.FileName` must key off this method, or the comparison will not match what was persisted.
+
+#### GetFileName(string name, string extension)
+
+**Returns:** `string`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | `string` | — | The base name, without its extension. |
+| `extension` | `string` | — | The extension. The leading dot is optional. |
+
+Static. Rejoins a name and an extension into a complete file name. Casing is preserved on both parts, since the result names a file rather than a value to be compared.
+
+This is how a caller holding a name and extension separately reaches the static file API, whose public constructors and methods all take a whole file name — `StaticFile` deliberately offers no public two-part constructor, so that `new StaticFile("terms.md", "legal")` can only mean a subfolder.
+
+## ValidationHelper
+
+**Namespace:** `JC.FileStorage.Helpers`
+
+Static class holding the limits and the blocked-extension list enforced on managed files. `FolderModel` and `FolderRegistry` both use it, and `FolderModel` retains obsolete forwarders to its public members.
+
+**These apply to managed files only.** Nothing here is consulted for static files, which are placed at deploy time by a developer or a build step rather than uploaded, so no part of them is untrusted.
+
+### Fields
+
+| Field | Type | Value | Description |
+|-------|------|-------|-------------|
+| `MaxAllowedBytes` | `const long` | `10737418240` | Hard ceiling (10GB) on any configured size limit. No folder or registry default may exceed it. |
+
+### Properties
+
+| Property | Type | Default | Access | Description |
+|----------|------|---------|--------|-------------|
+| `BlockedExtensions` | `IReadOnlyCollection<string>` | ~60 entries | static get; | Extensions that can never be stored, whatever a folder or the registry allows. Executables, libraries, installers, shell scripts, scripts the Windows shell runs on open, shell and registry entry points, and platform packages. Compared case-insensitively. |
+
+### Methods
+
+#### IsBlockedExtension(string extension)
+
+**Returns:** `bool`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `extension` | `string` | — | The extension to test. The leading dot is optional. |
+
+Static. Whether `extension` is in `BlockedExtensions`. Normalises before comparing, so `EXE`, `.exe` and `.EXE` all return `true`. Returns `false` for null or whitespace.
 
 ## FormFileHelper
 

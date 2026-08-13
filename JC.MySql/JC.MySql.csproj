@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.MySql</PackageId>
-        <Version>6.0.1</Version>
+        <Version>6.1.0</Version>
         <Description>Registers a JC.Core DbContext against MySQL using Pomelo.EntityFrameworkCore.MySql. Takes the connection string by name from configuration (defaulting to DefaultConnection) and fails fast when it is absent, names the migrations assembly, and exposes the provider's own options for anything further. The server version is auto-detected from the connection string, so the database must be reachable at start-up. A MySQL health check can be registered alongside, opt-in. Interchangeable with JC.SqlServer — the two present the same shape, so the provider is a one-line choice.</Description>
         <PackageTags>$(PackageTags);mysql;efcore;pomelo;database-provider</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>

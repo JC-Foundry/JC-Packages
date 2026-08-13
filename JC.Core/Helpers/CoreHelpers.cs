@@ -2,8 +2,38 @@ using System.Text;
 
 namespace JC.Core.Helpers;
 
-internal static class InternalHelpers
+public static class CoreHelpers
 {
+    /// <summary>The default package name for JC Packages</summary>
+    public const string PackageName = "JCP";
+    
+    /// <summary>The default version prefix for JC Packages</summary>
+    public const string PackageVersionPrefix = "v";
+    
+    /// <summary>The current version for JC Packages</summary>
+    public const string PackageVersion = "6.1.0";
+
+    /// <summary>
+    /// Generates a display string for a package, combining an optional introductory text,
+    /// a package display name, a version prefix, and the package version.
+    /// </summary>
+    /// <param name="introText">The text to display before the package information. Defaults to "Using".</param>
+    /// <param name="displayNameOverride">An optional override for the package display name. If null or whitespace, the default package name is used.</param>
+    /// <param name="versionPrefixOverride">An optional override for the version prefix. If null or whitespace, the default version prefix is used.</param>
+    /// <returns>A formatted string representing the package display information.</returns>
+    /// <exception cref="ArgumentException">Thrown when the <paramref name="introText"/> is null or whitespace.</exception>
+    public static string PackageDisplay(string introText = "Using",
+        string? displayNameOverride = null,
+        string? versionPrefixOverride = null)
+    {
+        if (string.IsNullOrWhiteSpace(introText))
+            throw new ArgumentException("Introductory text cannot be null or whitespace.", nameof(introText));
+        
+        var name = string.IsNullOrWhiteSpace(displayNameOverride) ? PackageName : displayNameOverride;
+        var prefix = string.IsNullOrWhiteSpace(versionPrefixOverride) ? PackageVersionPrefix : versionPrefixOverride;
+        return $"{introText.Trim()} {name} {prefix}{PackageVersion}";
+    }
+    
     /// <summary>
     /// Normalises an identifier-style string into human-readable text. Runs of separators
     /// collapse into a single space, casing transitions become word boundaries, and every

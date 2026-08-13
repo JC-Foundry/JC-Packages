@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using JC.Core.Models.Auditing;
 using JC.Core.Models.MultiTenancy;
+using JC.FileStorage.Helpers;
 
 namespace JC.FileStorage.Models;
 
@@ -24,22 +25,14 @@ public class SavedFile : AuditModel, IMultiTenancy
     [Required]
     [MaxLength(256)]
     public string FolderName { get; private set; } = string.Empty;
-
-
-    /// <summary>
-    /// Strips any directory and extension from <paramref name="fileName"/>, giving the value that
-    /// <see cref="SetFileName"/> stores in <see cref="FileName"/>. Anything querying on
-    /// <see cref="FileName"/> must key off this, or it will not match what was persisted.
-    /// </summary>
-    public static string NormaliseFileName(string fileName)
-        => Path.GetFileNameWithoutExtension(fileName);
+    
 
     public void SetFileName(string fileName, string? ext = null)
     {
         if(string.IsNullOrWhiteSpace(fileName))
             throw new ArgumentException("File name cannot be null or whitespace.", nameof(fileName));
 
-        var fn = NormaliseFileName(fileName);
+        var fn = NormalisationHelper.NormaliseFileName(fileName);
 
         //An extension on the file name wins - ext is only a fallback for names that carry none
         var fileExt = Path.GetExtension(fileName);
@@ -55,8 +48,7 @@ public class SavedFile : AuditModel, IMultiTenancy
         if(string.IsNullOrWhiteSpace(fn))
             throw new ArgumentException("File name cannot be empty once the extension is removed.", nameof(fileName));
 
-        fileExt = !fileExt.StartsWith('.') ? $".{fileExt}" : fileExt;
-
+        fileExt = NormalisationHelper.NormaliseExtension(fileExt, false);
         if(fn.Length > 256)
             throw new ArgumentException("File name cannot exceed 256 characters.", nameof(fileName));
 
@@ -80,4 +72,18 @@ public class SavedFile : AuditModel, IMultiTenancy
         
         FolderName = folder.Name;
     }
+
+
+    #region Obsolete
+
+    /// <summary>
+    /// Strips any directory and extension from <paramref name="fileName"/>, giving the value that
+    /// <see cref="SetFileName"/> stores in <see cref="FileName"/>. Anything querying on
+    /// <see cref="FileName"/> must key off this, or it will not match what was persisted.
+    /// </summary>
+    [Obsolete("Use NormalisationHelper.NormaliseFileName instead.", false)]
+    public static string NormaliseFileName(string fileName)
+        => Path.GetFileNameWithoutExtension(fileName);
+
+    #endregion
 }

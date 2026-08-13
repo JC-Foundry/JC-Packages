@@ -18,7 +18,7 @@ A suite of .NET 9 NuGet packages providing shared infrastructure for .NET applic
 | **JC.Communication.Web** | Razor tag helpers for JC.Communication — notification dropdown/badge/toasts, chat thread/list/input/participants, and contact form | [Documentation](Documentation/JC.Communication/) |
 | **JC.Github** | GitHub integration for bug report and issue tracking services | [Documentation](Documentation/JC.Github/) |
 | **JC.BackgroundJobs** | Lightweight hosted-service background jobs and Hangfire recurring/ad-hoc job integration | [Documentation](Documentation/JC.BackgroundJobs/) |
-| **JC.FileStorage** | Tenant-scoped file storage on disk with database-backed records, audited deletion, per-folder size and type limits, and single-level folder separation | [Documentation](Documentation/JC.FileStorage/) |
+| **JC.FileStorage** | Tenant-scoped file storage on disk with database-backed records, audited deletion, per-folder size and type limits, single-level folder separation, and read-only static files served from a deploy-time directory | [Documentation](Documentation/JC.FileStorage/) |
 | **JC.FileStorage.Web** | ASP.NET Core integration for JC.FileStorage — `IFormFile` handling, MIME type inference, an upload constraints tag helper, and an `IApplicationBuilder` overload of `AddFolders` | [Documentation](Documentation/JC.FileStorage/) |
 | **JC.SqlServer.Hangfire** | Hangfire SQL Server storage registration for JC-Packages applications | — |
 
@@ -227,7 +227,16 @@ app.Services.AddFolders(true, new FolderModel("invoices", null, 10 * 1024 * 1024
 
 Executable extensions (`.exe`, `.bat`, `.ps1` and around sixty more) can never be stored, and no configuration re-enables them.
 
-See [JC.FileStorage documentation](Documentation/JC.FileStorage/) for folder registration, limits, tenant scoping, cross-tenant access, and delete behaviour.
+Static files are a separate, opt-in feature: read-only documents placed beneath `FileStorage:StaticPath` at deploy time, registered at startup and cached in memory. There is no database record and no way to write them.
+
+```csharp
+builder.Services.AddFileStorage(useStaticFiles: true);
+
+// Anywhere with StaticFileCache injected
+var policy = await staticFiles.GetStaticFileText("privacy-policy.md", ct);
+```
+
+See [JC.FileStorage documentation](Documentation/JC.FileStorage/) for folder registration, limits, tenant scoping, cross-tenant access, static files, and delete behaviour.
 
 ### JC.Communication.Web
 
@@ -350,12 +359,15 @@ Email configuration is required when using `AddEmail`. The keys shown above are 
 ```json
 {
   "FileStorage": {
-    "BasePath": "C:\\app-data\\file-storage"
+    "BasePath": "C:\\app-data\\file-storage",
+    "StaticPath": "C:\\app-data\\static-files"
   }
 }
 ```
 
-Required when using `AddFileStorage`. `BasePath` is the root directory all files are written under; the application account needs write access to it. The directory does not need to exist — tenant and folder directories are created on demand. Everything else is configured in code.
+`BasePath` is required when using `AddFileStorage`. It is the root directory all managed files are written under; the application account needs write access to it. The directory does not need to exist — tenant and folder directories are created on demand.
+
+`StaticPath` is required only when static files are enabled with `AddFileStorage(useStaticFiles: true)`, and holds files placed there at deploy time. Everything else is configured in code.
 
 ### Hangfire Storage (JC.SqlServer.Hangfire)
 

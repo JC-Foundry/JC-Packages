@@ -1,3 +1,4 @@
+using JC.FileStorage.Helpers;
 using JC.FileStorage.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.StaticFiles;
@@ -30,7 +31,7 @@ public static class FormFileHelper
     public static string GetExtension(IFormFile file)
     {
         var ext = Path.GetExtension(GetFileName(file));
-        return string.IsNullOrWhiteSpace(ext) ? string.Empty : FolderModel.NormaliseExtension(ext);
+        return string.IsNullOrWhiteSpace(ext) ? string.Empty : NormalisationHelper.NormaliseExtension(ext);
     }
 
     /// <summary>
@@ -56,7 +57,7 @@ public static class FormFileHelper
         if(string.IsNullOrWhiteSpace(extension))
             return DefaultContentType;
 
-        var ext = FolderModel.NormaliseExtension(extension);
+        var ext = NormalisationHelper.NormaliseExtension(extension);
         return ContentTypeProvider.TryGetContentType($"file{ext}", out var contentType)
             ? contentType
             : DefaultContentType;

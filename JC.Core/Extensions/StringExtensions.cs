@@ -45,7 +45,7 @@ public static partial class StringExtensions
         // splits them by default. Slugs are persisted in URLs, so splitting would silently
         // turn an existing 'version2' into 'version-2' and break every link to it.
         var name = normaliseToDisplayName
-            ? InternalHelpers.ToDisplayName(value.Trim(), splitDigits: false)
+            ? CoreHelpers.ToDisplayName(value.Trim(), splitDigits: false)
             : value.Trim();
         
         var slug = name.ToLowerInvariant();
@@ -97,7 +97,7 @@ public static partial class StringExtensions
     /// </param>
     /// <returns>A display-friendly version of the input string, or an empty string if the input is null or whitespace.</returns>
     public static string ToDisplayName(this string value, bool splitDigits = true)
-        => InternalHelpers.ToDisplayName(value, splitDigits);
+        => CoreHelpers.ToDisplayName(value, splitDigits);
 
     /// <summary>
     /// Masks a string by keeping only the first few characters visible and replacing the rest with asterisks.

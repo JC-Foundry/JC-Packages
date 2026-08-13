@@ -3,6 +3,7 @@ using JC.Core.Enums;
 using JC.Core.Extensions;
 using JC.Core.Models.MultiTenancy;
 using JC.Core.Services.DataRepositories;
+using JC.FileStorage.Helpers;
 using JC.FileStorage.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -59,7 +60,7 @@ public class StorageService
                 .Where(f => f.TenantId == tenantId);
         
         //FileName is stored without its extension, so the lookup has to be keyed the same way
-        var name = SavedFile.NormaliseFileName(fileName).ToLower();
+        var name = NormalisationHelper.NormaliseFileName(fileName).ToLower();
         return await query.FirstOrDefaultAsync(f => f.FolderName.ToLower() == folder.Name.ToLower() 
                                                     && f.FileName.ToLower() == name);
     }

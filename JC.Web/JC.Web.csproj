@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.Web</PackageId>
-        <Version>6.0.1</Version>
+        <Version>6.1.0</Version>
         <Description>Hardening and helpers for ASP.NET Core applications, in five areas that register independently. Security: response-header middleware with a fluent content-security-policy builder, and cookie services in plain and Data-Protection-encrypted forms selected by keyed injection. Client profiling: per-request metadata — client IP honouring proxy headers only when told to, parsed user agent, optional geo-location — bot filtering, and log entries that mask the sensitive fields by default. Rate limiting: opt-in, wrapping the framework's limiter with fixed and sliding windows, token bucket and concurrency, partitioned by IP, user, endpoint or a pair, with static files excluded. SEO: a sitemap that discovers Razor routes and splits behind an index past the protocol limit, robots.txt, Open Graph and Twitter meta, and typed JSON-LD. UI: tag helpers and builders whose class names come from a swappable framework dictionary — Bootstrap 5, Tailwind v4 or jc-tailwind-ui — plus HTML sanitisation for user-authored content, QR codes and dropdown building.</Description>
         <PackageTags>$(PackageTags);aspnetcore;security-headers;csp;cookies;rate-limiting;seo;sitemap;tag-helpers;bot-detection;html-sanitiser</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>

@@ -1,21 +1,34 @@
 namespace JC.FileStorage.Models;
 
-public abstract record GetFileResponseBase
+public abstract record ResponseBase
 {
-    public bool Result { get; init; }
-    public SavedFile? File { get; init; }
-    public string? ErrorMessage { get; init; }
+    public bool Result { get; }
+    public string? ErrorMessage { get; }
 
-    public GetFileResponseBase(SavedFile file)
+    internal ResponseBase()
     {
         Result = true;
-        File = file;
     }
 
-    public GetFileResponseBase(string errorMessage)
+    internal ResponseBase(string errorMessage)
     {
         Result = false;
         ErrorMessage = errorMessage;
+    }
+}
+
+public abstract record GetFileResponseBase : ResponseBase
+{
+    public SavedFile? File { get; init; }
+
+    protected GetFileResponseBase(SavedFile file)
+    {
+        File = file;
+    }
+
+    protected GetFileResponseBase(string errorMessage)
+        : base(errorMessage)
+    {
     }
 }
 

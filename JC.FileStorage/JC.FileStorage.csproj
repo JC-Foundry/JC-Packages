@@ -2,8 +2,8 @@
 
     <PropertyGroup>
         <PackageId>JC.FileStorage</PackageId>
-        <Version>6.0.1</Version>
-        <Description>Tenant-scoped file storage for .NET — bytes on disk, records in the database. Files are written beneath a configured base path as {tenant}/{folder}/{id} and keyed by a generated identifier rather than the uploaded name, so a hostile file name cannot reach the file system, while a SavedFile row keeps the original name, extension, folder and tenant. Folders are registered up front and may cap file size and restrict extensions, falling back to registry-wide defaults; StorageService applies those limits itself, so no caller can bypass them. Executable extensions are blocked outright and no configuration re-enables them. Deletion is soft and audited through JC.Core, storage can be pointed at any registered DbContext, and folders are a single level deep within a tenant.</Description>
+        <Version>6.1.0</Version>
+        <Description>Tenant-scoped file storage for .NET — bytes on disk, records in the database. Files are written beneath a configured base path as {tenant}/{folder}/{id} and keyed by a generated identifier rather than the uploaded name, so a hostile file name cannot reach the file system, while a SavedFile row keeps the original name, extension, folder and tenant. Folders are registered up front and may cap file size and restrict extensions, falling back to registry-wide defaults; StorageService applies those limits itself, so no caller can bypass them. Executable extensions are blocked outright and no configuration re-enables them. Deletion is soft and audited through JC.Core, storage can be pointed at any registered DbContext, and folders are a single level deep within a tenant. Separately, an opt-in static file feature serves read-only documents placed beneath a configured static path at deploy time — registered at startup, cached in memory, with no database record and no way to write them.</Description>
         <PackageTags>$(PackageTags);file-storage;uploads;tenant-scoped;file-validation</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>

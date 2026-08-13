@@ -1,53 +1,10 @@
+using JC.FileStorage.Helpers;
+
 namespace JC.FileStorage.Models;
 
 public class FolderModel
 {
     public const string NullTenantName = "NO__TENANT";
-
-    /// <summary>
-    /// Hard ceiling on any configured size limit (10GB). No folder or registry default may exceed this.
-    /// </summary>
-    public const long MaxAllowedBytes = 10L * 1024 * 1024 * 1024;
-
-    //Extensions Windows or a shell will execute on open. Blocked outright so the store can never
-    //become a malware delivery route - not overridable by a folder or by the registry defaults
-    private static readonly HashSet<string> Blocked = new(StringComparer.OrdinalIgnoreCase)
-    {
-        //Windows executables, libraries and installers
-        ".exe", ".com", ".scr", ".pif", ".dll", ".ocx", ".sys", ".drv", ".cpl",
-        ".msi", ".msp", ".mst", ".msix", ".appx", ".application", ".appref-ms", ".gadget",
-        //Batch and shell
-        ".bat", ".cmd", ".sh", ".bash", ".csh", ".ksh", ".zsh", ".command", ".run",
-        //Scripts the Windows shell executes on open
-        ".vb", ".vbs", ".vbe", ".js", ".jse", ".ws", ".wsf", ".wsc", ".wsh",
-        ".ps1", ".ps1xml", ".ps2", ".ps2xml", ".psc1", ".psc2", ".msc", ".hta",
-        //Shell and registry entry points
-        ".lnk", ".url", ".scf", ".shb", ".shs", ".inf", ".reg",
-        //Other runtimes and platform packages
-        ".jar", ".apk", ".app", ".deb", ".rpm", ".dmg", ".pkg"
-    };
-
-    /// <summary>
-    /// Extensions that can never be stored, whatever a folder or the registry defaults allow.
-    /// Compared case-insensitively.
-    /// </summary>
-    public static IReadOnlyCollection<string> BlockedExtensions => Blocked;
-
-    /// <summary>
-    /// Whether <paramref name="extension"/> is blocked outright. The leading dot is optional.
-    /// </summary>
-    public static bool IsBlockedExtension(string extension)
-        => !string.IsNullOrWhiteSpace(extension) && Blocked.Contains(NormaliseExtension(extension));
-
-    /// <summary>
-    /// Lower-cases <paramref name="extension"/> and gives it a leading dot, so extensions compare
-    /// consistently wherever they came from.
-    /// </summary>
-    public static string NormaliseExtension(string extension)
-    {
-        var ext = extension.Trim().ToLowerInvariant();
-        return !ext.StartsWith('.') ? $".{ext}" : ext;
-    }
 
     public string Name { get; }
     public string Tenant { get; }
@@ -61,7 +18,7 @@ public class FolderModel
 
     /// <summary>
     /// Extensions this folder accepts, or <c>null</c> to fall back to
-    /// <c>FolderRegistry.DefaultAllowedExtensions</c>. Never overrides <see cref="BlockedExtensions"/>.
+    /// <c>FolderRegistry.DefaultAllowedExtensions</c>. Never overrides <see cref="ValidationHelper.BlockedExtensions"/>.
     /// </summary>
     public IReadOnlyList<string>? AllowedExtensions { get; }
 
@@ -94,55 +51,64 @@ public class FolderModel
     public FolderModel(string name, string? tenantId, long? maxBytes, IEnumerable<string>? allowedExtensions)
         : this(name, tenantId)
     {
-        MaxBytes = ValidateMaxBytes(maxBytes, nameof(maxBytes));
-        AllowedExtensions = ValidateAllowedExtensions(allowedExtensions, nameof(allowedExtensions));
+        MaxBytes = ValidationHelper.ValidateMaxBytes(maxBytes, nameof(maxBytes));
+        AllowedExtensions = ValidationHelper.ValidateAllowedExtensions(allowedExtensions, nameof(allowedExtensions));
     }
+    
+    
+    
+    #region Obsolete
 
     /// <summary>
-    /// Checks a size limit against the <see cref="MaxAllowedBytes"/> ceiling, returning it unchanged
-    /// when valid. <c>null</c> means "no limit set here" and is always valid.
+    /// Hard ceiling on any configured size limit (10GB). No folder or registry default may exceed this.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">The limit is zero or negative, or above the ceiling.</exception>
-    internal static long? ValidateMaxBytes(long? maxBytes, string paramName)
-    {
-        switch (maxBytes)
-        {
-            case null:
-                return null;
-            case <= 0:
-                throw new ArgumentOutOfRangeException(paramName, maxBytes, "A size limit must be greater than zero.");
-            case > MaxAllowedBytes:
-                throw new ArgumentOutOfRangeException(paramName, maxBytes,
-                    $"A size limit cannot exceed {MaxAllowedBytes} bytes (10GB).");
-            default:
-                return maxBytes;
-        }
-    }
+    [Obsolete("Use ValidationHelper.MaxAllowedBytes instead.", false)]
+    public const long MaxAllowedBytes = ValidationHelper.MaxAllowedBytes;
 
+    /// <summary>
+    /// Extensions that can never be stored, whatever a folder or the registry defaults allow.
+    /// Compared case-insensitively.
+    /// </summary>
+    [Obsolete("Use ValidationHelper.BlockedExtensions instead.", false)]
+    public static IReadOnlyCollection<string> BlockedExtensions => ValidationHelper.Blocked;
+
+    /// <summary>
+    /// Whether <paramref name="extension"/> is blocked outright. The leading dot is optional.
+    /// </summary>
+    [Obsolete("Use ValidationHelper.IsBlockedExtension instead.", false)]
+    public static bool IsBlockedExtension(string extension)
+        => ValidationHelper.IsBlockedExtension(extension);   
+    
+    
     /// <summary>
     /// Normalises an allowed-extension list and rejects any blocked entry, so a blocked extension
     /// can never be allowed back in by configuration. <c>null</c> means "not set here".
     /// </summary>
     /// <exception cref="ArgumentException">The list is empty, or names a blocked extension.</exception>
+    [Obsolete("Use ValidationHelper.ValidateAllowedExtensions instead.", false)]
     internal static IReadOnlyList<string>? ValidateAllowedExtensions(IEnumerable<string>? allowedExtensions, string paramName)
-    {
-        if(allowedExtensions == null)
-            return null;
+        => ValidationHelper.ValidateAllowedExtensions(allowedExtensions, paramName);
+    
+    
+    /// <summary>
+    /// Checks a size limit against the <see cref="ValidationHelper.MaxAllowedBytes"/> ceiling,
+    /// returning it unchanged when valid. <c>null</c> means "no limit set here" and is always valid.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The limit is zero or negative, or above the ceiling.</exception>
+    [Obsolete("Use ValidationHelper.ValidateMaxBytes instead.", false)]
+    internal static long? ValidateMaxBytes(long? maxBytes, string paramName)
+        => ValidationHelper.ValidateMaxBytes(maxBytes, paramName);
 
-        var exts = allowedExtensions
-            .Where(e => !string.IsNullOrWhiteSpace(e))
-            .Select(NormaliseExtension)
-            .Distinct()
-            .ToList();
-
-        if(exts.Count == 0)
-            throw new ArgumentException("Provide at least one extension, or null for no restriction.", paramName);
-
-        var blocked = exts.Where(Blocked.Contains).ToList();
-        if(blocked.Count > 0)
-            throw new ArgumentException(
-                $"These extensions are blocked and cannot be allowed: {string.Join(", ", blocked)}.", paramName);
-
-        return exts;
-    }
+    
+    /// <summary>
+    /// Trims <paramref name="extension"/> and gives it a leading dot, so extensions compare
+    /// consistently wherever they came from. Lower-cases it too unless <paramref name="lowerCase"/>
+    /// is <c>false</c>, which callers building a physical path want — see
+    /// <see cref="NormalisationHelper.NormaliseExtension"/>.
+    /// </summary>
+    [Obsolete("Use NormalisationHelper.NormaliseExtension instead.", false)]
+    public static string NormaliseExtension(string extension, bool lowerCase = true)
+        => NormalisationHelper.NormaliseExtension(extension, lowerCase);
+    
+    #endregion
 }

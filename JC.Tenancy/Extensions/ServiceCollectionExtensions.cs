@@ -42,11 +42,9 @@ public static class ServiceCollectionExtensions
         Action<TenantOptions>? configure = null)
         where TContext : DbContext, ITenantDbContext
     {
-        var owner = services
-            .FirstOrDefault(s => s.ServiceType == typeof(TenantStoreOwner))?
-            .ImplementationInstance as TenantStoreOwner;
-
-        if (owner is not null)
+        if (services
+                .FirstOrDefault(s => s.ServiceType == typeof(TenantStoreOwner))?
+                .ImplementationInstance is TenantStoreOwner owner)
             throw new InvalidOperationException(
                 $"Tenancy has already been registered against '{owner.ContextType.Name}'. " +
                 $"Exactly one {nameof(DbContext)} may own tenant storage. Other contexts participate in " +
