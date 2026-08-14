@@ -10,7 +10,7 @@
 
     <ItemGroup>
       <FrameworkReference Include="Microsoft.AspNetCore.App" />
-      <PackageReference Include="HtmlSanitizer" VersionOverride="9.1.974" />
+      <PackageReference Include="HtmlSanitizer" VersionOverride="9.2.995" />
       <PackageReference Include="QRCoder" VersionOverride="1.8.0" />
       <PackageReference Include="UAParser" VersionOverride="3.1.47" />
     </ItemGroup>

@@ -17,7 +17,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Hangfire.Core" VersionOverride="1.8.23" />
+      <PackageReference Include="Hangfire.Core" VersionOverride="1.8.24" />
       <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     </ItemGroup>
 

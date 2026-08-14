@@ -10,8 +10,8 @@
 
     <ItemGroup>
       <FrameworkReference Include="Microsoft.AspNetCore.App" />
-      <PackageReference Include="Hangfire.SqlServer" VersionOverride="1.8.23" />
-      <PackageReference Include="Hangfire.AspNetCore" VersionOverride="1.8.23" />
+      <PackageReference Include="Hangfire.SqlServer" VersionOverride="1.8.24" />
+      <PackageReference Include="Hangfire.AspNetCore" VersionOverride="1.8.24" />
       <PackageReference Include="Microsoft.Data.SqlClient" />
       <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     </ItemGroup>
