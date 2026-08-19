@@ -11,7 +11,7 @@ namespace JC.Web.UI.Helpers;
 /// Everything not listed is removed. Widening a list widens the attack surface, so add only what the
 /// producing editor can actually emit.
 /// </remarks>
-[Obsolete("ContentSanitiser has moved to JC.Content. Its option's replacement (same implementation) can be found at JC.Content.Moderation.Models.Options.ContentSanitiserOptions.", error: false)]
+[Obsolete("ContentSanitiser has moved to JC.Content. Its option's replacement (same implementation) can be found at JC.Content.Models.Options.ContentSanitiserOptions.", error: false)]
 public class ContentSanitiserOptions
 {
     /// <summary>

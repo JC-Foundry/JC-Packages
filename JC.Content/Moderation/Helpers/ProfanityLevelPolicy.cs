@@ -11,15 +11,16 @@ public static class ProfanityLevelPolicy
 {
     /// <summary>
     /// The floors a match must reach to count at <paramref name="level"/>. Nothing blocks below
-    /// <see cref="ProfanityConfidence.Medium"/> at any level, and a term found inside a longer word is
-    /// capped in <see cref="ProfanityConfidence.Low"/> — which is the Scunthorpe case, and is why it
-    /// can never block.
+    /// <see cref="ProfanityConfidence.Medium"/> at any level, and a match found inside a longer word
+    /// or across a word break is capped in <see cref="ProfanityConfidence.Low"/> — which is why
+    /// neither can ever block.
     /// </summary>
     public static (ProfanitySeverity Severity, ProfanityConfidence Confidence) Floors(ProfanityLevel level)
         => level switch
         {
-            ProfanityLevel.Lax => (ProfanitySeverity.High, ProfanityConfidence.High),
-            ProfanityLevel.Safe => (ProfanitySeverity.Medium, ProfanityConfidence.High),
+            ProfanityLevel.Minimal => (ProfanitySeverity.High, ProfanityConfidence.High),
+            ProfanityLevel.Lax => (ProfanitySeverity.High, ProfanityConfidence.Medium),
+            ProfanityLevel.Safe => (ProfanitySeverity.Medium, ProfanityConfidence.Medium),
             ProfanityLevel.Strict => (ProfanitySeverity.Low, ProfanityConfidence.Medium),
             _ => (ProfanitySeverity.Mild, ProfanityConfidence.Medium)
         };
@@ -35,13 +36,15 @@ public static class ProfanityLevelPolicy
     /// The band a percentage falls in. Half-open, so each score belongs to exactly one band —
     /// 0 alone is None, and only 100 is Certain.
     /// </summary>
-    public static ProfanityConfidence ToConfidence(int score)
-        => score switch
-        {
-            <= 0 => ProfanityConfidence.None,
-            < 40 => ProfanityConfidence.Low,
-            < 70 => ProfanityConfidence.Medium,
-            < 100 => ProfanityConfidence.High,
-            _ => ProfanityConfidence.Certain
-        };
+    /// <param name="score">The confidence percentage.</param>
+    /// <param name="mediumMinimum">The floor of the medium band, from <c>ProfanityModerationOptions</c>.</param>
+    /// <param name="highMinimum">The floor of the high band, from <c>ProfanityModerationOptions</c>.</param>
+    public static ProfanityConfidence ToConfidence(int score, ushort mediumMinimum, ushort highMinimum)
+    {
+        if(score <= 0) return ProfanityConfidence.None;
+        if(score < mediumMinimum) return ProfanityConfidence.Low;
+        if(score < highMinimum) return ProfanityConfidence.Medium;
+
+        return score < 100 ? ProfanityConfidence.High : ProfanityConfidence.Certain;
+    }
 }

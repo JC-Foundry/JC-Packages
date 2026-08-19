@@ -1,7 +1,7 @@
 using Ganss.Xss;
-using JC.Content.Moderation.Helpers;
+using JC.Content.Helpers;
 
-namespace JC.Content.Moderation.Models.Options;
+namespace JC.Content.Models.Options;
 
 /// <summary>
 /// The allowlists and switches a <see cref="ContentSanitiser"/> enforces. Start from one of the

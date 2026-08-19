@@ -27,6 +27,9 @@ internal sealed class CanonicalText
     /// <summary>Which folded characters were a mask standing in for a letter.</summary>
     public required bool[] IsWildcard { get; init; }
 
+    /// <summary>Which separators stood on whitespace, and so mark a real word boundary.</summary>
+    public required bool[] IsWordBreak { get; init; }
+
     public int Length => Value.Length;
 
     /// <summary>

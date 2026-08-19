@@ -1,6 +1,7 @@
 using JC.Content.Moderation.Enums;
 using JC.Content.Moderation.Helpers;
 using JC.Content.Moderation.Models;
+using JC.Content.Moderation.Models.Options;
 
 namespace JC.Content.Moderation.Services;
 
@@ -37,8 +38,11 @@ internal sealed class ProfanityMatcher
                 var indexed = new IndexedSpelling(term, canonical);
                 _all.Add(indexed);
 
-                if(!_byFirstCharacter.TryGetValue(canonical[0], out var bucket))
-                    _byFirstCharacter[canonical[0]] = bucket = [];
+                //Bucketed on the folded letter, so content spelling it with a look-alike still lands
+                //in the same bucket - 'zex' has to reach the terms filed under 's'
+                var key = ProfanityCanonicaliser.FoldConfusable(canonical[0]);
+                if(!_byFirstCharacter.TryGetValue(key, out var bucket))
+                    _byFirstCharacter[key] = bucket = [];
 
                 bucket.Add(indexed);
             }
@@ -49,7 +53,7 @@ internal sealed class ProfanityMatcher
     /// Scans <paramref name="canonical"/> and reports every hit, including ones that will not count.
     /// Overlaps are resolved here — a longer or more severe match supersedes what it contains.
     /// </summary>
-    public List<ProfanityMatch> Find(string content, CanonicalText canonical, bool matchInsideWords, int contextCharacters)
+    public List<ProfanityMatch> Find(string content, CanonicalText canonical, ProfanityModerationOptions options)
     {
         var found = new List<ProfanityMatch>(); //Unresolved; overlaps are settled at the end
 
@@ -61,17 +65,21 @@ internal sealed class ProfanityMatcher
             //A masked first character could begin any term, so the index cannot narrow it
             var candidates = canonical.IsWildcard[start]
                 ? _all
-                : _byFirstCharacter.GetValueOrDefault(canonical.Value[start]);
+                : _byFirstCharacter.GetValueOrDefault(
+                    ProfanityCanonicaliser.FoldConfusable(canonical.Value[start]));
 
             if(candidates == null)
                 continue;
 
             foreach (var candidate in candidates)
             {
-                if(!TryMatch(canonical, start, candidate.Canonical, out var end, out var flags, out var leet, out var diacritics))
+                if(!TryMatch(canonical, start, candidate.Canonical, candidate.Letters,
+                       options.MatchAcrossWordBreaks,
+                       out var end, out var flags, out var leet, out var masks, out var confusables))
                     continue;
 
-                var match = Build(content, canonical, candidate, start, end, flags, leet, diacritics, matchInsideWords, contextCharacters);
+                var match = Build(content, canonical, candidate, start, end, flags, leet, masks,
+                    confusables, options);
                 if(match != null)
                     found.Add(match);
             }
@@ -91,16 +99,20 @@ internal sealed class ProfanityMatcher
     private static bool TryMatch(CanonicalText text,
         int start,
         string spelling,
+        int letters,
+        bool matchAcrossWordBreaks,
         out int end,
         out ProfanityTransformation flags,
-        out int leetCount,
-        out int diacriticCount)
+        out int leetPositions,
+        out int maskPositions,
+        out int confusablePositions)
     {
         var ti = start;
         var si = 0;
         flags = ProfanityTransformation.None;
-        leetCount = 0;
-        diacriticCount = 0;
+        leetPositions = 0;
+        maskPositions = 0;
+        confusablePositions = 0;
         end = start;
 
         while (si < spelling.Length)
@@ -125,23 +137,40 @@ internal sealed class ProfanityMatcher
             }
 
             var have = 0;
+            var leet = false;
+            var masked = false;
+            var confused = false;
+
             while (ti < text.Length)
             {
-                //A mask only fills a place the term still needs. Letting it extend a run would have
-                //the previous letter swallow it, leaving nothing to stand in for the letter it hid
-                if(text.Value[ti] == sc || (text.IsWildcard[ti] && have < need))
-                {
-                    if(text.IsWildcard[ti])
-                        flags |= ProfanityTransformation.MaskWildcard;
+                //Only a mismatch costs anything: 'l' against the term's own 'l' is the letter, not an
+                //evasion, where 'l' against its 'i' is one
+                var exact = text.Value[ti] == sc;
+                var wildcard = text.IsWildcard[ti];
 
+                //An inexact character only fills a place the term still needs. Letting one pad a run
+                //would have this letter swallow the next one - the 'i' of 'pillock' eating its 'll'
+                var inexact = !exact
+                              && have < need
+                              && (wildcard || ProfanityCanonicaliser.AreConfusable(text.Value[ti], sc));
+
+                if(exact || inexact)
+                {
                     var applied = text.Applied[ti];
                     flags |= applied;
 
-                    if(applied.HasFlag(ProfanityTransformation.Leetspeak))
-                        leetCount++;
-
-                    if(applied.HasFlag(ProfanityTransformation.DiacriticsRemoved))
-                        diacriticCount++;
+                    //First mechanism to explain the character claims it, and nothing charges twice.
+                    //Leetspeak already accounts for a '1' standing in for the term's 'l', so that is
+                    //not also a look-alike substitution
+                    if(wildcard)
+                        masked = true;
+                    else if(applied.HasFlag(ProfanityTransformation.Leetspeak))
+                        leet = true;
+                    else if(inexact)
+                    {
+                        confused = true;
+                        flags |= ProfanityTransformation.ConfusableFolded;
+                    }
 
                     have++;
                     ti++;
@@ -154,12 +183,25 @@ internal sealed class ProfanityMatcher
                 if(ti > start && text.IsSeparator[ti])
                 {
                     var skip = ti;
-                    while (skip < text.Length && text.IsSeparator[skip])
-                        skip++;
+                    var wordBreak = false;
 
-                    if(skip < text.Length && (text.Value[skip] == sc || text.IsWildcard[skip]))
+                    while (skip < text.Length && text.IsSeparator[skip])
                     {
-                        flags |= ProfanityTransformation.SeparatorsRemoved;
+                        wordBreak |= text.IsWordBreak[skip];
+                        skip++;
+                    }
+
+                    //Whitespace means the two sides were never one word
+                    if(wordBreak && !matchAcrossWordBreaks)
+                        break;
+
+                    if(skip < text.Length && (text.Value[skip] == sc || text.IsWildcard[skip]
+                                              || ProfanityCanonicaliser.AreConfusable(text.Value[skip], sc)))
+                    {
+                        flags |= wordBreak
+                            ? ProfanityTransformation.WordBreakRemoved
+                            : ProfanityTransformation.SeparatorsRemoved;
+
                         ti = skip;
                         continue;
                     }
@@ -174,8 +216,20 @@ internal sealed class ProfanityMatcher
             if(have > need)
                 flags |= ProfanityTransformation.RunExpanded;
 
+            //Counted as letters of the term hidden, not characters consumed, so it stays comparable to
+            //the term length: 'sh1t' and 'sh111t' hide one letter, but the 'ss' of 'a55' hides two
+            if(leet) leetPositions += need;
+            if(masked) maskPositions += need;
+            if(confused) confusablePositions += need;
+
             si += need;
         }
+
+        //A mask stands for any letter, so a term reached mostly by masks is reached by every other
+        //term of that length too - '***' is not a match, it is a wildcard. Leetspeak is exempt: '5'
+        //means 's' and nothing else, so those matches are uncertain rather than meaningless
+        if(maskPositions * 2 > letters)
+            return false;
 
         end = ti;
         return end > start;
@@ -187,10 +241,10 @@ internal sealed class ProfanityMatcher
         int start,
         int end,
         ProfanityTransformation flags,
-        int leetCount,
-        int diacriticCount,
-        bool matchInsideWords,
-        int contextCharacters)
+        int leetPositions,
+        int maskPositions,
+        int confusablePositions,
+        ProfanityModerationOptions options)
     {
         var term = candidate.Term;
 
@@ -203,9 +257,11 @@ internal sealed class ProfanityMatcher
         var endsWord = originalEnd >= content.Length || !char.IsLetterOrDigit(content[originalEnd]);
         var wholeWord = startsWord && endsWord;
 
+        //Reported but never counted - the ceiling in the scorer keeps every one of these in Low.
+        //WholeWordOnly mutes the reporting for a term that proves too noisy inside other words
         if(!wholeWord)
         {
-            if(term.WholeWordOnly || !matchInsideWords)
+            if(term.WholeWordOnly || !options.MatchInsideWords)
                 return null;
 
             flags |= ProfanityTransformation.InsideWord;
@@ -221,19 +277,21 @@ internal sealed class ProfanityMatcher
 
         var score = allowed
             ? 0
-            : ProfanityConfidenceScorer.Score(flags, leetCount, diacriticCount, !wholeWord);
+            : ProfanityConfidenceScorer.Score(flags, leetPositions, maskPositions, confusablePositions,
+                candidate.Letters, options.MediumConfidenceMinimum);
 
         return new ProfanityMatch
         {
             TermId = term.Id,
             MatchedText = matchedText,
-            Context = Context(content, originalStart, originalEnd, contextCharacters),
+            Context = Context(content, originalStart, originalEnd, options.ContextCharacters),
             Index = originalStart,
             Length = originalEnd - originalStart,
             Severity = term.Severity,
             Category = term.Category,
             Source = term.Source,
-            Confidence = ProfanityLevelPolicy.ToConfidence(score),
+            Confidence = ProfanityLevelPolicy.ToConfidence(score, options.MediumConfidenceMinimum,
+                options.HighConfidenceMinimum),
             ConfidenceScore = score,
             Transformations = flags,
             Allowed = allowed
@@ -277,10 +335,13 @@ internal sealed class ProfanityMatcher
         //One term can reach the same span by two of its own spellings - 'sandnigger' gets there by
         //stepping over the space that 'sand nigger' matches directly. That is one finding, not two,
         //so the weaker route is dropped rather than reported as superseded
+        //Reliable first, whatever its severity. A capped match is one no level can act on, so letting
+        //it take a contested span would supersede the real finding and stop the content blocking
         var ordered = found
             .GroupBy(m => (m.TermId, m.Index, m.Length))
             .Select(g => g.OrderByDescending(m => m.ConfidenceScore).First())
-            .OrderByDescending(m => m.Severity)
+            .OrderBy(IsCapped)
+            .ThenByDescending(m => m.Severity)
             .ThenByDescending(m => m.Length)
             .ThenByDescending(m => m.ConfidenceScore)
             .ToList();
@@ -303,6 +364,11 @@ internal sealed class ProfanityMatcher
         return resolved.OrderBy(m => m.Index).ToList();
     }
 
+    /// <summary>Whether the scorer held this match in Low, so no level could ever count it.</summary>
+    private static bool IsCapped(ProfanityMatch match)
+        => match.Transformations.HasFlag(ProfanityTransformation.InsideWord)
+           || match.Transformations.HasFlag(ProfanityTransformation.WordBreakRemoved);
+
     private static ProfanityMatch Supersede(ProfanityMatch match) => new()
     {
         TermId = match.TermId,
@@ -320,5 +386,9 @@ internal sealed class ProfanityMatcher
         Superseded = true
     };
 
-    private sealed record IndexedSpelling(ProfanityTerm Term, string Canonical);
+    private sealed record IndexedSpelling(ProfanityTerm Term, string Canonical)
+    {
+        /// <summary>Letters the term has to match, excluding the spaces in a phrase.</summary>
+        public int Letters { get; } = Canonical.Count(c => c != ' ');
+    }
 }

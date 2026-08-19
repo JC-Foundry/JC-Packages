@@ -22,7 +22,10 @@ public enum ProfanityTransformation
     /// <summary>A digit or symbol stood in for a letter — 'sh1t', 'a55'.</summary>
     Leetspeak = 8,
 
-    /// <summary>Characters were inserted between the letters — 's.h.i.t'.</summary>
+    /// <summary>
+    /// Punctuation was stepped over between the letters — 's.h.i.t'. Within a single token, so it
+    /// cannot join text that was already separate.
+    /// </summary>
     SeparatorsRemoved = 16,
 
     /// <summary>A letter was masked out — 'f*ck'. Evidence of intent rather than of doubt.</summary>
@@ -32,5 +35,11 @@ public enum ProfanityTransformation
     InsideWord = 64,
 
     /// <summary>A letter from another script stood in for a Latin one — Cyrillic 'а' for 'a'.</summary>
-    HomoglyphFolded = 128
+    HomoglyphFolded = 128,
+
+    /// <summary>Whitespace was stepped over — 'Ann, Al' reaching 'anal'. Caps confidence, so it can never block.</summary>
+    WordBreakRemoved = 256,
+
+    /// <summary>One Latin letter stood in for another — 'fvck', 'shlt'.</summary>
+    ConfusableFolded = 512
 }

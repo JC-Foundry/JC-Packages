@@ -20,6 +20,7 @@ A suite of .NET 9 NuGet packages providing shared infrastructure for .NET applic
 | **JC.BackgroundJobs** | Lightweight hosted-service background jobs and Hangfire recurring/ad-hoc job integration | [Documentation](Documentation/JC.BackgroundJobs/) |
 | **JC.FileStorage** | Tenant-scoped file storage on disk with database-backed records, audited deletion, per-folder size and type limits, single-level folder separation, and read-only static files served from a deploy-time directory | [Documentation](Documentation/JC.FileStorage/) |
 | **JC.FileStorage.Web** | ASP.NET Core integration for JC.FileStorage — `IFormFile` handling, MIME type inference, an upload constraints tag helper, and an `IApplicationBuilder` overload of `AddFolders` | [Documentation](Documentation/JC.FileStorage/) |
+| **JC.Content** | Content processing — profanity moderation with evasion-aware matching and confidence scoring, diffing by line/word/character, conversion between plain text, Markdown and HTML, HTML sanitisation, and Unicode normalisation. No database, no ASP.NET Core dependency and no configuration | [Documentation](Documentation/JC.Content/) |
 | **JC.SqlServer.Hangfire** | Hangfire SQL Server storage registration for JC-Packages applications | — |
 
 ## Prerequisites
@@ -50,6 +51,7 @@ JC.Core (foundation — no JC dependencies)
 │   └── JC.Communication.Web (depends on JC.Communication + JC.Web)
 ├── JC.Github
 ├── JC.BackgroundJobs
+├── JC.Content
 ├── JC.FileStorage
 │   └── JC.FileStorage.Web (depends on JC.FileStorage + JC.Web)
 ├── JC.MySql
@@ -62,7 +64,9 @@ Every package except JC.SqlServer.Hangfire depends on **JC.Core**. The database 
 
 **Identity and tenancy are independent.** `JC.Tenancy` references no identity package, and no identity package references `JC.Tenancy` — the consuming application joins them. That is what lets an application take tenancy without users, or identity without tenants. `JC.Identity` brings `JC.Identity.Shared` and `JC.Identity.Shared.Web` with it; reference the Shared halves directly only when supplying identity from somewhere other than local ASP.NET Identity.
 
-**JC.Core, JC.Tenancy, JC.Identity.Shared, JC.Communication, JC.BackgroundJobs and JC.FileStorage carry no ASP.NET Core dependency**, so they run unchanged from a worker service or console host.
+**JC.Core, JC.Tenancy, JC.Identity.Shared, JC.Communication, JC.BackgroundJobs, JC.Content and JC.FileStorage carry no ASP.NET Core dependency**, so they run unchanged from a worker service or console host.
+
+**JC.Content depends on JC.Core for consistency with the rest of the suite, but uses nothing from it.** It holds no entities, reads no configuration and touches no database, so it needs neither `AddCore` nor a `DbContext` to work.
 
 **JC.FileStorage** depends only on JC.Core, but JC.Tenancy is required for tenant isolation — without it, every stored file belongs to the no-tenant scope. **JC.FileStorage.Web** is optional and needed only by web applications: it adds `IFormFile` handling, a tag helper, and an `IApplicationBuilder` overload of `AddFolders`.
 
@@ -276,6 +280,21 @@ Adds `IFormFile` uploads, downloads with MIME type inference, and an upload cons
 
 The tag helper reads the folder's limits from `FolderRegistry`, so the help text cannot drift from what the server enforces. See the [JC.FileStorage documentation](Documentation/JC.FileStorage/) — JC.FileStorage.Web is documented alongside it.
 
+### JC.Content
+
+```csharp
+builder.Services.AddContentManager();
+```
+
+Registers moderation, comparison and conversion, and the `ContentManager` that runs them as a pipeline:
+
+```csharp
+var response = content.NormaliseAndModerate(comment);
+var clean = response.ProfanityModerationMaskResult.UpdatedContent;
+```
+
+Each area can be registered on its own with `AddContentModeration`, `AddContentComparison` or `AddContentConversion`. `ContentSanitiser` and `NormalisationHelper` need no registration. See the [JC.Content documentation](Documentation/JC.Content/) for levels, term configuration and sanitiser policies.
+
 ### JC.SqlServer.Hangfire
 
 ```csharp
@@ -399,6 +418,7 @@ Full documentation for each package is available in the [Documentation](Document
 | JC.BackgroundJobs | [Setup](Documentation/JC.BackgroundJobs/Setup.md) | [Guide](Documentation/JC.BackgroundJobs/Guide.md) | [API](Documentation/JC.BackgroundJobs/API.md) |
 | JC.FileStorage | [Setup](Documentation/JC.FileStorage/Setup.md) | [Guide](Documentation/JC.FileStorage/Guide.md) | [API](Documentation/JC.FileStorage/API.md) |
 | JC.FileStorage.Web | [Setup](Documentation/JC.FileStorage/Setup.md) | [Guide](Documentation/JC.FileStorage/Guide.md) | [API](Documentation/JC.FileStorage/API.md) |
+| JC.Content | [Setup](Documentation/JC.Content/Setup.md) | [Guide](Documentation/JC.Content/Guide.md) | [API](Documentation/JC.Content/API.md) |
 | JC.MySql / JC.SqlServer | [Database Setup](Documentation/JC.Core/Database-Setup.md) | — | — |
 
 ## Build from Source

@@ -4,9 +4,9 @@ using JC.Content.Moderation.Models;
 namespace JC.Content.Moderation.Data;
 
 /// <summary>
-/// Our curation on top of the imported list, and the main source of
-/// <see cref="ProfanitySeverity.Severe"/> — an imported slur reaches that band only by being rated
-/// 4 upstream and promoted a rung.
+/// Our curation on top of the imported list: the slurs it under-rates, and the words it has no entry
+/// for at all. Also the main source of <see cref="ProfanitySeverity.Severe"/> — an imported slur
+/// reaches that band only by being rated 4 upstream and promoted a rung.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -71,9 +71,8 @@ internal static class CuratedProfanityTerms
         };
 
     /// <summary>
-    /// Slurs the imported list has no entry for. Whole-word only, like everything at this severity:
-    /// these are short, several sit inside innocent words, and a term that blocks at every level
-    /// leaves an application no setting to escape to.
+    /// Terms the imported list has no entry for — slurs it misses, inflections it carries no spelling
+    /// for, and British slang it does not cover.
     /// </summary>
     public static IReadOnlyList<ProfanityTerm> Additions() =>
     [
@@ -85,24 +84,61 @@ internal static class CuratedProfanityTerms
 
         // 'queer' is deliberately absent: widely reclaimed and used self-referentially, so it cannot
         // be blocked at every level without blocking the people it belongs to
-        Sexuality("poofter", ["poofter", "poofters"])
+        Sexuality("poofter", ["poofter", "poofters"]),
+
+        //Inflections upstream has no spelling for. 'shitty' is already there, 'shitting' is not
+        General("shitting", ProfanitySeverity.Low, ["shitting", "shits", "shitter", "shitters"]),
+        General("shite", ProfanitySeverity.Low, ["shite", "shites"]),
+        General("gobshite", ProfanitySeverity.Medium, ["gobshite", "gobshites"]),
+        General("cunty", ProfanitySeverity.High, ["cunty", "cunting", "cunted"]),
+
+        //British slang the upstream list does not carry. Banded against what it does: 'bollocks' and
+        //'bugger' sit at Mild, 'wanker' and 'tosser' at Low, 'twat' and 'bellend' at Medium
+        Sexual("slag", ProfanitySeverity.Medium, ["slag", "slags"]),
+        Sexual("slut", ProfanitySeverity.Medium, ["slut", "sluts", "slutty", "slutting"]),
+        Sexual("cumslut", ProfanitySeverity.Medium, ["cumslut", "cumsluts", "cum slut", "cum sluts"]),
+        Sexual("minge", ProfanitySeverity.Medium, ["minge", "minges"]),
+        Sexual("bint", ProfanitySeverity.Low, ["bint", "bints"]),
+        General("knobhead", ProfanitySeverity.Medium, ["knobhead", "knobheads", "knob-head"]),
+        General("minger", ProfanitySeverity.Low, ["minger", "mingers", "minging"]),
+        General("chav", ProfanitySeverity.Low, ["chav", "chavs", "chavvy"]),
+        General("pillock", ProfanitySeverity.Mild, ["pillock", "pillocks"]),
+        General("plonker", ProfanitySeverity.Mild, ["plonker", "plonkers"]),
+        General("prat", ProfanitySeverity.Mild, ["prat", "prats"]),
+        General("berk", ProfanitySeverity.Mild, ["berk", "berks"]),
+        General("numpty", ProfanitySeverity.Mild, ["numpty", "numpties"]),
+        General("wazzock", ProfanitySeverity.Mild, ["wazzock", "wazzocks"]),
+        Sexual("knob", ProfanitySeverity.Mild, ["knob", "knobs"], ["doorknob", "doorknobs"]),
+
+        //Mild on purpose: far more often a version control system than an insult
+        General("git", ProfanitySeverity.Mild, ["git", "gits"], ["github", "gitlab", "gitignore", "gitea"])
     ];
 
+    //'slagging' is absent deliberately - slagging someone off is criticism, not the noun
+
     private static ProfanityTerm Racial(string id, IEnumerable<string> matches, IEnumerable<string>? exceptions = null)
-        => Curated(id, matches, ProfanityCategory.Racial, exceptions);
+        => Curated(id, ProfanitySeverity.Severe, ProfanityCategory.Racial, matches, exceptions);
 
     private static ProfanityTerm Sexuality(string id, IEnumerable<string> matches, IEnumerable<string>? exceptions = null)
-        => Curated(id, matches, ProfanityCategory.Sexuality, exceptions);
+        => Curated(id, ProfanitySeverity.Severe, ProfanityCategory.Sexuality, matches, exceptions);
+
+    private static ProfanityTerm General(string id, ProfanitySeverity severity, IEnumerable<string> matches,
+        IEnumerable<string>? exceptions = null)
+        => Curated(id, severity, ProfanityCategory.General, matches, exceptions);
+
+    private static ProfanityTerm Sexual(string id, ProfanitySeverity severity, IEnumerable<string> matches,
+        IEnumerable<string>? exceptions = null)
+        => Curated(id, severity, ProfanityCategory.Sexual, matches, exceptions);
 
     private static ProfanityTerm Curated(string id,
-        IEnumerable<string> matches,
+        ProfanitySeverity severity,
         ProfanityCategory category,
+        IEnumerable<string> matches,
         IEnumerable<string>? exceptions)
         => new(id,
             matches,
-            ProfanitySeverity.Severe,
+            severity,
             category,
             ProfanityTermSource.BuiltIn,
-            exceptions,
-            wholeWordOnly: true);
+            exceptions);
 }

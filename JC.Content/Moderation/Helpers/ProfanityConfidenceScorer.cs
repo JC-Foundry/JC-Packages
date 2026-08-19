@@ -3,76 +3,64 @@ using JC.Content.Moderation.Enums;
 namespace JC.Content.Moderation.Helpers;
 
 /// <summary>
-/// Turns the work a match needed into a confidence percentage. The principle: the harder the matcher
-/// had to work, the less certain the finding — except where the work itself proves intent.
+/// Turns the work a match needed into a confidence percentage.
 /// </summary>
+/// <remarks>
+/// Only transformations that can fabricate a match from innocent text are priced, in proportion to
+/// how much of the term they account for. Ones that can only decode a deliberate match are free, and
+/// structurally unreliable matches are capped rather than deducted.
+/// </remarks>
 internal static class ProfanityConfidenceScorer
 {
-    private const int DiacriticEach = 8;
-    private const int DiacriticCap = 24;
-    private const int Mask = 25;
-    private const int RunExpansion = 35;
-    private const int Separators = 35;
-    private const int LeetFirst = 35;
-    private const int LeetEach = 10;
-    private const int LeetCap = 60;
+    //Cost of substituting every letter of a term. Masking scores below leetspeak: a '*' cannot occur
+    //by accident, where '1' and '5' turn up in part numbers and identifiers
+    private const int LeetWeight = 90;
+    private const int MaskWeight = 92;
 
-    /// <summary>Stacking two kinds of evasion is far weaker evidence than either alone.</summary>
-    private const int StackedTypes = 20;
+    //Its own weight, not leetspeak's: the source is an ordinary letter, so this fires on prose in a
+    //way '1' and '@' never do
+    private const int ConfusableWeight = 90;
 
-    /// <summary>
-    /// A match inside a longer word never rises above <see cref="ProfanityConfidence.Low"/>, and no
-    /// level blocks on Low. Capping rather than deducting makes that a guarantee rather than an
-    /// arithmetic coincidence — this is the Scunthorpe case, and it must never block.
-    /// </summary>
-    private const int InsideWordCeiling = 39;
-
+    /// <param name="transformations">What the matcher did to the text to find this.</param>
+    /// <param name="leetPositions">Letters of the term hidden behind a leetspeak character.</param>
+    /// <param name="maskPositions">Letters of the term hidden behind a mask.</param>
+    /// <param name="confusablePositions">Letters of the term written as a look-alike letter.</param>
+    /// <param name="termLength">Letters the term had to match, excluding phrase spaces.</param>
+    /// <param name="mediumConfidenceMinimum">The floor of the medium band, which the ceiling sits below.</param>
     public static int Score(ProfanityTransformation transformations,
-        int leetCount,
-        int diacriticCount,
-        bool insideWord)
+        int leetPositions,
+        int maskPositions,
+        int confusablePositions,
+        int termLength,
+        ushort mediumConfidenceMinimum)
     {
-        var score = 100;
-        var evasions = 0;
-
-        //Case and homoglyphs cost nothing: both are lossless, where a mask stands for any letter and
-        //'1' could be 'i' or 'l'. The deductions below price that ambiguity
-        if(transformations.HasFlag(ProfanityTransformation.DiacriticsRemoved))
-        {
-            score -= Math.Min(diacriticCount * DiacriticEach, DiacriticCap);
-            evasions++;
-        }
-
-        //Scores above leetspeak on purpose: typing 'f*ck' proves the writer knew what it was
-        if(transformations.HasFlag(ProfanityTransformation.MaskWildcard))
-        {
-            score -= Mask;
-            evasions++;
-        }
-
-        if(transformations.HasFlag(ProfanityTransformation.RunExpanded))
-        {
-            score -= RunExpansion;
-            evasions++;
-        }
-
-        if(transformations.HasFlag(ProfanityTransformation.SeparatorsRemoved))
-        {
-            score -= Separators;
-            evasions++;
-        }
-
-        if(transformations.HasFlag(ProfanityTransformation.Leetspeak))
-        {
-            score -= Math.Min(LeetFirst + Math.Max(leetCount - 1, 0) * LeetEach, LeetCap);
-            evasions++;
-        }
-
-        if(evasions >= 2)
-            score -= StackedTypes;
+        //Case, homoglyphs, accents, repeated letters and in-word punctuation are all free: each needs
+        //the term's letters already present in order, so none can invent a match
+        var score = 100
+                    - Deduct(leetPositions, termLength, LeetWeight)
+                    - Deduct(maskPositions, termLength, MaskWeight)
+                    - Deduct(confusablePositions, termLength, ConfusableWeight);
 
         score = Math.Clamp(score, 1, 100);
 
-        return insideWord ? Math.Min(score, InsideWordCeiling) : score;
+        //Derived from the configured band, not a constant: an unreliable match has to stay in Low
+        //wherever the caller has put its floor, or no level could still guarantee it never blocks
+        return IsUnreliable(transformations)
+            ? Math.Min(score, mediumConfidenceMinimum - 1)
+            : score;
     }
+
+    /// <summary>Whether the match spans text that may never have been one word.</summary>
+    private static bool IsUnreliable(ProfanityTransformation transformations)
+        => transformations.HasFlag(ProfanityTransformation.InsideWord)
+           || transformations.HasFlag(ProfanityTransformation.WordBreakRemoved);
+
+    /// <summary>
+    /// Prices a substitution by the share of the term it hides, so a long word survives what a short
+    /// one does not — three swapped letters is most of 'shit' but a quarter of 'motherfucker'.
+    /// </summary>
+    private static int Deduct(int positions, int termLength, int weight)
+        => positions <= 0 || termLength <= 0
+            ? 0
+            : (int)Math.Round(weight * Math.Min(positions, termLength) / (double)termLength);
 }

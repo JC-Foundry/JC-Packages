@@ -52,6 +52,25 @@ internal static class ProfanityCanonicaliser
         ['ρ'] = 'p', ['ς'] = 's', ['τ'] = 't', ['υ'] = 'y', ['χ'] = 'x'
     };
 
+    /// <summary>
+    /// Latin letters standing in for other Latin letters — 'fvck', 'shlt'. Compared rather than
+    /// folded: a term holding an 'l' has not been evaded, so only a mismatch costs anything.
+    /// </summary>
+    private static readonly Dictionary<char, char> Confusables = new()
+    {
+        ['v'] = 'u',
+        ['l'] = 'i',
+        ['z'] = 's'
+    };
+
+    /// <summary>The letter a look-alike stands for, or the letter itself. Used to bucket the index.</summary>
+    public static char FoldConfusable(char value)
+        => Confusables.GetValueOrDefault(value, value);
+
+    /// <summary>Whether two letters differ only by a look-alike substitution.</summary>
+    public static bool AreConfusable(char left, char right)
+        => left != right && FoldConfusable(left) == FoldConfusable(right);
+
     /// <summary>Placeholder for a masked letter. A private-use code point, so it cannot occur in
     /// real content or in a term, and only ever matches by the rule that handles it.</summary>
     public const char Wildcard = '';
@@ -64,6 +83,7 @@ internal static class ProfanityCanonicaliser
         var applied = new List<ProfanityTransformation>(text.Length);
         var isSeparator = new List<bool>(text.Length);
         var isWildcard = new List<bool>(text.Length);
+        var isWordBreak = new List<bool>(text.Length);
 
         for (var i = 0; i < text.Length; i++)
         {
@@ -102,8 +122,8 @@ internal static class ProfanityCanonicaliser
 
             if(Leet.TryGetValue(c, out var decoded))
             {
-                Append(decoded, transformation | ProfanityTransformation.Leetspeak, separator: false, wildcard: false);
-                continue;
+                c = decoded;
+                transformation |= ProfanityTransformation.Leetspeak;
             }
 
             if(char.IsLetterOrDigit(c))
@@ -117,13 +137,16 @@ internal static class ProfanityCanonicaliser
             if(value.Count > 0 && isSeparator[^1])
             {
                 sourceLength[^1] = i - sourceIndex[^1] + 1;
+                isWordBreak[^1] |= char.IsWhiteSpace(original);
                 continue;
             }
 
-            Append(' ', ProfanityTransformation.None, separator: true, wildcard: false);
+            Append(' ', ProfanityTransformation.None, separator: true, wildcard: false,
+                wordBreak: char.IsWhiteSpace(original));
             continue;
 
-            void Append(char ch, ProfanityTransformation applying, bool separator, bool wildcard)
+            void Append(char ch, ProfanityTransformation applying, bool separator, bool wildcard,
+                bool wordBreak = false)
             {
                 value.Add(ch);
                 sourceIndex.Add(i);
@@ -131,6 +154,7 @@ internal static class ProfanityCanonicaliser
                 applied.Add(applying);
                 isSeparator.Add(separator);
                 isWildcard.Add(wildcard);
+                isWordBreak.Add(wordBreak);
             }
         }
 
@@ -141,7 +165,8 @@ internal static class ProfanityCanonicaliser
             SourceLength = [.. sourceLength],
             Applied = [.. applied],
             IsSeparator = [.. isSeparator],
-            IsWildcard = [.. isWildcard]
+            IsWildcard = [.. isWildcard],
+            IsWordBreak = [.. isWordBreak]
         };
     }
 

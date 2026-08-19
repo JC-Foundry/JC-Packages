@@ -1,9 +1,9 @@
 using Ganss.Xss;
-using JC.Content.Moderation.Models.Options;
+using JC.Content.Models.Options;
 
 // ReSharper disable ConditionalAccessQualifierIsNonNullableAccordingToAPIContract
 
-namespace JC.Content.Moderation.Helpers;
+namespace JC.Content.Helpers;
 /// <summary>
 /// Server-side sanitisation for HTML authored by a user — typically the output of a rich-text editor.
 /// Everything outside the configured allowlist is removed: scripts, event handlers,

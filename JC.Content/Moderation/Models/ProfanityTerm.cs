@@ -1,3 +1,4 @@
+using JC.Content.Helpers;
 using JC.Content.Moderation.Enums;
 
 namespace JC.Content.Moderation.Models;
@@ -24,8 +25,9 @@ public class ProfanityTerm
     public ProfanityTermSource Source { get; }
 
     /// <summary>
-    /// Whether this term only matches as a whole word. Short terms need it — 'cum' sits inside
-    /// 'document' and 'circumstance' — and it stops those being scanned for at all.
+    /// Whether to stop reporting this term when it turns up inside a longer word — 'cum' in
+    /// 'document', 'ass' in 'classic'. Off by default: an inside-word match is capped in Low and can
+    /// never block, so this only silences the noise a term makes in ordinary prose.
     /// </summary>
     public bool WholeWordOnly { get; }
 
@@ -41,7 +43,7 @@ public class ProfanityTerm
         ProfanityCategory category,
         ProfanityTermSource source = ProfanityTermSource.Configured,
         IEnumerable<string>? exceptions = null,
-        bool wholeWordOnly = true,
+        bool wholeWordOnly = false,
         int? sourceSeverity = null)
     {
         if(string.IsNullOrWhiteSpace(id))
@@ -64,9 +66,13 @@ public class ProfanityTerm
         SourceSeverity = sourceSeverity;
     }
 
-    //Lower-cased and de-duplicated on the way in, so the matcher never has to care how they arrived
+    //Cleaned, lower-cased and de-duplicated on the way in, so the matcher never has to care how they
+    //arrived. A decomposed accent or a zero-width would otherwise reach the canonicaliser as a
+    //non-letter, which reads as a separator and quietly turns the term into a phrase
     private static IReadOnlyList<string> Normalise(IEnumerable<string>? values)
         => values?
+               .Select(v => NormalisationHelper.RemoveInvisibleCharacters(
+                   NormalisationHelper.NormaliseUnicode(v)))
                .Where(v => !string.IsNullOrWhiteSpace(v))
                .Select(v => v.Trim().ToLowerInvariant())
                .Distinct()

@@ -21,9 +21,9 @@ See minor and patch releases below.
 
 ### v6.x.x
 
-| Version                   | Date           | Summary |
-|---------------------------|----------------|---------|
-| [6.1.0](/Minor/v6.1.0.md) | 13 August 2026 |         |
+| Version                          | Date           | Summary                                                                                                                                                                     |
+|----------------------------------|----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [6.1.0](Minor/v6.1.0.md)         | 19 August 2026 | New JC.Content package — moderation, diffing, conversion, sanitisation and normalisation; read-only static files in JC.FileStorage; `ContentSanitiser` moves out of JC.Web |
 
 
 ---

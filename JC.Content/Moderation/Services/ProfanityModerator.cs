@@ -58,7 +58,7 @@ public class ProfanityModerator
         var canonical = ProfanityCanonicaliser.Canonicalise(content);
         var matcher = GetMatcher();
 
-        var found = matcher.Find(content, canonical, _options.MatchInsideWords, _options.ContextCharacters);
+        var found = matcher.Find(content, canonical, _options);
         if(found.Count == 0)
             return ProfanityModerationResult.Clean(applied, truncated, content.Length);
 
@@ -93,11 +93,10 @@ public class ProfanityModerator
     private static ProfanityModerationResult Summarise(List<ProfanityMatch> matches, ProfanityLevel level, bool truncated,
         int scannedLength)
     {
-        var deciding = matches
-            .Where(m => m is { Allowed: false, Superseded: false })
-            .OrderByDescending(m => m.Severity)
-            .ThenByDescending(m => m.ConfidenceScore)
-            .FirstOrDefault();
+        //Counted first, so the inside-word hits that ordinary prose throws off never set the headline
+        //severity while something that actually breached the level is sitting alongside them
+        var deciding = Worst(matches.Where(m => m.Counted))
+                       ?? Worst(matches.Where(m => m is { Allowed: false, Superseded: false }));
 
         return new ProfanityModerationResult
         {
@@ -112,6 +111,13 @@ public class ProfanityModerator
             ScannedLength = scannedLength
         };
     }
+
+    /// <summary>The most severe match, then the most confident of those.</summary>
+    private static ProfanityMatch? Worst(IEnumerable<ProfanityMatch> matches)
+        => matches
+            .OrderByDescending(m => m.Severity)
+            .ThenByDescending(m => m.ConfidenceScore)
+            .FirstOrDefault();
 
     /// <summary>
     /// The matcher for the current term set, rebuilt when the registry has moved on. Indexing the

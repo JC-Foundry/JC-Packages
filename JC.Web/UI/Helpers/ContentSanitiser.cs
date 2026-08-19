@@ -39,7 +39,7 @@ namespace JC.Web.UI.Helpers;
 /// });
 /// </code>
 /// </example>
-[Obsolete("ContentSanitiser has moved to JC.Content. Its replacement (same implementation) can be found at JC.Content.Moderation.Helpers.ContentSanitiser.", error: false)]
+[Obsolete("ContentSanitiser has moved to JC.Content. Its replacement (same implementation) can be found at JC.Content.Helpers.ContentSanitiser.", error: false)]
 public class ContentSanitiser
 {
     private readonly ContentSanitiserOptions _options;

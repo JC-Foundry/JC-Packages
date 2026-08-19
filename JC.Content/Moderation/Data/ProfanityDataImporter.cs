@@ -15,13 +15,6 @@ internal static class ProfanityDataImporter
     private const string ResourceName = "JC.Content.Moderation.Data.en.json";
 
     /// <summary>
-    /// Spellings this short are only ever matched as whole words. 'cum' sits inside 'document' and
-    /// 'circumstance', 'ass' inside 'classic' — at this length an inside-word hit is noise rather
-    /// than evasion, so it is not looked for at all.
-    /// </summary>
-    private const int WholeWordOnlyLength = 4;
-
-    /// <summary>
     /// Terms whose upstream severity we disagree with. These are ordinary English words that the
     /// upstream list rates as profanity, and at their imported severity they would block common,
     /// entirely innocent text — 'sex education', 'nude colour'.
@@ -95,9 +88,9 @@ internal static class ProfanityDataImporter
         var category = promoted ? curatedCategory : MapCategory(tag);
         var source = promoted ? ProfanityTermSource.BuiltIn : ProfanityTermSource.Imported;
 
-        //Upstream never sets allow_partial, so the whole-word decision is ours. Honour it if it ever
-        //starts appearing, otherwise fall back to length
-        var wholeWordOnly = !entry.AllowPartial ?? spellings.Min(s => s.Length) <= WholeWordOnlyLength;
+        //Everything reports inside longer words, since the Low ceiling stops any of it blocking. Only
+        //an upstream entry that explicitly refuses partial matching opts out
+        var wholeWordOnly = entry.AllowPartial is false;
 
         return new ProfanityTerm(entry.Id,
             spellings,
@@ -105,9 +98,7 @@ internal static class ProfanityDataImporter
             category,
             source,
             exceptions,
-            //A promoted slur is always whole-word only: it blocks at every level, so there is no
-            //setting an application could drop to in order to escape an inside-word hit
-            promoted || wholeWordOnly,
+            wholeWordOnly,
             entry.Severity);
     }
 
