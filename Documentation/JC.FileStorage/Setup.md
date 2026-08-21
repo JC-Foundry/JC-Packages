@@ -291,6 +291,8 @@ app.Services.AddStaticFiles(true,
 
 The name must carry an extension — `new StaticFile("privacy-policy")` throws `ArgumentException`. Directory components in the name are stripped, so a name cannot escape the static root.
 
+Registering a file also records its last write time from disk on `StaticFile.LastModifiedUtc`, so a document's date is available without reading its content. It is null if the file is not there — registration records a name, it does not require the file to exist. See the [Guide](Guide.md#when-a-file-last-changed).
+
 Registration and discovery can be combined: leave `autoDiscoverStaticFiles` on and call `AddStaticFiles` as well. Discovery runs first, inside the singleton factory, so a hand-registered file that discovery already found returns `false` and, with `throwOnFail: true`, throws.
 
 Files are keyed by their path beneath the static root, compared case-insensitively, so `legal/terms.md` and `docs/terms.md` are different files while `Legal/Terms.md` and `legal/terms.md` are the same one. Discovery throws `InvalidOperationException` if two files collide — on a case-sensitive file system, `Terms.md` and `TERMS.md` in one directory is the case that does it.
@@ -418,13 +420,21 @@ builder.Services.AddCore<AppDbContext>();
 // plus everything AddFileStorage registers
 builder.Services.AddFileStorageWeb(
     framework: UIFramework.Bootstrap,
-    iconFramework: IconFramework.Bootstrap);
+    iconFramework: IconFramework.Bootstrap,
+    useStaticFiles: false,
+    autoDiscoverStaticFiles: true,
+    staticFileCacheDurationMinutes: 10);
 ```
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `framework` | `UIFramework` | `Bootstrap` | The CSS framework the tag helper renders classes for. Selects `BootstrapFileStorageDictionary`, `TailwindFileStorageDictionary` or `CustomJCTailwindFileStorageDictionary` |
 | `iconFramework` | `IconFramework` | `Bootstrap` | Passed through to `AddUI`. This package registers no icon dictionary of its own — its tag helper renders no glyphs — so this only matters for packages layered above it |
+| `useStaticFiles` | `bool` | `false` | Passed through to `AddFileStorage` |
+| `autoDiscoverStaticFiles` | `bool` | `true` | Passed through to `AddFileStorage` |
+| `staticFileCacheDurationMinutes` | `int` | `10` | Passed through to `AddFileStorage` |
+
+The last three behave exactly as they do on [`AddFileStorage`](#addfilestorage--service-registration) — this method only forwards them. **Before 6.1.1 it did not**, so a web application that registered through `AddFileStorageWeb` got `AddFileStorage()` with its defaults and had no way to turn static files on. Call `AddFileStorage` directly on an earlier version.
 
 | Service | Lifetime | Purpose |
 |---------|----------|---------|
@@ -432,6 +442,7 @@ builder.Services.AddFileStorageWeb(
 | `IFileStorageFrameworkDictionary` | Singleton | The class dictionary for the configured framework |
 | `UIFrameworkService`, `AlertHelper`, `HtmlHelper` | Singleton | Registered by the `AddUI` call inside |
 | `FolderRegistry`, `FilePathProvider`, `StorageService` | As above | Registered by the `AddFileStorage` call inside |
+| `StaticFileRegistry`, `StaticFileService`, `StaticFileCache` | Singleton | Registered by the same call, and only when `useStaticFiles` is `true` |
 
 `StorageService` stays registered and injectable. `WebStorageService` covers uploads, downloads and validation only — inject `StorageService` directly for anything else.
 

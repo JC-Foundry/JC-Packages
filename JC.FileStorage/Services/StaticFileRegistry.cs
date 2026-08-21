@@ -75,11 +75,13 @@ public class StaticFileRegistry
             lock (_lock)
             {
                 var result = _staticFiles.TryGetValue(file.Key, out var cachedFile);
-                if (!result || cachedFile == null)
-                    return _staticFiles.TryAdd(file.Key, file);
-            
-                //Returns false if the file already exists
-                return false;
+                if (result && cachedFile != null)
+                    //Returns false if the file already exists
+                    return false;
+                
+                //Set the last modified time (only sets when adding to registry, updates come from file reads):
+                file.LastModifiedUtc = _pathProvider.GetLastModifiedUtc(file.FileName, file.SubFolders);
+                return _staticFiles.TryAdd(file.Key, file);
             }
         }
         catch (Exception ex)

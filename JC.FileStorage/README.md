@@ -153,17 +153,23 @@ builder.Services.AddFileStorage(useStaticFiles: true);
 public class PrivacyModel(StaticFileCache staticFiles) : PageModel
 {
     public string? Policy { get; private set; }
+    public string? Updated { get; private set; }
 
     public async Task OnGetAsync(CancellationToken ct)
     {
         var response = await staticFiles.GetStaticFileText("privacy-policy.md", ct);
         if (response.Result)
+        {
             Policy = response.FileContentText;
+            Updated = response.File?.LastModified("d MMMM yyyy");
+        }
     }
 }
 ```
 
 Subfolders come after the token — `GetStaticFileText("terms.md", ct, "legal")`. Content is cached for ten minutes by default; inject `StaticFileService` to read straight from disk.
+
+`LastModifiedUtc` is the file's last write time on disk, taken when it is registered and again on every read that reaches the disk, so the date always describes the content returned with it.
 
 These are deliberately not manageable: no database record, no audit, no upload, save or delete. Only registered files can be read, which is what stops a crafted name escaping the static path. The blocked-extension list does not apply — a static file was put there by whoever deployed the application.
 

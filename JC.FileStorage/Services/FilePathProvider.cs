@@ -75,6 +75,21 @@ public class FilePathProvider
         return path;
     }
     
+    internal DateTime? GetLastModifiedUtc(string fileName, params IEnumerable<string> subFolders)
+    {
+        var path = GetStaticPath(subFolders);
+        path = Path.Combine(path, fileName);
+        return GetLastModifiedUtcFromPath(path);
+    }
+    
+    internal DateTime? GetLastModifiedUtcFromPath(string path)
+    {
+        if(!CheckFileExists(path))
+            return null;
+        
+        return File.GetLastWriteTimeUtc(path);
+    }
+    
     private bool ValidSubFolder(string subFolder)
         => !_blockedFolderChars.Any(subFolder.Contains);
 

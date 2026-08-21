@@ -39,14 +39,14 @@ See minor and patch releases below.
 ### Version 6
 #### v6.1.x
 
-| Version | Date | Summary |
-|---------|------|---------|
-| -       | -    | -       |
+| Version | Packages                              | Date           | Summary                                                                                                                                                                                             |
+|---------|---------------------------------------|----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 6.1.1   | JC.FileStorage<br/>JC.FileStorage.Web | 21 August 2026 | Static files carry a last modified date, read from disk when the file is registered and on every read that reaches it; `AddFileStorageWeb` now forwards the static file parameters it was dropping. |
 
 #### v6.0.x
 
-| Version | Date           | Summary                                                                                                                                                                                           |
-|---------|----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 6.0.1   | 11 August 2026 | Minor bug fixes relating to the new v6 release. Included attribute alignment on AuditEntry to its data mapping, meaning no migration was required; as well a smaller XML and documentation fixes. |
+| Version | Packages | Date           | Summary                                                                                                                                                                                           |
+|---------|----------|----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 6.0.1   | Global   | 11 August 2026 | Minor bug fixes relating to the new v6 release. Included attribute alignment on AuditEntry to its data mapping, meaning no migration was required; as well a smaller XML and documentation fixes. |
 
 ---

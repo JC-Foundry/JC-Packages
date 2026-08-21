@@ -25,6 +25,9 @@ public static class ServiceCollectionExtensions
     /// The icon set, chosen independently of <paramref name="framework"/>. Ignored under the same
     /// conditions. This package registers no icon dictionary of its own.
     /// </param>
+    /// <param name="useStaticFiles">Whether static files are used in the application or not</param>
+    /// <param name="autoDiscoverStaticFiles">Whether static files are automatically discovered from the configured static path or not</param>
+    /// <param name="staticFileCacheDurationMinutes">The static file cache duration in minutes</param>
     /// <returns>The service collection for chaining.</returns>
     /// <remarks>
     /// The tag helpers in this package inject <see cref="IFileStorageFrameworkDictionary"/> and
@@ -40,9 +43,12 @@ public static class ServiceCollectionExtensions
     /// </remarks>
     public static IServiceCollection AddFileStorageWeb(this IServiceCollection services,
         UIFramework framework = UIFramework.Bootstrap,
-        IconFramework iconFramework = IconFramework.Bootstrap)
+        IconFramework iconFramework = IconFramework.Bootstrap,
+        bool useStaticFiles = false,
+        bool autoDiscoverStaticFiles = true,
+        int staticFileCacheDurationMinutes = 10)
     {
-        services.AddFileStorage();
+        services.AddFileStorage(useStaticFiles, autoDiscoverStaticFiles, staticFileCacheDurationMinutes);
         services.TryAddScoped<WebStorageService>();
 
         // No icon dictionary is registered — this package's tag helper renders no glyphs. The icon

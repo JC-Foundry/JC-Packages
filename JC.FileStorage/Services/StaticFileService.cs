@@ -44,6 +44,9 @@ public class StaticFileService
         try
         {
             var bytes = await File.ReadAllBytesAsync(filePath, ct);
+            
+            //Update last modified during file read:
+            file.LastModifiedUtc = _pathProvider.GetLastModifiedUtcFromPath(filePath);
             return new GetStaticFileByteResponse(file, bytes);
         }
         catch (Exception ex)
@@ -79,6 +82,9 @@ public class StaticFileService
         try
         {
             var text = await File.ReadAllTextAsync(filePath, ct);
+            
+            //Update last modified during file read:
+            file.LastModifiedUtc = _pathProvider.GetLastModifiedUtcFromPath(filePath);
             return new GetStaticFileTextResponse(file, text);
         }
         catch (Exception ex)

@@ -140,9 +140,13 @@ Each behaves exactly as the member it forwards to. `MaxAllowedBytes` is a `const
 
 **Namespace:** `JC.FileStorage.Models`
 
-Immutable descriptor of a static file — one placed beneath `FileStorage:StaticPath` at deploy time and only ever read. It carries no tenant, no identifier and no audit information, because a static file has no database record.
+Descriptor of a static file — one placed beneath `FileStorage:StaticPath` at deploy time and only ever read. It carries no tenant, no identifier and no audit information, because a static file has no database record.
 
-Both constructors take the file name whole. The two-part `(name, extension)` forms are private, so `new StaticFile("terms.md", "legal")` unambiguously means a file in the `legal` subfolder rather than a file named `terms.md.legal`. Compose a name from separate parts with `NormalisationHelper.GetFileName`.
+Its identity is immutable: `Name`, `Extension` and `SubFolders` are fixed at construction. Only `LastModifiedUtc` changes, and only ever to a timestamp read from disk.
+
+All three constructors take the file name whole. The two-part `(name, extension)` forms are private, so `new StaticFile("terms.md", "legal")` unambiguously means a file in the `legal` subfolder rather than a file named `terms.md.legal` — a `string` second argument only matches the `subFolders` constructor. Compose a name from separate parts with `NormalisationHelper.GetFileName`.
+
+`new StaticFile("terms.md")` binds to the `lastModifiedUtc` constructor with no timestamp, which describes the same file as the `subFolders` form with no subfolders. No constructor takes both subfolders and a timestamp, and none needs to — registering a file sets the timestamp from disk.
 
 ### Properties
 
@@ -153,18 +157,24 @@ Both constructors take the file name whole. The two-part `(name, extension)` for
 | `FileName` | `string` | — | get; | `Name` and `Extension` rejoined. The name used to build the physical path. |
 | `SubFolders` | `IReadOnlyList<string>` | empty | get; | The subfolders beneath the static path, outermost first. Empty for a file at the root. |
 | `Key` | `string` | — | get; | `SubFolders` and `FileName` combined into a relative path and lower-cased. The registry's dictionary key, which is why static file lookups are case-insensitive. Recomputed on each access. |
+| `LastModifiedUtc` | `DateTime?` | `null` | get; internal set; | The file's last write time on disk, in UTC. Null when the file was not there the last time it was looked for. |
 
 Casing is preserved on `Name`, `Extension` and `SubFolders` because they build a path that must match what is actually on disk; only `Key` is lower-cased, because it is only ever compared.
 
+`LastModifiedUtc` is set from disk when the file is registered, and again on every read that reaches the disk. Its setter is internal by design: the value can only ever be a real timestamp for this file, never one a caller chose. `RefreshLastModified` is the supported way to re-read it from outside the package.
+
 ### Constructors
 
-#### StaticFile(string fileName)
+#### StaticFile(string fileName, DateTime? lastModifiedUtc = null)
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `fileName` | `string` | — | The file name including its extension. Any directory component is stripped. |
+| `lastModifiedUtc` | `DateTime?` | `null` | Seeds `LastModifiedUtc`. |
 
 Creates a file at the root of the static path. Splits `fileName` through `Path.GetFileNameWithoutExtension` and `Path.GetExtension`, so a name containing directory separators or `..` cannot address anything outside the static path.
+
+`lastModifiedUtc` is overwritten from disk the moment the file is registered, so it only survives on a `StaticFile` that never reaches the registry. Give it a `DateTime` whose `Kind` is `Utc`. `LastModified` goes through `ToLocalTime`, which reads an `Unspecified` value as UTC but leaves a `Local` one alone — so a local-kind timestamp is formatted with no conversion at all.
 
 Throws `ArgumentException` if `fileName` is null, or carries no extension.
 
@@ -177,7 +187,35 @@ Throws `ArgumentException` if `fileName` is null, or carries no extension.
 
 Creates a file within one or more subfolders. `subFolders` is copied on construction, so a later change to the collection passed in does not affect the file.
 
-The subfolders are not validated here — `FilePathProvider.GetStaticPath` drops any that are unusable when the path is built. Throws the same `ArgumentException` as the single-argument constructor.
+The subfolders are not validated here — `FilePathProvider.GetStaticPath` drops any that are unusable when the path is built. Throws the same `ArgumentException` as the constructor above.
+
+### Methods
+
+#### LastModified(string format)
+
+**Returns:** `string?`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `format` | `string` | — | A standard or custom `DateTime` format string. |
+
+`LastModifiedUtc` converted to local time and formatted, or null when `LastModifiedUtc` is null — so a view can bind it directly and render nothing for a file that was never found on disk.
+
+**"Local" is the server's time zone, not the viewer's,** and `format` is applied under the ambient `CultureInfo.CurrentCulture`. Read `LastModifiedUtc` and convert it yourself where either matters. Throws `FormatException` if `format` is not a valid format string.
+
+#### RefreshLastModified(FilePathProvider pathProvider)
+
+**Returns:** `void`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `pathProvider` | `FilePathProvider` | — | Resolves the file's path beneath the static root. Registered as a singleton by `AddFileStorage`. |
+
+Re-reads this file's last write time from disk into `LastModifiedUtc`, setting it to null if the file is no longer there. The path is rebuilt from the file's own `SubFolders` and `FileName`, so the timestamp can only ever come from the file the instance describes.
+
+This is the only way to change `LastModifiedUtc` from outside the package. A read through `StaticFileService`, or an uncached read through `StaticFileCache`, already does it — so call it only when the content is being served from the cache and the date is wanted fresh.
+
+**The instance the registry hands out is shared**, so a refresh updates the timestamp for every holder of that file, not only the caller.
 
 ## ResponseBase
 
@@ -308,6 +346,8 @@ Abstract record and base of the static file retrieval responses. Extends `Respon
 | `File` | `StaticFile?` | `null` | get; init; | The registered file, when `Result` is `true`. Null on failure. |
 
 Inherits `Result` and `ErrorMessage` from `ResponseBase`.
+
+`File` is the registry's own instance rather than a copy — the same object carried by every response for that file. Its `LastModifiedUtc` is rewritten each time the file is read from disk, so the value on a response held in `StaticFileCache` is the one captured by the read that filled the entry, and moves when that entry expires and the file is read again.
 
 ## GetStaticFileByteResponse
 
@@ -890,6 +930,8 @@ Its factory calls the internal `AutoDiscoverStaticFiles` during construction whe
 
 Adds `file` to the registry. Returns `false` without replacing anything if a file is already registered under the same key.
 
+On an add, `file.LastModifiedUtc` is set from the file's last write time on disk, or to null if nothing is there — overwriting whatever the constructor was given. It is not refreshed by `TryGetStaticFile`; that happens on a read through `StaticFileService`, or on demand through `StaticFile.RefreshLastModified`.
+
 Also returns `false` rather than propagating if the add itself throws, logging the exception at error level. Writes are serialised under a lock.
 
 #### TryAddStaticFile(string fileName, params IEnumerable\<string\> subFolders)
@@ -959,6 +1001,8 @@ Resolves the file through the registry, builds its path from the registered `Sub
 
 Returns `"Static file not found"` when the name is not registered, when it cannot be formed into a file name, or when the registered file no longer exists on disk. Returns `"Error reading file."` if the read throws, logging the exception. On success `Result` is `true`, `File` holds the registered `StaticFile`, and `FileContent` holds the bytes.
 
+A successful read also updates `File.LastModifiedUtc`, taken from the path the content came from and immediately after it was read, so the timestamp describes the bytes being returned. Because `File` is the registry's shared instance, that update is visible to every other holder of the file.
+
 #### GetStaticFileText(string fileName, CancellationToken ct = default, params IEnumerable\<string\> subfolders)
 
 **Returns:** `Task<GetStaticFileTextResponse>`
@@ -969,7 +1013,7 @@ Returns `"Static file not found"` when the name is not registered, when it canno
 | `ct` | `CancellationToken` | `default` | Cancels the read. Cannot be omitted when `subfolders` is given. |
 | `subfolders` | `params IEnumerable<string>` | empty | The subfolders the file sits under, outermost first. |
 
-Behaves as `GetStaticFileBytes`, reading the file as text instead of bytes and returning it in `FileContentText`. The bytes are decoded regardless of whether they are textual.
+Behaves as `GetStaticFileBytes`, reading the file as text instead of bytes and returning it in `FileContentText`, and updating `File.LastModifiedUtc` the same way. The bytes are decoded regardless of whether they are textual.
 
 ## StaticFileCache
 
@@ -1011,6 +1055,8 @@ Resolves the name through the registry, returning `"Static file not found"` with
 Only a successful response is cached, so a transient read failure is retried on the next call rather than held for the cache window. The registered file is passed to the service directly, so the lookup is not repeated.
 
 The cached response is a single shared instance. Its `FileContent` array is not copied per caller — see `GetStaticFileByteResponse`.
+
+A cache hit does not touch the disk, so `File.LastModifiedUtc` stays as the read that filled the entry left it — matching the content being handed back. Call `StaticFile.RefreshLastModified` where the date has to be current while the content is still served from memory.
 
 #### GetStaticFileText(string fileName, CancellationToken ct = default, params IEnumerable\<string\> subFolders)
 

@@ -383,6 +383,51 @@ return File(response.FileContent!, "image/png");
 
 **Nuance:** a cached response is handed to every caller as the same instance, and `FileContent` is a `byte[]`. Writing into that array changes what every later caller sees until the entry expires. Copy it before mutating.
 
+### When a file last changed
+
+`StaticFile.LastModifiedUtc` carries the file's last write time from disk, so a page can show when a document was last updated alongside the document itself:
+
+```csharp
+var response = await staticFiles.GetStaticFileText("privacy-policy.md", ct);
+if (response.Result)
+{
+    Policy = response.FileContentText;
+    Updated = response.File?.LastModified("d MMMM yyyy");   // "14 August 2026"
+}
+```
+
+`LastModified(format)` formats the timestamp in local time, returning null when there is none — so a view can bind it and render nothing rather than guard first.
+
+The timestamp is captured when the file is registered, and again immediately after every read that reaches the disk, so the date describes the content being handed back. Through the cache that holds: a cache hit returns the date captured by the read that filled the entry, not a newer one.
+
+**Local means the server's time zone**, and the format is applied under whatever `CultureInfo.CurrentCulture` is at the time. Read `LastModifiedUtc` directly and convert it yourself where the viewer's zone or a fixed culture matters:
+
+```csharp
+var utc = response.File?.LastModifiedUtc;
+Updated = utc is null
+    ? null
+    : TimeZoneInfo.ConvertTimeFromUtc(utc.Value, userTimeZone)
+        .ToString("d MMMM yyyy", CultureInfo.GetCultureInfo("en-GB"));
+```
+
+Where only the date needs to be current — the content is being served from the cache and the file is edited in place — refresh it without reading the content:
+
+```csharp
+public class PolicyDate(StaticFileRegistry registry, FilePathProvider paths)
+{
+    public string? LastUpdated()
+    {
+        if (!registry.TryGetStaticFile("privacy-policy.md", out var file) || file is null)
+            return null;
+
+        file.RefreshLastModified(paths);
+        return file.LastModified("d MMMM yyyy");
+    }
+}
+```
+
+`LastModifiedUtc` has an internal setter and `RefreshLastModified` always reads this file's own path, so the value can only ever be a real timestamp taken from that file — there is no way to set an arbitrary date on one.
+
 ### Bypassing the cache
 
 Inject `StaticFileService` where a read should always reach the disk — reloading a configuration document that an operator edits in place, for instance:
@@ -429,6 +474,8 @@ public class StaticFileAdmin(StaticFileRegistry registry)
 **Failed reads are not cached.** A file locked during a deployment copy returns `"Error reading file."`, and that response is not held, so the next call retries rather than being stuck with the failure for the rest of the cache window.
 
 **Dot files work.** `.gitignore` and similar are registered with an empty name and the whole thing as the extension, and read back under their full name.
+
+**The `StaticFile` you get back is shared.** The registry holds one instance per file and hands that same object to every caller, including inside cached responses. `LastModifiedUtc` is the only part of it that changes, so a read or a `RefreshLastModified` updates the date for every holder — usually what you want, but it does mean the value can move under a caller holding a reference.
 
 **No extension check applies.** The blocked list guards uploads, which are untrusted. A static file was put there by whoever deployed the application, so nothing about it is filtered — including `.exe` and `.ps1`, which discovery will register and the service will read. What an application does with those bytes is its own decision.
 
