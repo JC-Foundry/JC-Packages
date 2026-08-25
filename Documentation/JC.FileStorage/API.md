@@ -1477,4 +1477,4 @@ Configures `Id` as the key with a maximum length of 36; `TenantId` at 36; `FileN
 
 Configures no relationship to the tenant. `TenantId` is a plain column: `IMultiTenancy` marks a partition rather than a relationship, and the tenant record may live in another context or another database, so no foreign key can be assumed. Deleting a tenant therefore leaves its files untouched, pointing at an identifier that no longer resolves — which is what lets a restore bring them back intact.
 
-Adds a composite index over `TenantId`, `FolderName` and `FileName` covering the lookup every read, save and delete performs, then applies the `AuditModel` column configuration and indexes via `AuditModelMapping<SavedFile>`.
+Adds a composite index over `TenantId`, `FolderName` and `FileName` covering the lookup every read, save and delete performs, then applies the `AuditModel` column configuration and indexes via `AuditModelMapping<SavedFile>`, documented in [JC.Core](../JC.Core/API.md#auditmodelmappingt).

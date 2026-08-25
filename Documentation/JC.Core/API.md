@@ -1036,6 +1036,40 @@ Returns all `const` fields declared on `T` (including inherited fields) as a dic
 
 ---
 
+## CoreHelpers
+
+**Namespace:** `JC.Core.Helpers`
+
+Static helper carrying the suite's own identifiers, and the shared display-name normalisation that `StringExtensions.ToDisplayName` and `EnumExtensions` are built on. That normalisation itself is `internal`; only the identifiers and `PackageDisplay` are callable from outside the package.
+
+### Fields
+
+| Field | Type | Value | Access | Description |
+|-------|------|-------|--------|-------------|
+| `PackageName` | `const string` | `JCP` | public | The suite's short name. |
+| `PackageVersionPrefix` | `const string` | `v` | public | The prefix placed before the version in a display string. |
+| `PackageVersion` | `const string` | The current suite version | public | Hand-maintained, and not derived from the assembly version. It has to be bumped by hand each release. |
+
+### Methods
+
+#### PackageDisplay(string introText = "Using", string? displayNameOverride = null, string? versionPrefixOverride = null)
+
+**Returns:** `string`
+
+**Static.**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `introText` | `string` | `"Using"` | Text placed before the package information. Trimmed before use. |
+| `displayNameOverride` | `string?` | `null` | Replaces `PackageName`. Ignored when null or whitespace. |
+| `versionPrefixOverride` | `string?` | `null` | Replaces `PackageVersionPrefix`. Ignored when null or whitespace. |
+
+Builds a single line of the form `{introText} {name} {prefix}{PackageVersion}`, intended for a footer or a startup banner.
+
+Throws `ArgumentException` when `introText` is null or whitespace. The two override parameters behave differently: a null or whitespace value falls back to the default rather than throwing, so only `introText` can fail the call.
+
+---
+
 # Extensions
 
 ## AuditEntryExtensions
@@ -1418,3 +1452,57 @@ Static helper that applies the EF Core entity configuration for `AuditEntry` —
 | `builder` | `EntityTypeBuilder<AuditEntry>` | — | The entity type builder for `AuditEntry`. |
 
 Configures `AuditEntry`: `Id` as the key (max 36 characters); `UserId`, `UserName`, `ActionUserId`, `SourceApplication`, and `TableName` at max 256 characters; `EntityKey` at max 512 characters; `Action` and `AuditDate` as required; and indexes on `UserId`, `ActionUserId`, `SourceApplication`, `TableName`, `AuditDate`, and the composite `TableName, EntityKey`. Returns the same builder for chaining.
+
+---
+
+## AuditModelMapping\<T\>
+
+**Namespace:** `JC.Core.Data.DataMappings`
+
+Static generic helper applying the EF Core column configuration and indexes that every `AuditModel` entity shares. Constrained to `where T : AuditModel`.
+
+An entity's own `IEntityTypeConfiguration<T>` calls this rather than restating the audit columns, so the create, modification, soft-delete and restore fields are mapped identically wherever they appear. Both JC.Communication and JC.FileStorage apply it to their entities this way.
+
+### Methods
+
+#### MapAuditModel(EntityTypeBuilder\<T\> builder)
+
+**Returns:** `EntityTypeBuilder<T>`
+
+**Static.**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `builder` | `EntityTypeBuilder<T>` | — | The entity type builder for the entity being configured. |
+
+Sets each of `CreatedById`, `LastModifiedById`, `DeletedById` and `RestoredById` to a maximum of 36 characters, and each of `CreatedUtc`, `LastModifiedUtc`, `DeletedUtc` and `RestoredUtc` to precision `0`, so timestamps store whole seconds. `IsDeleted` is declared without further configuration, which maps it explicitly rather than leaving it to convention.
+
+Adds indexes on `CreatedById`, `CreatedUtc`, `LastModifiedById`, `DeletedById`, `IsDeleted` and `RestoredById`. Returns the same builder for chaining.
+
+Note that only `CreatedUtc` is indexed among the four timestamps: `LastModifiedUtc`, `DeletedUtc` and `RestoredUtc` are configured for precision but not indexed. An entity that queries by modification or deletion date wants its own index.
+
+`CreatedById` and `CreatedUtc` come from `BaseCreateModel`, which `AuditModel` extends, so this covers everything `LogModelMapping<T>` does and adds the rest.
+
+---
+
+## LogModelMapping\<T\>
+
+**Namespace:** `JC.Core.Data.DataMappings`
+
+Static generic helper applying the EF Core column configuration and indexes that every `LogModel` entity shares. Constrained to `where T : LogModel`.
+
+The counterpart to `AuditModelMapping<T>` for append-only records. `LogModel` extends `BaseCreateModel` and adds nothing, so only the creation fields exist to configure. JC.Communication applies it to its log entities.
+
+### Methods
+
+#### MapLogModel(EntityTypeBuilder\<T\> builder)
+
+**Returns:** `EntityTypeBuilder<T>`
+
+**Static.**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `builder` | `EntityTypeBuilder<T>` | — | The entity type builder for the entity being configured. |
+
+Sets `CreatedById` to a maximum of 36 characters and `CreatedUtc` to precision `0`, then adds an index on each. Returns the same builder for chaining.

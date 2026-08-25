@@ -290,3 +290,27 @@ Contract for the GitHub data context, exposing entity sets for issue tracking.
 |----------|------|--------|-------------|
 | `ReportedIssues` | `DbSet<ReportedIssue>` | get; set; | The set of locally persisted issue reports. |
 | `IssueComments` | `DbSet<IssueComment>` | get; set; | The set of locally persisted issue comments. |
+
+---
+
+## ReportedIssueMap
+
+**Namespace:** `JC.Github.Data.DataMappings`
+
+The `IEntityTypeConfiguration<ReportedIssue>` applied by `ApplyGithubMappings` — see [Setup](Setup.md). Apply it directly only if you are configuring the model by hand.
+
+Configures `Id` as the key at a maximum of 36 characters; `Description`, `Type` and `Created` as required; a **unique** index on `ExternalId`; and non-unique indexes on `UserId` and `Closed`.
+
+The unique index on `ExternalId` is what stops the same GitHub issue being recorded twice locally.
+
+---
+
+## IssueCommentMap
+
+**Namespace:** `JC.Github.Data.DataMappings`
+
+The `IEntityTypeConfiguration<IssueComment>` applied by `ApplyGithubMappings` — see [Setup](Setup.md).
+
+Configures `Id` as the key at a maximum of 36 characters; `Body`, `Author` and `CreatedAt` as required; a non-unique index on `IssueNumber`; and a **unique** index on `CommentId`, GitHub's own identifier for the comment.
+
+Neither map applies JC.Core's audit mapping, because `ReportedIssue` and `IssueComment` do not extend `AuditModel`.
