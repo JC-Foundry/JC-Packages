@@ -51,9 +51,11 @@ Evaluates the account rules against the request path and either redirects or con
 - Users flagged for a password change are redirected until they complete it
 - Two-factor enrolment can be required, off by default
 
-Skips unauthenticated requests, the configured excluded paths, and static files by extension. The rules themselves are `IdentityRules.GetRedirect` in JC.Identity.Shared, which returns a route or nothing — this middleware supplies the path and performs the redirect.
+Skips unauthenticated requests, static files by extension, and the excluded paths of whichever rule set matched. The rules themselves, and the choice of rule set, are `IdentityRules.GetRedirect` in JC.Identity.Shared, which returns a route or nothing — this middleware supplies the request and performs the redirect.
 
-Configure the routes and switches through `IdentityMiddlewareOptions`, on `AddSharedIdentityServices`.
+It passes `HttpContext.RequestServices` through, so a rule set's condition can resolve services to decide whether it applies.
+
+Configure the rule sets and their routes through `IdentityMiddlewareOptions`, on `AddSharedIdentityServices`.
 
 ### Why the split
 
@@ -67,7 +69,7 @@ This package holds the only `FrameworkReference` on `Microsoft.AspNetCore.App` i
 |---------|-------|
 | `UseIdentity` order (from JC.Identity) | Authentication → `UseUserInfo` → authorisation → identity rules |
 | Population | Once per scope, skipped where `IUserInfo.IsSetup` is already `true` |
-| Rule routes and switches | `IdentityMiddlewareOptions` defaults — see JC.Identity.Shared |
+| Rule routes and switches | The defaults on `IdentityMiddlewareOptions.Default`, with no conditional rule sets — see JC.Identity.Shared |
 | Static file extensions skipped | `.css`, `.js`, `.jpg`, `.jpeg`, `.png`, `.gif`, `.svg`, `.ico`, `.woff`, `.woff2`, `.ttf`, `.eot`, `.map`, `.json`, `.xml` |
 
 ## Documentation

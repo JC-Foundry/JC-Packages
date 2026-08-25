@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.Communication.Web</PackageId>
-        <Version>6.1.0</Version>
+        <Version>7.0.0</Version>
         <Description>ASP.NET Core Razor tag helpers rendering JC.Communication's features: a notification bell with dropdown, a standalone unread badge, notification toasts, a chat thread view, a chat list with unread counts, a message compose box, a participant list, and a contact form. No class name or icon is hardcoded — both are read from per-package dictionaries selected by the configured CSS framework (Bootstrap 5, Tailwind v4, or jc-tailwind-ui) and icon set (Bootstrap Icons or Font Awesome 6), which are independent choices. Ships a Tailwind safelist so the class names survive Tailwind's scanner, which cannot see them inside a compiled assembly.</Description>
         <PackageTags>$(PackageTags);aspnetcore;razor;tag-helpers;notifications;messaging;bootstrap;tailwind</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -25,8 +25,8 @@
     </ItemGroup>
 
     <ItemGroup Condition="'$(UseLocalProjectReferences)' != 'true'">
-        <PackageReference Include="JC.Communication" versionOverride="6.1.0"/>
-        <PackageReference Include="JC.Web" versionOverride="6.1.0"/>
+        <PackageReference Include="JC.Communication" versionOverride="7.0.0"/>
+        <PackageReference Include="JC.Web" versionOverride="7.0.0"/>
     </ItemGroup>
 
     <!-- The README ships in the package: it is the landing page on a feed, and the

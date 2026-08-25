@@ -1,0 +1,41 @@
+namespace JC.Identity.Shared.Models;
+
+/// <summary>
+/// One set of account rules: which are enforced, and where each sends the caller. Which set applies
+/// to a request is decided by <see cref="JC.Identity.Shared.Helpers.IdentityRules.SelectRuleSet"/>.
+/// </summary>
+public class IdentityRuleSet
+{
+    /// <summary>Gets or sets the name identifying this set in the redirect logs.</summary>
+    public string Name { get; set; } = "Default";
+
+    /// <summary>
+    /// Gets or sets the test deciding whether this set applies to a request. <c>null</c> always
+    /// matches. Must not throw: it runs on every authenticated request.
+    /// </summary>
+    public Func<IdentityRuleContext, bool>? Condition { get; set; }
+
+    /// <summary>Gets or sets whether users with <c>RequiresPasswordChange</c> are redirected. Defaults to <c>true</c>.</summary>
+    public bool RequirePasswordChange { get; set; } = true;
+
+    /// <summary>Gets or sets the route users are redirected to when a password change is required.</summary>
+    public string ChangePasswordRoute { get; set; } = "/Identity/Account/Manage/SetPassword";
+
+    /// <summary>Gets or sets whether all users without 2FA are redirected to configure it. Defaults to <c>false</c>.</summary>
+    public bool EnforceTwoFactor { get; set; } = false;
+
+    /// <summary>Gets or sets the route users are redirected to for 2FA setup.</summary>
+    public string TwoFactorRoute { get; set; } = "/Identity/Account/Manage/EnableAuthenticator";
+
+    /// <summary>Gets or sets the access denied route. Disabled users are redirected here.</summary>
+    public string AccessDeniedRoute { get; set; } = "/Identity/Account/AccessDenied";
+
+    /// <summary>Gets or sets the logout route.</summary>
+    public string LogoutRoute { get; set; } = "/Identity/Account/Logout";
+
+    /// <summary>Gets or sets the error route.</summary>
+    public string ErrorRoute { get; set; } = "/Error";
+
+    /// <summary>Gets the paths excluded from enforcement (access denied, logout, and error routes).</summary>
+    public string[] ExcludedPaths => [AccessDeniedRoute, LogoutRoute, ErrorRoute];
+}

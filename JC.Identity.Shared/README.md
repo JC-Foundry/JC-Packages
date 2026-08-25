@@ -114,9 +114,28 @@ Calling any of these inside a live request replaces the authenticated user for t
 var redirect = IdentityRules.GetRedirect(userInfo, path, isAuthenticated, options);
 ```
 
-Plain code rather than middleware, so a minimal API filter, a Blazor circuit or a desktop shell reaches the same behaviour. `IdentityMiddleware` in `JC.Identity.Shared.Web` is a wrapper that supplies the path and performs the redirect.
+Plain code rather than middleware, so a minimal API filter, a Blazor circuit or a desktop shell reaches the same behaviour. `IdentityMiddleware` in `JC.Identity.Shared.Web` is a wrapper that supplies the request and performs the redirect.
 
 Disabled accounts are checked first, deliberately — a disabled account should not be routed to a password-change page it has no business completing.
+
+### Rule sets
+
+Which rules run, and where each sends the caller, is a property of an `IdentityRuleSet` rather than of the application. `IdentityMiddlewareOptions` holds an ordered list of them and a `Default` that catches anything unmatched:
+
+```csharp
+options.Default.EnforceTwoFactor = true;
+
+options.AddForPathPrefix("/sso", ruleSet =>
+{
+    ruleSet.EnforceTwoFactor = false;
+    ruleSet.TwoFactorRoute = "/sso/security/authenticator";
+    ruleSet.AccessDeniedRoute = "/sso/denied";
+});
+```
+
+The first set whose condition matches wins, and its routes are also what supply the excluded paths. An application serving a second audience gives it its own routes rather than exempting it from enforcement, so a disabled user is still stopped, at the right page.
+
+A condition is any `Func<IdentityRuleContext, bool>`, and the context carries the path, the user and the request's services, so a rule can depend on something only knowable per request.
 
 ### Two-factor setup
 

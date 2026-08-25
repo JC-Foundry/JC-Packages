@@ -72,18 +72,4 @@ public class SavedFile : AuditModel, IMultiTenancy
         
         FolderName = folder.Name;
     }
-
-
-    #region Obsolete
-
-    /// <summary>
-    /// Strips any directory and extension from <paramref name="fileName"/>, giving the value that
-    /// <see cref="SetFileName"/> stores in <see cref="FileName"/>. Anything querying on
-    /// <see cref="FileName"/> must key off this, or it will not match what was persisted.
-    /// </summary>
-    [Obsolete("Use NormalisationHelper.NormaliseFileName instead.", false)]
-    public static string NormaliseFileName(string fileName)
-        => Path.GetFileNameWithoutExtension(fileName);
-
-    #endregion
 }

@@ -95,6 +95,7 @@ With no configuration callbacks, `AddSharedIdentityServices` gives you:
 | `EmailClaimType` | `ClaimTypes.Email` |
 | `RoleClaimType` | `ClaimTypes.Role` |
 | `Authority` | `IdentityAuthority.None` |
+| Conditional rule sets | None, so every request uses the default set |
 | Password change enforcement | Enabled |
 | Password change route | `/Identity/Account/Manage/SetPassword` |
 | Two-factor enforcement | Disabled |
@@ -103,6 +104,8 @@ With no configuration callbacks, `AddSharedIdentityServices` gives you:
 | Logout route | `/Identity/Account/Logout` |
 | Error route | `/Error` |
 
+Everything from "Password change enforcement" down belongs to `IdentityMiddlewareOptions.Default`, the rule set applied when no conditional set matches. An application serving one audience configures that set and never adds another.
+
 The claim-type defaults match ASP.NET Identity's own. `Authority` deliberately does **not** — it stays `None` so an authority that never declares itself cannot pass as local. Set it in `configureProjection`.
 
 `AddSharedIdentityServices` registers:
@@ -110,7 +113,7 @@ The claim-type defaults match ASP.NET Identity's own. `Authority` deliberately d
 | Registration | Lifetime | Description |
 |--------------|----------|-------------|
 | `IUserInfo` → `TUserInfo` | Scoped | Registered with `TryAddScoped`, so an implementation registered earlier wins |
-| `IOptions<IdentityMiddlewareOptions>` | Singleton | Routes and enforcement switches |
+| `IOptions<IdentityMiddlewareOptions>` | Singleton | The account rule sets and their routes |
 | `IOptions<IdentityProjectionOptions>` | Singleton | Claim types and authority |
 
 It deliberately does **not** call `AddAuthentication` or `AddAuthorization`. Establishing *that* a principal is authenticated belongs to the authority; this package only projects the result.
@@ -125,13 +128,26 @@ It deliberately does **not** call `AddAuthentication` or `AddAuthorization`. Est
 builder.Services.AddSharedIdentityServices<AppUserInfo>(
     configureMiddleware: options =>
     {
-        options.RequirePasswordChange = true;
-        options.ChangePasswordRoute = "/Identity/Account/Manage/SetPassword";
-        options.EnforceTwoFactor = false;
-        options.TwoFactorRoute = "/Identity/Account/Manage/EnableAuthenticator";
-        options.AccessDeniedRoute = "/Identity/Account/AccessDenied";
-        options.LogoutRoute = "/Identity/Account/Logout";
-        options.ErrorRoute = "/Error";
+        // The set applied when no conditional set matches
+        options.Default.Name = "Default";
+        options.Default.RequirePasswordChange = true;
+        options.Default.ChangePasswordRoute = "/Identity/Account/Manage/SetPassword";
+        options.Default.EnforceTwoFactor = false;
+        options.Default.TwoFactorRoute = "/Identity/Account/Manage/EnableAuthenticator";
+        options.Default.AccessDeniedRoute = "/Identity/Account/AccessDenied";
+        options.Default.LogoutRoute = "/Identity/Account/Logout";
+        options.Default.ErrorRoute = "/Error";
+
+        // A second audience, tried before the default set
+        options.AddForPathPrefix("/portal", ruleSet =>
+        {
+            ruleSet.EnforceTwoFactor = true;
+            ruleSet.TwoFactorRoute = "/portal/security/authenticator";
+            ruleSet.ChangePasswordRoute = "/portal/account/set-password";
+            ruleSet.AccessDeniedRoute = "/portal/denied";
+            ruleSet.LogoutRoute = "/portal/sign-out";
+            ruleSet.ErrorRoute = "/portal/error";
+        });
     },
     configureProjection: options =>
     {
@@ -149,7 +165,7 @@ builder.Services.AddSharedIdentityServices<AppUserInfo>(
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `configureMiddleware` | `Action<IdentityMiddlewareOptions>?` | `null` | Configures the account rules and their routes |
+| `configureMiddleware` | `Action<IdentityMiddlewareOptions>?` | `null` | Configures the account rule sets and their routes |
 | `configureProjection` | `Action<IdentityProjectionOptions>?` | `null` | Configures which claim types are read and which authority is stamped |
 
 When a callback is `null` the corresponding options type is still registered, carrying its own defaults.
@@ -173,18 +189,60 @@ These three claim types are the only ones an authority chooses. Everything else 
 
 **Namespace:** `JC.Identity.Shared.Models.Options`
 
+The rule sets the account rules choose between. `RuleSets` is tried in order, and the first whose condition matches wins; `Default` catches everything else.
+
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
+| `Default` | `IdentityRuleSet` | A new set carrying its own defaults | Applied when no entry in `RuleSets` matches |
+| `RuleSets` | `List<IdentityRuleSet>` | Empty | The conditional sets, tried in the order they were added |
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `AddForPathPrefix(string pathPrefix, Action<IdentityRuleSet> configure)` | `IdentityMiddlewareOptions` | Adds a set matching every path beneath `pathPrefix`, compared case-insensitively |
+
+`AddForPathPrefix` names the set after the prefix, then applies `configure` before appending it, so the callback can override the name as well as the routes. It returns the options, so calls chain.
+
+`Default` is a property rather than an entry in the list, so it cannot be reordered away or removed. An unhandled condition falls through to a set that still stops a disabled account, rather than to no enforcement at all.
+
+### IdentityRuleSet
+
+**Namespace:** `JC.Identity.Shared.Models`
+
+One set of account rules: which are enforced, and where each sends the caller.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `Name` | `string` | `Default` | Identifies the set in the redirect logs |
+| `Condition` | `Func<IdentityRuleContext, bool>?` | `null` | Decides whether this set applies. `null` always matches |
 | `RequirePasswordChange` | `bool` | `true` | Redirect users whose `IUserInfo.RequiresPasswordChange` is `true` |
 | `ChangePasswordRoute` | `string` | `/Identity/Account/Manage/SetPassword` | Where those users are sent |
 | `EnforceTwoFactor` | `bool` | `false` | Redirect users whose `IUserInfo.TwoFactorEnabled` is `false` |
 | `TwoFactorRoute` | `string` | `/Identity/Account/Manage/EnableAuthenticator` | Where those users are sent |
 | `AccessDeniedRoute` | `string` | `/Identity/Account/AccessDenied` | Where disabled accounts are sent |
-| `LogoutRoute` | `string` | `/Identity/Account/Logout` | Logout route — excluded from enforcement |
-| `ErrorRoute` | `string` | `/Error` | Error route — excluded from enforcement |
+| `LogoutRoute` | `string` | `/Identity/Account/Logout` | Logout route, excluded from enforcement |
+| `ErrorRoute` | `string` | `/Error` | Error route, excluded from enforcement |
 | `ExcludedPaths` | `string[]` | Derived | Read-only. Built from `AccessDeniedRoute`, `LogoutRoute` and `ErrorRoute` on each read |
 
 The routes default to the ASP.NET Core Identity UI paths. If your application does not use that UI, set all of them.
+
+**`ExcludedPaths` comes from the selected set, not from every set.** A set whose condition does not cover its own logout, error and access-denied routes will have those paths evaluated under whichever set does match. Keep a set's condition and its routes in agreement.
+
+**A condition must not throw.** It runs on every authenticated request that is not a static file, and an exception surfaces from the middleware rather than being swallowed.
+
+### IdentityRuleContext
+
+**Namespace:** `JC.Identity.Shared.Models`
+
+The `readonly record struct` a condition is given.
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Path` | `string` | The path being requested |
+| `IsAuthenticated` | `bool` | Whether the caller is authenticated. The rules return before evaluating any condition when this is `false` |
+| `User` | `IUserInfo` | The current user, already projected |
+| `Services` | `IServiceProvider?` | The request's services, or `null` where the caller supplied none |
+
+`Services` is what lets a condition read something that could not be known at registration, such as a policy an application's own administrators set. `IdentityMiddleware` passes `HttpContext.RequestServices`; a caller invoking the rules directly passes whatever it has, or nothing.
 
 ### UserInfoBase
 
@@ -274,7 +332,7 @@ await using var asyncScope = services.CreateAsyncScopeForUser(user, roles, user.
 **Namespace:** `JC.Identity.Shared.Helpers`
 
 ```csharp
-var redirect = IdentityRules.GetRedirect(userInfo, path, isAuthenticated, options, logger);
+var redirect = IdentityRules.GetRedirect(userInfo, path, isAuthenticated, options, logger, services);
 
 if (redirect is not null)
 {
@@ -287,22 +345,29 @@ if (redirect is not null)
 | `userInfo` | `IUserInfo` | — | The current user |
 | `path` | `string` | — | The path being requested |
 | `isAuthenticated` | `bool` | — | Whether the caller is authenticated |
-| `options` | `IdentityMiddlewareOptions` | — | The configured routes and switches |
+| `options` | `IdentityMiddlewareOptions` | — | The rule sets to choose between |
 | `logger` | `ILogger?` | `null` | Records why a caller was redirected |
+| `services` | `IServiceProvider?` | `null` | Passed to the conditions, so they can resolve what they need |
 
 **Returns** the route to redirect to, or `null` to continue.
 
-It returns `null` immediately for unauthenticated callers, excluded paths, and static files matched by extension: `.css`, `.js`, `.jpg`, `.jpeg`, `.png`, `.gif`, `.svg`, `.ico`, `.woff`, `.woff2`, `.ttf`, `.eot`, `.map`, `.json`, `.xml`.
+A second overload takes an `IdentityRuleSet` in place of `options` and `services`, for a caller that has already chosen a set.
 
-Otherwise it checks, in order:
+It returns `null` immediately for unauthenticated callers and for static files matched by extension: `.css`, `.js`, `.jpg`, `.jpeg`, `.png`, `.gif`, `.svg`, `.ico`, `.woff`, `.woff2`, `.ttf`, `.eot`, `.map`, `.json`, `.xml`.
 
-1. **Disabled account** — `IsEnabled` is `false`, so return `AccessDeniedRoute`. First deliberately: a disabled account should not be routed to a password-change or two-factor page it has no business completing.
-2. **Password change** — `RequirePasswordChange` is on and the user's `RequiresPasswordChange` is `true`, so return `ChangePasswordRoute`.
-3. **Two-factor** — `EnforceTwoFactor` is on and the user's `TwoFactorEnabled` is `false`, so return `TwoFactorRoute`.
+It then selects the rule set: the first entry in `RuleSets` whose `Condition` is `null` or returns `true`, otherwise `Default`. Selection happens after the static-file test, so a condition never runs on a stylesheet.
 
-Rules 2 and 3 are skipped when the path already starts with their own route, so the target page stays reachable. Rule 1 needs no such guard, because `AccessDeniedRoute` is one of the `ExcludedPaths`.
+Against that set it returns `null` for a path matching one of its `ExcludedPaths` by prefix, and otherwise checks, in order:
 
-This is the whole of `IdentityMiddleware`'s logic. The middleware supplies the path and performs the redirect; everything else is here.
+1. **Disabled account:** `IsEnabled` is `false`, so return `AccessDeniedRoute`. First deliberately, because a disabled account should not be routed to a password-change or two-factor page it has no business completing.
+2. **Password change:** the set's `RequirePasswordChange` is on and the user's `RequiresPasswordChange` is `true`, so return `ChangePasswordRoute`.
+3. **Two-factor:** the set's `EnforceTwoFactor` is on and the user's `TwoFactorEnabled` is `false`, so return `TwoFactorRoute`.
+
+Rules 2 and 3 are skipped when the path already starts with their own route, so the target page stays reachable. Rule 1 needs no such guard, because `AccessDeniedRoute` is one of the selected set's `ExcludedPaths`.
+
+`SelectRuleSet(IdentityRuleContext context, IdentityMiddlewareOptions options)` is public and returns the same set the rules would apply. Call it wherever you have to name one of these routes yourself, such as a link to the change-password page, so the link and the enforcement cannot disagree.
+
+This is the whole of `IdentityMiddleware`'s logic. The middleware supplies the request and performs the redirect; everything else is here.
 
 ### Adding the ASP.NET Core middleware
 
@@ -317,7 +382,7 @@ app.UseIdentityMiddleware(); // after UseUserInfo — enforces rules against wha
 
 `UserInfoMiddleware` resolves the scoped `IUserInfo` and populates it only when `IsSetup` is `false`, so an instance established earlier — by a background job, or by impersonation — is left alone.
 
-`IdentityMiddleware` resolves `IUserInfo` as a method parameter, evaluates `IdentityRules.GetRedirect`, and either redirects or calls the next middleware.
+`IdentityMiddleware` resolves `IUserInfo` as a method parameter, passes the path, the authentication state and `HttpContext.RequestServices` to `IdentityRules.GetRedirect`, and either redirects or calls the next middleware. It reads `IOptions<IdentityMiddlewareOptions>` once at construction, since only the conditions on it are evaluated per request.
 
 Neither adds behaviour of its own. Both are wrappers, which is what allows an authority with no HTTP pipeline to reach identical results.
 

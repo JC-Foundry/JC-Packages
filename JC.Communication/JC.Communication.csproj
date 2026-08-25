@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.Communication</PackageId>
-        <Version>6.1.0</Version>
+        <Version>7.0.0</Version>
         <Description>Application communication for .NET, in three features registered independently — take only the ones you need. Email sends through a provider abstraction: OAuth2 over the Microsoft 365 SMTP relay, an authenticated SMTP relay, direct SMTP, or a console provider for development. It carries strongly typed messages, recipients and attachments with a combined size cap, returns a send result rather than throwing, and optionally logs to the database as metadata only or with full body content. Notifications add per-user in-app delivery with memory caching, per-notification icon and colour overrides, and a replaceable notification manager. Messaging adds chat threads with participants, replies, per-thread metadata and read tracking. Each feature has its own DbContext interface, EF Core mappings and retention cleanup jobs; notifications and messaging address and attribute their work through IUserInfo, which JC.Core defines and an identity package populates, so this package takes no dependency on one.</Description>
         <PackageTags>$(PackageTags);email;smtp;mailkit;notifications;messaging;chat</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>

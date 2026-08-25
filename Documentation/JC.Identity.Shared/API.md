@@ -2,7 +2,7 @@
 
 Every public type and member in JC.Identity.Shared. See [Setup](Setup.md) for registration and [Guide](Guide.md) for usage.
 
-> **Note:** Registration extensions (`IServiceCollection`, `IServiceProvider`, `IApplicationBuilder`) and options classes are documented in [Setup](Setup.md), not here. That covers `AddSharedIdentityServices`, `IdentityMiddlewareOptions` and `IdentityProjectionOptions`.
+> **Note:** Registration extensions (`IServiceCollection`, `IServiceProvider`, `IApplicationBuilder`) and options classes are documented in [Setup](Setup.md), not here. That covers `AddSharedIdentityServices`, `IdentityMiddlewareOptions`, `IdentityProjectionOptions`, and the two types configured through them: `IdentityRuleSet` and `IdentityRuleContext`.
 >
 > `UserInfoExtensions` is documented in full below despite three of its methods extending `IServiceProvider`. Those establish an ambient identity at run time rather than registering anything, so excluding them would leave the package's non-web surface undocumented.
 
@@ -107,11 +107,11 @@ These are the claims whose names are fixed. The identifier, email and role claim
 
 **Namespace:** `JC.Identity.Shared.Helpers`
 
-Static class evaluating the identity business rules — disabled accounts, required password changes and optional two-factor — against the path being requested. Holds the whole of the account-rule logic; `IdentityMiddleware` in JC.Identity.Shared.Web supplies the path and performs the redirect.
+Static class evaluating the identity business rules — disabled accounts, required password changes and optional two-factor — against the path being requested, under whichever rule set applies to it. Holds the whole of the account-rule logic, including the choice of rule set; `IdentityMiddleware` in JC.Identity.Shared.Web supplies the request and performs the redirect.
 
 #### Methods
 
-##### GetRedirect(IUserInfo userInfo, string path, bool isAuthenticated, IdentityMiddlewareOptions options, ILogger? logger = null)
+##### GetRedirect(IUserInfo userInfo, string path, bool isAuthenticated, IdentityMiddlewareOptions options, ILogger? logger = null, IServiceProvider? services = null)
 
 **Returns:** `string?`
 
@@ -120,20 +120,52 @@ Static class evaluating the identity business rules — disabled accounts, requi
 | `userInfo` | `IUserInfo` | — | The current user. |
 | `path` | `string` | — | The path being requested. |
 | `isAuthenticated` | `bool` | — | Whether the caller is authenticated. |
-| `options` | `IdentityMiddlewareOptions` | — | The configured routes and enforcement switches. |
+| `options` | `IdentityMiddlewareOptions` | — | The rule sets to choose between. |
 | `logger` | `ILogger?` | `null` | Records why a caller was redirected. Nothing is logged when a request passes. |
+| `services` | `IServiceProvider?` | `null` | Placed on the `IdentityRuleContext` handed to each condition. |
 
 Returns the route the caller should be sent to, or `null` where the request may proceed.
 
-Returns `null` immediately when the caller is unauthenticated, when the path matches one of `options.ExcludedPaths` by prefix, or when the path ends in one of the static-file extensions: `.css`, `.js`, `.jpg`, `.jpeg`, `.png`, `.gif`, `.svg`, `.ico`, `.woff`, `.woff2`, `.ttf`, `.eot`, `.map`, `.json`, `.xml`. All three comparisons are case-insensitive.
+Returns `null` immediately when the caller is unauthenticated, or when the path ends in one of the static-file extensions: `.css`, `.js`, `.jpg`, `.jpeg`, `.png`, `.gif`, `.svg`, `.ico`, `.woff`, `.woff2`, `.ttf`, `.eot`, `.map`, `.json`, `.xml`. The comparison is case-insensitive.
 
-Otherwise three rules are evaluated in order, and the first that matches returns its route:
+It then builds an `IdentityRuleContext` from the arguments and calls `SelectRuleSet`, so no condition is evaluated for an unauthenticated caller or a static file. Against the selected set it returns `null` where the path matches one of that set's `ExcludedPaths` by prefix, also case-insensitively.
 
-1. `IUserInfo.IsEnabled` is `false`, returning `options.AccessDeniedRoute` and logging a warning. Evaluated first deliberately — a disabled account should not be routed to a password-change or two-factor page it has no business completing.
-2. `options.RequirePasswordChange` is `true` and `IUserInfo.RequiresPasswordChange` is `true`, returning `options.ChangePasswordRoute` and logging at information level.
-3. `options.EnforceTwoFactor` is `true` and `IUserInfo.TwoFactorEnabled` is `false`, returning `options.TwoFactorRoute` and logging at information level.
+Otherwise three rules are evaluated in order, and the first that matches returns its route. Each log entry names the selected set:
 
-Rules 2 and 3 are skipped when `path` already starts with the route they would return, so the target page remains reachable. Rule 1 needs no such guard because `AccessDeniedRoute` is one of `options.ExcludedPaths` and is filtered out before the rules run.
+1. `IUserInfo.IsEnabled` is `false`, returning the set's `AccessDeniedRoute` and logging a warning. Evaluated first deliberately, because a disabled account should not be routed to a password-change or two-factor page it has no business completing.
+2. The set's `RequirePasswordChange` is `true` and `IUserInfo.RequiresPasswordChange` is `true`, returning its `ChangePasswordRoute` and logging at information level.
+3. The set's `EnforceTwoFactor` is `true` and `IUserInfo.TwoFactorEnabled` is `false`, returning its `TwoFactorRoute` and logging at information level.
+
+Rules 2 and 3 are skipped when `path` already starts with the route they would return, so the target page remains reachable. Rule 1 needs no such guard because `AccessDeniedRoute` is one of the selected set's `ExcludedPaths` and is filtered out before the rules run.
+
+##### GetRedirect(IUserInfo userInfo, string path, bool isAuthenticated, IdentityRuleSet ruleSet, ILogger? logger = null)
+
+**Returns:** `string?`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `userInfo` | `IUserInfo` | — | The current user. |
+| `path` | `string` | — | The path being requested. |
+| `isAuthenticated` | `bool` | — | Whether the caller is authenticated. |
+| `ruleSet` | `IdentityRuleSet` | — | The set to apply. Its `Condition` is not consulted. |
+| `logger` | `ILogger?` | `null` | Records why a caller was redirected. |
+
+The same evaluation against a set the caller has already chosen. Applies the identical unauthenticated, static-file and `ExcludedPaths` short-circuits, then the three rules above. Selecting nothing means `Condition` is ignored: the set passed in is the set applied.
+
+##### SelectRuleSet(IdentityRuleContext context, IdentityMiddlewareOptions options)
+
+**Returns:** `IdentityRuleSet`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `context` | `IdentityRuleContext` | — | The path, authentication state, user and services the conditions decide on. |
+| `options` | `IdentityMiddlewareOptions` | — | The rule sets to choose between. |
+
+Returns the first entry in `options.RuleSets` whose `Condition` is `null` or returns `true` for `context`, and `options.Default` where none does. Never returns `null`.
+
+Conditions are evaluated in list order and short-circuit on the first match, so a set added earlier hides any later set it overlaps with. An exception thrown by a condition propagates to the caller rather than being treated as a non-match.
+
+Public because a caller that has to name one of these routes itself, such as a link to the change-password page, needs the same set the rules would apply.
 
 ### IdentityHelper
 

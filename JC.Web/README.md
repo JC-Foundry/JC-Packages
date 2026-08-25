@@ -188,17 +188,6 @@ Under either Tailwind framework, import the shipped safelist — Tailwind cannot
 @import "../path/to/JC.Web/UI/jc-web.tailwind.css";
 ```
 
-### Content sanitisation
-
-For HTML authored by a user, typically a rich-text editor. Sanitise on **write**, so the stored value is trustworthy for every reader:
-
-```csharp
-var clean = ContentSanitiser.SanitiseContent(model.Body);
-var comment = new ContentSanitiser(ContentSanitiserOptions.Basic()).Sanitise(model.Comment);
-```
-
-Treat it as the only XSS control on that content — an editor's own cleanup runs in the browser and anything with a valid antiforgery token can post straight past it.
-
 ## Defaults
 
 | Behaviour | Default |
@@ -209,7 +198,6 @@ Treat it as the only XSS control on that content — an editor's own cleanup run
 | UI framework / icon set | Bootstrap / Bootstrap Icons |
 | Rate limiting strategy | Sliding window, 100 requests per minute, partitioned by client IP |
 | Proxy header trust | Off |
-| `ContentSanitiser` | `RichText` policy; not registered in DI |
 | Sitemap / robots paths | `/sitemap.xml`, `/robots.txt` |
 
 ## Documentation

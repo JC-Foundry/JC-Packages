@@ -104,7 +104,7 @@ The claim type constants are on `DefaultClaims`, in `JC.Identity.Shared`. The id
 
 ### Identity rules middleware
 
-Enforces account state on every authenticated request, skipping static files and configured paths:
+Enforces account state on every authenticated request, skipping static files and the excluded paths of the rule set that matched:
 
 - Disabled accounts are redirected to the access-denied route
 - Users flagged for a password change are redirected until they complete it
@@ -114,10 +114,12 @@ Enforces account state on every authenticated request, skipping static files and
 builder.Services.AddIdentity<AppUser, AppRole, AppDbContext>(
     configureMiddleware: options =>
     {
-        options.RequirePasswordChange = true;
-        options.EnforceTwoFactor = false;
+        options.Default.RequirePasswordChange = true;
+        options.Default.EnforceTwoFactor = false;
     });
 ```
+
+`Default` is the rule set applied when nothing else matches, and is all a single-audience application needs. An application serving a second audience adds a rule set with a condition, giving it its own routes rather than exempting it from enforcement.
 
 The rules themselves are `IdentityRules` in `JC.Identity.Shared`, expressed as a function returning a route or nothing, so a host with no HTTP pipeline reaches the same behaviour.
 

@@ -103,7 +103,7 @@ Called with no arguments, `AddIdentity` gives you:
 | `IUserInfo.Authority` | `IdentityAuthority.Local` once authenticated, `None` otherwise |
 | Claim types read | ASP.NET Identity's own, copied from `IdentityOptions.ClaimsIdentity` |
 | Claims factory | `DefaultClaimsPrincipalFactory` — adds 13 claims from `BaseUser` |
-| Account rule routes and switches | `IdentityMiddlewareOptions` defaults — see [JC.Identity.Shared](../JC.Identity.Shared/Setup.md#identitymiddlewareoptions) |
+| Account rule routes and switches | The defaults on `IdentityMiddlewareOptions.Default`, with no conditional rule sets — see [JC.Identity.Shared](../JC.Identity.Shared/Setup.md#identitymiddlewareoptions) |
 | Tenant filtering | **None.** Opt in with JC.Tenancy |
 
 `AddIdentity` registers:
@@ -137,8 +137,8 @@ The recommended entry point. Registers ASP.NET Core Identity with EF Core stores
 builder.Services.AddIdentity<AppUser, AppRole, AppDbContext>(
     configureMiddleware: options =>
     {
-        options.RequirePasswordChange = true;
-        options.EnforceTwoFactor = false;
+        options.Default.RequirePasswordChange = true;
+        options.Default.EnforceTwoFactor = false;
     },
     configureCookie: cookie =>
     {
@@ -157,7 +157,7 @@ builder.Services.AddIdentity<AppUser, AppRole, AppDbContext>(
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `configureMiddleware` | `Action<IdentityMiddlewareOptions>?` | `null` | Passed straight through to the shared runtime. Every property and default is in [JC.Identity.Shared](../JC.Identity.Shared/Setup.md#identitymiddlewareoptions) |
+| `configureMiddleware` | `Action<IdentityMiddlewareOptions>?` | `null` | Passed straight through to the shared runtime. Configures `Default`, and adds any conditional rule sets. Every property and default is in [JC.Identity.Shared](../JC.Identity.Shared/Setup.md#identitymiddlewareoptions) |
 | `configureCookie` | `Action<CookieAuthenticationOptions>?` | `null` | Configures the application cookie. When `null`, the three JC.Identity path defaults below are applied |
 
 **The cookie callback replaces the defaults rather than adding to them.** Supplying `configureCookie` means JC.Identity applies none of its own paths, so set every path you need inside the callback.
@@ -363,7 +363,7 @@ JC.Tenancy matches cross-tenant bypass permissions by role **name** rather than 
 
 The claim type strings and what each one populates on `IUserInfo` are listed in [JC.Identity.Shared](../JC.Identity.Shared/Setup.md#defaultclaims).
 
-One naming trap worth knowing: `BaseUser.RequirePasswordChange` is the persisted column, and it is what you set to force a user through the change-password flow. `IUserInfo.RequiresPasswordChange` is the projected value the rule reads, and `IdentityMiddlewareOptions.RequirePasswordChange` is the switch that turns the rule on at all.
+One naming trap worth knowing: `BaseUser.RequirePasswordChange` is the persisted column, and it is what you set to force a user through the change-password flow. `IUserInfo.RequiresPasswordChange` is the projected value the rule reads, and `IdentityRuleSet.RequirePasswordChange` is the switch that turns the rule on at all, reached as `options.Default.RequirePasswordChange` from the registration callback.
 
 ### IdentityDataDbContext — what it provides
 

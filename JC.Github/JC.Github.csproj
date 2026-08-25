@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.Github</PackageId>
-        <Version>6.1.0</Version>
+        <Version>7.0.0</Version>
         <Description>Turns GitHub into the issue tracker for an application's own bug reports, in both directions. Outbound, BugReportService persists a ReportedIssue locally and then creates the matching GitHub issue through a timeout-bounded REST client; the local record is saved either way, so a GitHub outage loses nothing. Inbound, an optional webhook endpoint at a configurable path validates GitHub's HMAC-SHA256 signature in fixed time, acknowledges pings, ignores pull-request and issue-less deliveries, and folds issue and comment events back into the local records so state and discussion stay in step. Reported issues and comments are stored through JC.Core against a DbContext you nominate.</Description>
         <PackageTags>$(PackageTags);github;issue-tracking;bug-reports;webhooks</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>

@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.FileStorage.Web</PackageId>
-        <Version>6.1.1</Version>
+        <Version>7.0.0</Version>
         <Description>ASP.NET Core integration for JC.FileStorage. WebStorageService wraps StorageService to take IFormFile uploads, rejecting them against the folder's limits before the stream is read, and returns stored files with the MIME type and download name an action result needs. FormFileHelper strips the directory component browsers have historically sent in a file name, normalises extensions, and maps them to MIME types from the shared framework's ~380 known types. An &lt;upload-constraints&gt; tag helper renders a folder's accepted types and size limit as help text, read from the same registry values the server enforces so the two cannot drift. Class names come from a dictionary selected by the configured CSS framework, and a Tailwind safelist ships alongside.</Description>
         <PackageTags>$(PackageTags);aspnetcore;file-upload;iformfile;tag-helpers;mime-types</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -25,8 +25,8 @@
     </ItemGroup>
 
     <ItemGroup Condition="'$(UseLocalProjectReferences)' != 'true'">
-        <PackageReference Include="JC.FileStorage" versionOverride="6.1.1"/>
-        <PackageReference Include="JC.Web" versionOverride="6.1.0"/>
+        <PackageReference Include="JC.FileStorage" versionOverride="7.0.0"/>
+        <PackageReference Include="JC.Web" versionOverride="7.0.0"/>
     </ItemGroup>
 
     <!-- The README ships in the package: it is the landing page on a feed, and the

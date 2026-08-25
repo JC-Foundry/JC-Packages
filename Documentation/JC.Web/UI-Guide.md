@@ -1,6 +1,6 @@
 # JC.Web: UI — Guide
 
-Covers the tag helpers, the framework dictionary that decides their class names, HTML sanitisation of user-authored content, programmatic HTML building, dropdown construction, QR codes, and model state handling. See [Setup](UI-Setup.md) for `AddUI` and the `_ViewImports` registration.
+Covers the tag helpers, the framework dictionary that decides their class names, rendering untrusted HTML safely, programmatic HTML building, dropdown construction, QR codes, and model state handling. See [Setup](UI-Setup.md) for `AddUI` and the `_ViewImports` registration.
 
 ## Tag helpers
 
@@ -177,100 +177,22 @@ Icons are a separate choice from the CSS framework, because an icon set is a dif
 
 JC.Web registers no icon dictionary of its own; none of its components render a glyph.
 
-## Content sanitisation
+## Rendering untrusted HTML
 
-### Sanitising user HTML
+### Where sanitisation lives
 
-```csharp
-var clean = ContentSanitiser.SanitiseContent(model.Body);
-```
+JC.Web does not sanitise. `ContentSanitiser` and its policies belong to JC.Content, and are documented in [JC.Content — Guide](../JC.Content/Guide.md).
 
-Strips user-authored HTML to an allowlist, removing scripts, event handlers, `javascript:` URLs and unknown elements. The static method uses the `RichText()` policy; construct an instance to use another.
-
-Treat this as the **only** XSS control on that content. A rich-text editor's own sanitiser and paste cleanup run in the browser, and the value reaches you through an ordinary form field — anything holding a valid anti-forgery token can post straight past them. Editors offering a source-code view make arbitrary markup an expected input rather than an exotic attack.
-
-**Sanitise on write, not on render.** The stored value is then trustworthy for every reader, including other applications sharing the database, instead of each render site having to remember. That is what keeps `@Html.Raw` honest:
+What remains JC.Web's concern is the handful of places that write raw HTML on your behalf. `HtmlHelper`'s element-building methods insert their `content` argument verbatim, which is the exception in an area that otherwise encodes automatically:
 
 ```csharp
-public async Task<IActionResult> OnPostAsync()
-{
-    article.Body = ContentSanitiser.SanitiseContent(Input.Body);
-    await articles.UpdateAsync(article);
-    return RedirectToPage();
-}
+// content is written as-is, so it must already be safe
+var cell = html.CreateElement("td", WebUtility.HtmlEncode(userSuppliedText));
 ```
 
-Null, empty or whitespace-only input returns `null`, so a visually-empty editor stores "no content" rather than stray markup.
+**Sanitise on write, not on render.** The stored value is then trustworthy for every reader, including other applications sharing the database, instead of each render site having to remember. That is what keeps `@Html.Raw` and these helpers honest.
 
-### Policies
-
-Three presets cover the usual cases:
-
-```csharp
-// Comment-sized policy, reused across calls
-var sanitiser = new ContentSanitiser(ContentSanitiserOptions.Basic());
-var comment = sanitiser.Sanitise(model.Comment);
-
-// The usual policy, minus inline images
-var noImages = new ContentSanitiser(o =>
-{
-    o.AllowInlineImages = false;
-    o.AllowedTags.Remove("img");
-});
-
-// Strip all HTML, keep the text
-var plain = new ContentSanitiser(ContentSanitiserOptions.Empty()).Sanitise(model.Body);
-```
-
-`RichText()` is the default and suits a WYSIWYG editor's full output. `Basic()` allows inline formatting, lists, quotes and links but no images, tables, styles or classes, so the result cannot carry layout or colour into the page. `Empty()` with `KeepChildNodes` on reduces markup to its text.
-
-Presets are methods rather than properties, so each call returns a fresh instance and adjusting one never affects another caller.
-
-The callback overload starts from `RichText()`, not from an empty policy — it adjusts the rich-text defaults rather than building from nothing.
-
-### Inline images
-
-`AllowInlineImages`, on in `RichText()`, permits the `data:` scheme but narrows it to `data:image/*` on `<img>` elements. Allowing the scheme outright would also permit `data:text/html` on a link, which executes script.
-
-Turning it off does not remove a `data` entry you added to `AllowedSchemes` yourself. That stays allowed, and unnarrowed, because you asked for it.
-
-### Load-bearing allowlist entries
-
-`class` is required, not cosmetic. An editor's image quick-toolbar stores Align, Caption and Display as theme classes, and its stylesheet is what positions them — strip the attribute and every aligned or captioned image silently loses its layout. Table styles work the same way. Narrow `AllowedClasses` to restrict which names survive rather than dropping the attribute:
-
-```csharp
-var sanitiser = new ContentSanitiser(o =>
-{
-    o.AllowedClasses.Add("text-start");
-    o.AllowedClasses.Add("text-center");
-    o.AllowedClasses.Add("table-striped");
-});
-```
-
-An empty `AllowedClasses` means every class name survives. Populating it switches to allowlist behaviour, so the first name you add silently strips all the others.
-
-`width`, `height` and `max-width` in `AllowedCssProperties` are what editors write onto images to keep them fluid. Drop them and that normalisation is undone on save.
-
-The damage here is retroactive — content saved before the change keeps its markup, but the classes it relies on are stripped the next time it passes through the sanitiser.
-
-### Anything not modelled
-
-`Configure` hands you the underlying `HtmlSanitizer` after every other setting has been applied, so it can override them:
-
-```csharp
-var sanitiser = new ContentSanitiser(o =>
-{
-    o.Configure = s =>
-    {
-        s.AllowDataAttributes = true;
-        s.RemovingTag += (_, e) => logger.LogDebug("Stripped <{Tag}>", e.Tag.NodeName);
-    };
-});
-```
-
-The `RemovingTag` event is the quickest way to find out why an editor's output is losing elements — log it in development and the missing allowlist entries announce themselves.
-
-A fresh `HtmlSanitizer` is built on every call rather than cached, because it documents no thread-safety guarantee and the options are mutable.
+Treat the sanitiser as the **only** XSS control on user-authored HTML. A rich-text editor's own cleanup runs in the browser, and the value reaches you through an ordinary form field — anything holding a valid anti-forgery token can post straight past it.
 
 ## Building HTML from code
 
@@ -443,5 +365,5 @@ The wrapper reads and writes the same `ModelStateDictionary`, so errors added th
 
 ## Next steps
 
-- [Setup](UI-Setup.md) — `AddUI`, framework selection, sanitiser options, and the bug reporter's pipeline requirements.
+- [Setup](UI-Setup.md) — `AddUI`, framework selection, and the bug reporter's pipeline requirements.
 - [API Reference](UI-API.md)

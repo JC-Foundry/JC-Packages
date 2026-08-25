@@ -166,13 +166,15 @@ if (result.Succeeded)
 
 ### Requiring two-factor
 
-Two-factor enforcement is a switch on `IdentityMiddlewareOptions`, off by default; see [Setup](Setup.md#addidentity--standard-registration). The per-user state is ASP.NET Identity's own `TwoFactorEnabled`, and the setup screen is built with `IdentityHelper` — covered in the [shared guide](../JC.Identity.Shared/Guide.md#two-factor-setup-screens).
+Two-factor enforcement is a switch on a rule set rather than on the application, off by default. `options.Default.EnforceTwoFactor` turns it on everywhere; see [Setup](Setup.md#addidentity--standard-registration). An application that enforces it on some paths and not others adds a second rule set instead, which the [shared guide](../JC.Identity.Shared/Guide.md#serving-more-than-one-audience) covers.
+
+The per-user state is ASP.NET Identity's own `TwoFactorEnabled`, and the setup screen is built with `IdentityHelper` — covered in the [shared guide](../JC.Identity.Shared/Guide.md#two-factor-setup-screens).
 
 ### Nuances and gotchas
 
-**Three similarly named members are easy to confuse.** `BaseUser.RequirePasswordChange` is the persisted column you set. `IUserInfo.RequiresPasswordChange` is the projected value the rule reads. `IdentityMiddlewareOptions.RequirePasswordChange` is the switch that turns the rule on at all — leave it enabled, or setting the column does nothing.
+**Three similarly named members are easy to confuse.** `BaseUser.RequirePasswordChange` is the persisted column you set. `IUserInfo.RequiresPasswordChange` is the projected value the rule reads. `IdentityRuleSet.RequirePasswordChange` is the switch that turns the rule on at all, reached as `options.Default.RequirePasswordChange` unless you have added rule sets. Leave it enabled, or setting the column does nothing.
 
-**Routes must exist.** The rules redirect to `/Identity/Account/Manage/SetPassword`, `/Identity/Account/Manage/EnableAuthenticator` and `/Identity/Account/AccessDenied` by default. An application not using the Identity UI scaffolding must point these at its own pages, or every redirect lands on a 404.
+**Routes must exist.** The rules redirect to `/Identity/Account/Manage/SetPassword`, `/Identity/Account/Manage/EnableAuthenticator` and `/Identity/Account/AccessDenied` by default. An application not using the Identity UI scaffolding must point these at its own pages, or every redirect lands on a 404. Each rule set carries its own copy of these routes, so setting them on `Default` does not change what another set sends people to.
 
 ## Seeding roles and an administrator
 

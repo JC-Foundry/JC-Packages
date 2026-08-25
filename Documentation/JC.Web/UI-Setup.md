@@ -59,7 +59,6 @@ Component defaults:
 
 | Type | Default behaviour |
 |------|-------------------|
-| `ContentSanitiser()` | Uses `ContentSanitiserOptions.RichText()` — headings, tables, links, lists, inline `data:` images, and editor inline styles |
 | `QrCodeHelper()` | SVG output, 10 pixels per module, error correction level `M` (15%) |
 | `TableBuilder<T>` | No columns until added; cell content HTML-encoded |
 | `BreadcrumbBuilder` | No items until added; last item rendered as the current page |
@@ -197,58 +196,11 @@ Without it the widget still renders and submits, but its `metadata` field is emp
 
 The widget posts JSON to the endpoint given in its `endpoint` attribute, including an anti-forgery token in the `RequestVerificationToken` header when one is available. Your receiving endpoint should expect that header rather than a form field.
 
-### Registering a shared sanitiser
+### Sanitising editor output
 
-`ContentSanitiser` is not registered by `AddUI`. It is safe to reuse and slightly cheaper to share, since building the allowlists is not free:
+HTML sanitisation belongs to JC.Content, which owns `ContentSanitiser` and its options. See [JC.Content — Setup](../JC.Content/Setup.md) for the policies and presets, and [JC.Content — Guide](../JC.Content/Guide.md) for how they are applied.
 
-```csharp
-builder.Services.AddSingleton(new ContentSanitiser(ContentSanitiserOptions.RichText()));
-
-// Or a keyed pair when different content needs different policies
-builder.Services.AddKeyedSingleton("rich", new ContentSanitiser(ContentSanitiserOptions.RichText()));
-builder.Services.AddKeyedSingleton("comments", new ContentSanitiser(ContentSanitiserOptions.Basic()));
-```
-
-This is your registration, not the package's — nothing in JC.Web resolves `ContentSanitiser` from the container.
-
-### ContentSanitiserOptions
-
-Passed to the `ContentSanitiser` constructor, either as a preset or through a configuration callback.
-
-| Property | Type | Default (`RichText()`) | Description |
-|----------|------|------------------------|-------------|
-| `AllowedTags` | `HashSet<string>` | Headings, tables, lists, links, images, inline formatting | Element names permitted in the output |
-| `AllowedAttributes` | `HashSet<string>` | `class`, `style`, `title`, `dir`, `href`, `target`, `rel`, `src`, `alt`, `width`, `height`, `colspan`, `rowspan`, `span` | Attribute names permitted on allowed elements |
-| `AllowedSchemes` | `HashSet<string>` | `http`, `https`, `mailto` — plus `data` added automatically when `AllowInlineImages` is on | URL schemes permitted in attribute values |
-| `AllowedCssProperties` | `HashSet<string>` | Font, colour, alignment, dimensions, table and spacing properties | CSS properties permitted in inline `style` attributes |
-| `AllowedClasses` | `HashSet<string>` | Empty — all class names allowed | When populated, restricts which class names survive |
-| `AllowInlineImages` | `bool` | `true` | Permits `data:` URIs, narrowed to `data:image/*` on `<img>` |
-| `KeepChildNodes` | `bool` | `true` | When a tag is removed, keeps its text content rather than discarding the subtree |
-| `Configure` | `Action<HtmlSanitizer>?` | `null` | Escape hatch applied last, able to override every other setting |
-
-**`AllowInlineImages` defaults to `false` on a bare `new ContentSanitiserOptions()`.** The `true` above is what `RichText()` sets; `Basic()` and `Empty()` leave it off.
-
-#### Presets
-
-| Preset | Allows |
-|--------|--------|
-| `RichText()` | The default. Headings, tables, images including inline `data:` images, links, lists, and the inline styles editors write for font, colour and alignment |
-| `Basic()` | Inline formatting, lists, quotes and links. No images, tables, styles or classes, so output cannot carry layout or colour into the page |
-| `Empty()` | Nothing. With `KeepChildNodes` on, reduces markup to its text — a strip-all-HTML policy |
-
-Presets are **methods, not properties** — each call returns a fresh instance, so adjusting one never affects another caller.
-
-```csharp
-var comments = new ContentSanitiser(ContentSanitiserOptions.Basic());
-
-var noImages = new ContentSanitiser(o =>
-{
-    o.AllowInlineImages = false;
-    o.AllowedTags.Remove("img");
-});
-```
-
-> **`class` and the sizing CSS properties are load-bearing, not cosmetic.** Editors store image alignment, captions and table styling as theme classes, and write `width`/`height`/`max-width` onto images to keep them fluid. Removing those entries silently breaks the layout of previously-saved content. Narrow `AllowedClasses` rather than dropping the `class` attribute. See [Load-bearing allowlist entries](UI-Guide.md#load-bearing-allowlist-entries).
+Nothing in JC.Web sanitises on your behalf. The one place it matters here is `HtmlHelper`, whose element-building methods insert their `content` argument as raw HTML: sanitise or encode user-supplied text before it reaches them.
 
 ### QrCodeHelper
 
@@ -271,10 +223,9 @@ The parameterless constructor fixes `eccLevel` at `M`; use the three-argument fo
 ## 3. Verify
 
 1. Add `<alert type="Success" message="It works" />` to a view — it should render a styled alert with a dismiss button, not literal `<alert>` text. Literal text means `@addTagHelper` is missing; an `InvalidOperationException` about `AlertHelper` means `AddUI` was not called.
-2. Call `ContentSanitiser.SanitiseContent("<script>alert(1)</script><b>ok</b>")` — it should return `<b>ok</b>` with the script removed.
-3. If using `<bug-reporter>`, submit a report and confirm the `metadata` field is populated rather than empty.
+2. If using `<bug-reporter>`, submit a report and confirm the `metadata` field is populated rather than empty.
 
 ## Next steps
 
-- [Guide](UI-Guide.md) — tag helpers, the framework dictionary system, content sanitisation, table and dropdown building, QR codes, and model state handling.
+- [Guide](UI-Guide.md) — tag helpers, the framework dictionary system, table and dropdown building, QR codes, and model state handling.
 - [API Reference](UI-API.md)

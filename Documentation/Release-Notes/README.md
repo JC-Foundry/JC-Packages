@@ -3,11 +3,12 @@
 Release notes for JC-Packages **major** versions. Each major release introduces breaking changes and includes a migration guide.
 See minor and patch releases below.
 
-| Version             | Date           | Summary                                                                                                                                                                              |
-|---------------------|----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [v6.0.0](v6.0.0.md) | 11 August 2026 | New JC.Tenancy, JC.Identity.Shared and JC.Identity.Shared.Web packages; tenant filtering becomes opt-in per DbContext; UI framework abstraction and SEO in JC.Web; email attachments |
-| [v5.0.0](v5.0.0.md) | 17 July 2026   | `IMultiTenancy` and `Tenant` move from JC.Identity to JC.Core, so any package can be tenant-scoped; new JC.FileStorage and JC.FileStorage.Web packages                               |
-| [v4.0.0](v4.0.0.md) | 4 July 2026    | Multi-DbContext support in the repository layer; context-aware background jobs                                                                                                       |
+| Version             | Date           | Summary                                                                                                                                                                                                     |
+|---------------------|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [v7.0.0](v7.0.0.md) | 25 August 2026 | JC.Identity.Shared updated with new IdentityMiddlewareOptions implementation. Adds the ability to create rule sets so that Identity Middleware fires on specific configured rule sets matching a condition. |
+| [v6.0.0](v6.0.0.md) | 11 August 2026 | New JC.Tenancy, JC.Identity.Shared and JC.Identity.Shared.Web packages; tenant filtering becomes opt-in per DbContext; UI framework abstraction and SEO in JC.Web; email attachments                        |
+| [v5.0.0](v5.0.0.md) | 17 July 2026   | `IMultiTenancy` and `Tenant` move from JC.Identity to JC.Core, so any package can be tenant-scoped; new JC.FileStorage and JC.FileStorage.Web packages                                                      |
+| [v4.0.0](v4.0.0.md) | 4 July 2026    | Multi-DbContext support in the repository layer; context-aware background jobs                                                                                                                              |
 
 
 **Note**: minor and patch releases were not documented here until version 6 (v6.0.0).
@@ -18,6 +19,12 @@ See minor and patch releases below.
 
 
 ## Minor releases
+
+### v7.x.x
+
+| Version | Date | Summary |
+|---------|------|---------|
+| 7.1.0   | -    | -       |
 
 ### v6.x.x
 
@@ -33,6 +40,15 @@ See minor and patch releases below.
 
 ## Patch releases
 **Note**: Patch releases carry no separate release notes document; only the summary listed below.
+
+---
+
+### Version 7
+#### v7.0.x
+
+| Version | Packages | Date | Summary |
+|---------|----------|------|---------|
+| 7.0.1   | -        | -    | -       |
 
 ---
 

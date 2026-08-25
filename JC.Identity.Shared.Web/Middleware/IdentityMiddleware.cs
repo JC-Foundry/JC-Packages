@@ -11,12 +11,14 @@ namespace JC.Identity.Shared.Web.Middleware;
 /// Middleware that enforces the identity business rules, redirecting where one is not satisfied.
 /// </summary>
 /// <remarks>
-/// The rules themselves are <see cref="IdentityRules"/> in JC.Identity.Shared; this only supplies
-/// the request path and performs the redirect. Must run after <see cref="UserInfoMiddleware"/>.
+/// The rules themselves, and the choice of which rule set applies, are <see cref="IdentityRules"/>
+/// in JC.Identity.Shared; this only supplies the request and performs the redirect. Must run after
+/// <see cref="UserInfoMiddleware"/>.
 /// </remarks>
 public class IdentityMiddleware(RequestDelegate next, IOptions<IdentityMiddlewareOptions> options,
     ILogger<IdentityMiddleware> logger)
 {
+    // The options object is stable; only the conditions on it are evaluated per request.
     private readonly IdentityMiddlewareOptions _options = options.Value;
 
     /// <summary>
@@ -32,7 +34,8 @@ public class IdentityMiddleware(RequestDelegate next, IOptions<IdentityMiddlewar
             context.Request.Path.Value ?? string.Empty,
             context.User.Identity?.IsAuthenticated ?? false,
             _options,
-            logger);
+            logger,
+            context.RequestServices);
 
         if (redirect is not null)
         {

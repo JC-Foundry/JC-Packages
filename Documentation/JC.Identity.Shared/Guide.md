@@ -1,6 +1,6 @@
 # JC.Identity.Shared — Guide
 
-Covers reading the current user, establishing an identity outside an HTTP request, projecting identity from your own authority, applying the account rules directly, roles, and two-factor setup screens. See [Setup](Setup.md) for registration and option defaults.
+Covers reading the current user, establishing an identity outside an HTTP request, projecting identity from your own authority, applying the account rules and choosing between rule sets, roles, and two-factor setup screens. See [Setup](Setup.md) for registration and option defaults.
 
 ## Reading the current user
 
@@ -246,7 +246,72 @@ The first two use the configurable claim types; everything else uses the fixed c
 
 ### Basic usage
 
-In an ASP.NET Core application, `UseIdentityMiddleware()` does this for you. Nothing further is needed.
+In an ASP.NET Core application, `UseIdentityMiddleware()` does this for you. Every request is enforced under `IdentityMiddlewareOptions.Default`, which is all a single-audience application ever needs.
+
+### Serving more than one audience
+
+An application hosting its own pages alongside a surface for somebody else needs the same behaviours in both, at different routes. That is a second rule set, not an exemption:
+
+```csharp
+builder.Services.AddSharedIdentityServices<AppUserInfo>(configureMiddleware: options =>
+{
+    // Everything outside /sso: the application's own pages, its own policy
+    options.Default.EnforceTwoFactor = true;
+
+    // The single sign-on surface, tried first because it is in the list
+    options.AddForPathPrefix("/sso", ruleSet =>
+    {
+        ruleSet.Name = "sso";
+        ruleSet.EnforceTwoFactor = false;
+        ruleSet.TwoFactorRoute = "/sso/security/authenticator";
+        ruleSet.ChangePasswordRoute = "/sso/account/set-password";
+        ruleSet.AccessDeniedRoute = "/sso/denied";
+        ruleSet.LogoutRoute = "/sso/sign-out";
+        ruleSet.ErrorRoute = "/sso/error";
+    });
+});
+```
+
+A user without two-factor reaching `/reports` is sent to the application's own enrolment page. The same user reaching `/sso/authorise` is left alone, because the set that matched does not enforce it. Both are still stopped when the account is disabled, each at their own access-denied page.
+
+`AddForPathPrefix` names the set after the prefix, so the `Name` assignment above is an override rather than a requirement. The name appears in the redirect logs, which is what tells you which set fired.
+
+### Conditions on something other than the path
+
+`AddForPathPrefix` is shorthand for the common case. Add a set directly when the discriminator is something else:
+
+```csharp
+options.RuleSets.Add(new IdentityRuleSet
+{
+    Name = "external",
+    Condition = context => context.User.Authority == IdentityAuthority.CAP,
+    TwoFactorRoute = "/external/security/authenticator",
+    AccessDeniedRoute = "/external/denied"
+});
+```
+
+Inside an application hosting both audiences the path is usually the right key. In an application *receiving* an externally supplied identity, the authority is.
+
+A condition can also read something that was not knowable at registration, through the request's own services:
+
+```csharp
+// Enforcement is a per-application setting its administrators control, so the flag
+// cannot be a constant. Two sets, differing only in the flag and in what selects them.
+options.RuleSets.Add(new IdentityRuleSet
+{
+    Name = "sso-strict",
+    Condition = context => context.Path.StartsWith("/sso", StringComparison.OrdinalIgnoreCase)
+                           && context.Services!.GetRequiredService<ISsoPolicy>().RequiresTwoFactor(context.User),
+    EnforceTwoFactor = true,
+    TwoFactorRoute = "/sso/security/authenticator"
+});
+
+options.AddForPathPrefix("/sso", ruleSet => ruleSet.TwoFactorRoute = "/sso/security/authenticator");
+```
+
+The strict set is added first, so it is tried first. A `/sso` request the policy does not mark strict falls through to the second set.
+
+`Services` is the request's own provider, so a scoped service resolves exactly as it would anywhere else. It is `null` only when the caller passed nothing, which the middleware never does.
 
 ### Applying them yourself
 
@@ -260,14 +325,15 @@ public class AccountGate(IUserInfo userInfo, IOptions<IdentityMiddlewareOptions>
 }
 ```
 
-A `null` return means the request may proceed; anything else is the route to send the caller to.
+A `null` return means the request may proceed; anything else is the route to send the caller to. Selection happens inside `GetRedirect`, so a host with no pipeline gets rule sets on the same terms as the middleware. Pass a service provider as the last argument if any of your conditions resolve services.
 
 ### Returning a status code instead of a redirect
 
 An API has no use for a redirect, but the same rules still apply:
 
 ```csharp
-var redirect = IdentityRules.GetRedirect(userInfo, context.Request.Path, isAuthenticated: true, options.Value);
+var redirect = IdentityRules.GetRedirect(userInfo, context.Request.Path, true,
+    options.Value, logger, context.RequestServices);
 
 if (redirect is not null)
     return Results.Problem(
@@ -276,11 +342,46 @@ if (redirect is not null)
         statusCode: StatusCodes.Status403Forbidden);
 ```
 
+### Naming one of these routes yourself
+
+A page that links to the change-password screen has to pick a route, and picking the wrong one sends the user somewhere the enforcement will bounce them from. Ask for the set that applies:
+
+```csharp
+public class SecurityLinks(IUserInfo userInfo, IOptions<IdentityMiddlewareOptions> options,
+    IHttpContextAccessor accessor)
+{
+    public string ChangePasswordUrl
+    {
+        get
+        {
+            var httpContext = accessor.HttpContext!;
+            var context = new IdentityRuleContext(
+                httpContext.Request.Path.Value ?? string.Empty,
+                true,                              // only reached on an authenticated page
+                userInfo,
+                httpContext.RequestServices);
+
+            return IdentityRules.SelectRuleSet(context, options.Value).ChangePasswordRoute;
+        }
+    }
+}
+```
+
+`SelectRuleSet` is the same call the rules make, so the link and the enforcement cannot disagree.
+
 ### Nuances and gotchas
+
+**The first matching set wins.** `RuleSets` is walked in the order entries were added, so put the most specific conditions first. A set with no condition matches everything, and anything after it is unreachable.
+
+**`Default` is not in the list.** It cannot be reordered away or removed, so a request that matches no condition still meets a set that stops a disabled account. There is no arrangement of rule sets that leaves a request unenforced.
+
+**A set's exclusions are its own.** `ExcludedPaths` is built from the *selected* set's access-denied, logout and error routes. A set whose condition does not cover its own logout page will have that page judged by whichever set does match, which is usually the wrong one. Keep a condition and its routes in agreement.
+
+**Conditions run on every authenticated request that is not a static file.** Cache anything that reaches a database, and do not throw: an exception propagates out of the middleware rather than falling through to the next set.
 
 **The order of the checks is deliberate.** Disabled accounts are caught first, before password change and two-factor. A disabled account should not be routed to a page it has no business completing.
 
-**Rules 2 and 3 guard against a redirect loop; rule 1 does not need to.** The password-change and two-factor checks are skipped when the path already starts with their own route. The disabled check has no such guard because `AccessDeniedRoute` is one of the `ExcludedPaths` and never reaches the rules at all.
+**Rules 2 and 3 guard against a redirect loop; rule 1 does not need to.** The password-change and two-factor checks are skipped when the path already starts with their own route. The disabled check has no such guard because `AccessDeniedRoute` is one of the selected set's `ExcludedPaths` and never reaches the rules at all.
 
 **Static files are matched by extension, not by middleware order.** `.css`, `.js`, `.jpg`, `.jpeg`, `.png`, `.gif`, `.svg`, `.ico`, `.woff`, `.woff2`, `.ttf`, `.eot`, `.map`, `.json`, `.xml`. A `.json` API endpoint whose path ends in that extension is skipped along with them.
 

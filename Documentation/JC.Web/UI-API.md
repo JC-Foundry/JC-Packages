@@ -1,8 +1,8 @@
 # JC.Web: UI — API reference
 
-Complete reference of all public types, properties, and methods in the JC.Web UI area — the framework class dictionary, content sanitisation, HTML builders, dropdown helpers, QR codes, model state, and tag helpers. See [Setup](UI-Setup.md) for registration and [Guide](UI-Guide.md) for usage examples.
+Complete reference of all public types, properties, and methods in the JC.Web UI area — the framework class dictionary, HTML builders, dropdown helpers, QR codes, model state, and tag helpers. See [Setup](UI-Setup.md) for registration and [Guide](UI-Guide.md) for usage examples.
 
-> **Note:** Registration extensions (`AddUI`, `AddFrameworkDictionary`, `AddIconDictionary`) and options classes are documented in [Setup](UI-Setup.md), not here. `ContentSanitiserOptions` is covered under [Setup](UI-Setup.md#contentsanitiseroptions).
+> **Note:** Registration extensions (`AddUI`, `AddFrameworkDictionary`, `AddIconDictionary`) and options classes are documented in [Setup](UI-Setup.md), not here.
 
 ---
 
@@ -331,70 +331,6 @@ Pagination requires that framework's opt-in `interactive` layer — see [Setup](
 ---
 
 # Helpers
-
-## ContentSanitiser
-
-**Namespace:** `JC.Web.UI.Helpers`
-
-Server-side sanitisation for HTML authored by a user, typically the output of a rich-text editor. Everything outside the configured allowlist is removed: scripts, event handlers, `javascript:` URLs and unknown elements. The allowlists come from [`ContentSanitiserOptions`](UI-Setup.md#contentsanitiseroptions).
-
-Treat this as the only XSS control on that content — an editor's own sanitiser runs in the browser and can be bypassed by posting directly. Sanitise on write rather than on render, so the stored value is trustworthy for every reader.
-
-A fresh underlying sanitiser is built per call: the library documents no thread-safety guarantee, and the options are mutable, so a shared instance could otherwise be reconfigured mid-sanitise.
-
-### Constructors
-
-#### ContentSanitiser()
-
-Creates a sanitiser using `ContentSanitiserOptions.RichText()`.
-
----
-
-#### ContentSanitiser(ContentSanitiserOptions options)
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `options` | `ContentSanitiserOptions` | — | The allowlists to enforce. |
-
-Creates a sanitiser using the supplied options. Throws `ArgumentNullException` if `options` is null.
-
----
-
-#### ContentSanitiser(Action\<ContentSanitiserOptions\> configure)
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `configure` | `Action<ContentSanitiserOptions>` | — | Receives the rich-text options to modify. |
-
-Creates a sanitiser from `ContentSanitiserOptions.RichText()` with adjustments applied — the shorthand for "the usual policy, but…". Throws `ArgumentNullException` if `configure` is null.
-
-### Methods
-
-#### Sanitise(string? html)
-
-**Returns:** `string?`
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `html` | `string?` | — | The untrusted HTML to sanitise. |
-
-Returns the HTML with everything outside this instance's allowlist removed, or `null` when `html` is null, empty or whitespace.
-
----
-
-#### SanitiseContent(string? html)
-
-**Returns:** `string?`
-
-**Static.**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `html` | `string?` | — | The untrusted HTML to sanitise. |
-
-Sanitises against `ContentSanitiserOptions.RichText()` without constructing an instance. Equivalent to `new ContentSanitiser().Sanitise(html)`.
-
----
 
 ## QrCodeHelper
 
@@ -758,7 +694,7 @@ Takes `IWebFrameworkDictionary` as its only constructor parameter.
 
 Creates an element with optional state classes, attributes and CSS classes.
 
-**`content` is inserted as raw HTML and is not encoded.** This is the exception in an area that otherwise encodes automatically — pass user-supplied text through `WebUtility.HtmlEncode` or `ContentSanitiser` before it reaches this method.
+**`content` is inserted as raw HTML and is not encoded.** This is the exception in an area that otherwise encodes automatically — pass user-supplied text through `WebUtility.HtmlEncode`, or through JC.Content's `ContentSanitiser`, before it reaches this method.
 
 ---
 
@@ -1024,5 +960,5 @@ Metadata is serialised via `RequestMetadata.ToLogEntry(maskPath: MaskRequestPath
 
 ## Next steps
 
-- [Setup](UI-Setup.md) — `_ViewImports` registration, sanitiser options, and QR code configuration.
-- [Guide](UI-Guide.md) — tag helpers, sanitisation, HTML building, dropdowns, QR codes, and model state.
+- [Setup](UI-Setup.md) — `_ViewImports` registration and QR code configuration.
+- [Guide](UI-Guide.md) — tag helpers, HTML building, dropdowns, QR codes, and model state.
