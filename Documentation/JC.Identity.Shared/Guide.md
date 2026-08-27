@@ -236,6 +236,8 @@ The first two use the configurable claim types; everything else uses the fixed c
 
 **Boolean claims are compared against `"true"`, case-insensitively.** Anything else — including `"1"`, `"yes"` or an empty string — reads as `false`. `bool.ToString()` produces `"True"`, which matches.
 
+**An authenticated principal with no `is_enabled` claim reads as disabled.** The flag follows the same `"true"` comparison as every other boolean, so an authority that forgets to emit it sends every one of its users to the access-denied route. The two pseudo-identities are not affected: the no-principal and unauthenticated branches set `IsEnabled` to `true` themselves, so neither the system nor the unknown user is ever taken for a disabled account.
+
 **Date claims need a parseable format.** They go through `DateTime.TryParse` and fall back to `null`. Round-trip format (`"O"`) is what JC.Identity emits and is the safe choice.
 
 **An empty tenant claim does not clear the tenant.** `TenantId` is assigned only when the claim carries a value, so an empty claim leaves whatever was already on the instance. If you need to clear it, assign `null` yourself.
@@ -275,6 +277,24 @@ builder.Services.AddSharedIdentityServices<AppUserInfo>(configureMiddleware: opt
 A user without two-factor reaching `/reports` is sent to the application's own enrolment page. The same user reaching `/sso/authorise` is left alone, because the set that matched does not enforce it. Both are still stopped when the account is disabled, each at their own access-denied page.
 
 `AddForPathPrefix` names the set after the prefix, so the `Name` assignment above is an override rather than a requirement. The name appears in the redirect logs, which is what tells you which set fired.
+
+### Excluding a path from enforcement
+
+A set's own access-denied, logout and error routes are excluded from its rules, whatever you set them to. That is what keeps a disabled user able to see the page they were sent to and able to sign out. Anything else that has to stay reachable is named explicitly:
+
+```csharp
+options.AddForPathPrefix("/sso", ruleSet =>
+{
+    ruleSet.AccessDeniedRoute = "/sso/denied";
+    ruleSet.LogoutRoute = "/sso/sign-out";
+    ruleSet.ErrorRoute = "/sso/error";
+
+    // Reachable regardless of the account's state
+    ruleSet.AdditionalExcludedPaths = ["/sso/health", "/sso/appeal"];
+});
+```
+
+Matching is by prefix and case-insensitive, so `/sso/health` covers `/sso/health/ready`. Keep the list to paths that genuinely must answer a disabled or unenrolled account: a prefix listed here is exempt from all three rules, not just the one you had in mind.
 
 ### Conditions on something other than the path
 
@@ -375,7 +395,9 @@ public class SecurityLinks(IUserInfo userInfo, IOptions<IdentityMiddlewareOption
 
 **`Default` is not in the list.** It cannot be reordered away or removed, so a request that matches no condition still meets a set that stops a disabled account. There is no arrangement of rule sets that leaves a request unenforced.
 
-**A set's exclusions are its own.** `ExcludedPaths` is built from the *selected* set's access-denied, logout and error routes. A set whose condition does not cover its own logout page will have that page judged by whichever set does match, which is usually the wrong one. Keep a condition and its routes in agreement.
+**A set's exclusions are its own.** `ExcludedPaths` is built from the *selected* set's access-denied, logout and error routes, plus its `AdditionalExcludedPaths`. A set whose condition does not cover its own logout page will have that page judged by whichever set does match, which is usually the wrong one. Keep a condition and its routes in agreement.
+
+**`ExcludedPaths` is read, never assigned.** It is derived on each read, so changing a route changes the exclusion with it and a custom `AccessDeniedRoute` needs nothing further. Extra exclusions go in `AdditionalExcludedPaths`.
 
 **Conditions run on every authenticated request that is not a static file.** Cache anything that reaches a database, and do not throw: an exception propagates out of the middleware rather than falling through to the next set.
 
@@ -385,7 +407,7 @@ public class SecurityLinks(IUserInfo userInfo, IOptions<IdentityMiddlewareOption
 
 **Static files are matched by extension, not by middleware order.** `.css`, `.js`, `.jpg`, `.jpeg`, `.png`, `.gif`, `.svg`, `.ico`, `.woff`, `.woff2`, `.ttf`, `.eot`, `.map`, `.json`, `.xml`. A `.json` API endpoint whose path ends in that extension is skipped along with them.
 
-**Pass `isAuthenticated` honestly.** The rules return `null` immediately when it is `false`, so passing `true` for an anonymous caller runs every check against system-user defaults — `IsEnabled` is `false` on an unpopulated instance, so you would redirect them to access-denied.
+**Pass `isAuthenticated` honestly.** The rules return `null` immediately when it is `false`, so passing `true` for an anonymous caller runs every check against the unknown user. The projection marks that user enabled, so rule 1 lets them through, but `TwoFactorEnabled` is `false`: a set with `EnforceTwoFactor` on sends them to its enrolment page. An instance nothing has populated fares worse, `IsEnabled` being `false` there, and is redirected to access-denied.
 
 ## Roles
 

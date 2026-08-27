@@ -86,7 +86,7 @@ An unpopulated instance is **not** blank: `UserId`, `Username` and `Email` hold 
 userInfo.PopulateFrom(principal, projectionOptions, logger);
 ```
 
-Three branches — no principal, an unauthenticated one, and an authenticated one — all of which mark the instance populated. Only the authenticated branch stamps `Authority`, so an anonymous request keeps `None`.
+Three branches — no principal, an unauthenticated one, and an authenticated one — all of which mark the instance populated. Only the authenticated branch stamps `Authority`, so an anonymous request keeps `None`. The other two mark the instance `IsEnabled`, so neither the system nor the unknown user reads as a disabled account; on the authenticated branch that flag comes from the `is_enabled` claim.
 
 `IdentityProjectionOptions` names the identifier, email and role claim types plus the authority to stamp. Everything else comes from the fixed constants on `DefaultClaims`, so an authority wanting those fields populated must emit claims under exactly those names.
 
@@ -130,10 +130,11 @@ options.AddForPathPrefix("/sso", ruleSet =>
     ruleSet.EnforceTwoFactor = false;
     ruleSet.TwoFactorRoute = "/sso/security/authenticator";
     ruleSet.AccessDeniedRoute = "/sso/denied";
+    ruleSet.AdditionalExcludedPaths = ["/sso/health"];
 });
 ```
 
-The first set whose condition matches wins, and its routes are also what supply the excluded paths. An application serving a second audience gives it its own routes rather than exempting it from enforcement, so a disabled user is still stopped, at the right page.
+The first set whose condition matches wins, and its routes are also what supply the excluded paths: `ExcludedPaths` is read from the set's own access-denied, logout and error routes, plus anything in `AdditionalExcludedPaths`. An application serving a second audience gives it its own routes rather than exempting it from enforcement, so a disabled user is still stopped, at the right page.
 
 A condition is any `Func<IdentityRuleContext, bool>`, and the context carries the path, the user and the request's services, so a rule can depend on something only knowable per request.
 
@@ -164,6 +165,7 @@ What is shared is the shape they arrive in: `IUserInfo.Roles` holds names in the
 | Password change enforcement | Enabled, routing to `/Identity/Account/Manage/SetPassword` |
 | Two-factor enforcement | Disabled, routing to `/Identity/Account/Manage/EnableAuthenticator` |
 | Access denied / logout / error routes | `/Identity/Account/AccessDenied`, `/Identity/Account/Logout`, `/Error` |
+| Additional excluded paths | None; the three routes above are excluded on their own, wherever they point |
 | Authentication and authorisation | **Not** registered — establishing that a principal is authenticated belongs to the authority |
 
 ## Documentation

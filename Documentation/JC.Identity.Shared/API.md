@@ -35,7 +35,7 @@ Each authority derives its own type and registers it as the scoped `IUserInfo`. 
 | `DisplayName` | `string?` | `null` | get; set; | The user's display name, if the authority supplies one. |
 | `LastLoginUtc` | `DateTime?` | `null` | get; set; | When the user last signed in. |
 | `RegistrationUtc` | `DateTime?` | `null` | get; set; | When the user registered. |
-| `IsEnabled` | `bool` | `false` | get; set; | Whether the account is enabled. `false` on an unpopulated instance. |
+| `IsEnabled` | `bool` | `false` | get; set; | Whether the account is enabled. `false` on an unpopulated instance; the claims projection sets it `true` for the system and unknown identities. |
 | `RequiresPasswordChange` | `bool` | `false` | get; set; | Whether the user must change their password before continuing. |
 | `IsSetup` | `bool` | `false` | get; set; | Whether an identity has been projected onto this instance. The claims middleware skips any instance where this is already `true`. |
 | `HasTenant` | `bool` | Derived | get; | `true` when `TenantId` is neither null nor empty. Has no setter, so it cannot disagree with the value it describes. |
@@ -128,7 +128,7 @@ Returns the route the caller should be sent to, or `null` where the request may 
 
 Returns `null` immediately when the caller is unauthenticated, or when the path ends in one of the static-file extensions: `.css`, `.js`, `.jpg`, `.jpeg`, `.png`, `.gif`, `.svg`, `.ico`, `.woff`, `.woff2`, `.ttf`, `.eot`, `.map`, `.json`, `.xml`. The comparison is case-insensitive.
 
-It then builds an `IdentityRuleContext` from the arguments and calls `SelectRuleSet`, so no condition is evaluated for an unauthenticated caller or a static file. Against the selected set it returns `null` where the path matches one of that set's `ExcludedPaths` by prefix, also case-insensitively.
+It then builds an `IdentityRuleContext` from the arguments and calls `SelectRuleSet`, so no condition is evaluated for an unauthenticated caller or a static file. Against the selected set it returns `null` where the path matches one of that set's `ExcludedPaths` by prefix, also case-insensitively. Those are the set's own `AccessDeniedRoute`, `LogoutRoute` and `ErrorRoute`, whatever they were configured to, followed by its `AdditionalExcludedPaths`.
 
 Otherwise three rules are evaluated in order, and the first that matches returns its route. Each log entry names the selected set:
 
@@ -277,9 +277,11 @@ Sets neither `TenantId` nor `Authority`, for the reasons given under `UserInfoBa
 
 Takes one of three branches, and sets `IsSetup` to `true` in all of them before returning the same instance:
 
-- `principal` is null, or its `Identity` is null: `UserId`, `Username` and `Email` are set to the system-user constants and nothing else is touched.
-- The identity is present but not authenticated: the same three are set to the unknown-user constants.
+- `principal` is null, or its `Identity` is null: `UserId`, `Username` and `Email` are set to the system-user constants, `IsEnabled` is set to `true`, and nothing else is touched.
+- The identity is present but not authenticated: the same three are set to the unknown-user constants, and `IsEnabled` is set to `true`.
 - The identity is authenticated: `Authority` is stamped from `options`; `Username` comes from `Identity.Name`; `Email` and `UserId` come from the claim types named in `options`, each falling back to its unknown-user constant; the remaining fields come from the fixed `DefaultClaims` names; `Claims` is set to the principal's full claim collection; and `Roles` is set to the values of every claim whose type matches `options.RoleClaimType`.
+
+`IsEnabled` is the only field the two pseudo-identity branches touch beyond the three constants. Neither is a real account, so neither is left reading as a disabled one.
 
 Boolean claims are matched against the literal `"true"`, case-insensitively; any other value, including absence, yields `false`. Date claims are parsed with `DateTime.TryParse` and fall back to `null`. `AccessFailedCount` is parsed with `int.TryParse` and falls back to `0`.
 

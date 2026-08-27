@@ -137,6 +137,8 @@ builder.Services.AddSharedIdentityServices<AppUserInfo>(
         options.Default.AccessDeniedRoute = "/Identity/Account/AccessDenied";
         options.Default.LogoutRoute = "/Identity/Account/Logout";
         options.Default.ErrorRoute = "/Error";
+        // Excluded on top of the three routes above, which are always excluded
+        options.Default.AdditionalExcludedPaths = ["/health"];
 
         // A second audience, tried before the default set
         options.AddForPathPrefix("/portal", ruleSet =>
@@ -221,11 +223,14 @@ One set of account rules: which are enforced, and where each sends the caller.
 | `AccessDeniedRoute` | `string` | `/Identity/Account/AccessDenied` | Where disabled accounts are sent |
 | `LogoutRoute` | `string` | `/Identity/Account/Logout` | Logout route, excluded from enforcement |
 | `ErrorRoute` | `string` | `/Error` | Error route, excluded from enforcement |
-| `ExcludedPaths` | `string[]` | Derived | Read-only. Built from `AccessDeniedRoute`, `LogoutRoute` and `ErrorRoute` on each read |
+| `AdditionalExcludedPaths` | `string[]` | Empty | Further paths excluded from enforcement, on top of the three routes above |
+| `ExcludedPaths` | `string[]` | Derived | Read-only. Built on each read from `AccessDeniedRoute`, `LogoutRoute`, `ErrorRoute` and `AdditionalExcludedPaths` |
 
 The routes default to the ASP.NET Core Identity UI paths. If your application does not use that UI, set all of them.
 
 **`ExcludedPaths` comes from the selected set, not from every set.** A set whose condition does not cover its own logout, error and access-denied routes will have those paths evaluated under whichever set does match. Keep a set's condition and its routes in agreement.
+
+**Change a route and its exclusion follows.** `ExcludedPaths` is read from the set's own route properties, so a custom `AccessDeniedRoute` is excluded without any further configuration. `AdditionalExcludedPaths` is for paths that are not one of the three, such as a health endpoint or a second sign-in page.
 
 **A condition must not throw.** It runs on every authenticated request that is not a static file, and an exception surfaces from the middleware rather than being swallowed.
 
@@ -257,6 +262,8 @@ Implements every `IUserInfo` member. Two constructors:
 
 An unpopulated instance is **not** blank. `UserId`, `Username` and `Email` default to `IUserInfo.SYSTEM_USER_ID`, `SYSTEM_USER_NAME` and `SYSTEM_USER_EMAIL` — `"System__ID"`, `"System"` and `"<SYSTEM@EMAIL>"`. Audit entries written before anything populates the instance are therefore attributed to the system user rather than to nothing.
 
+The booleans carry no such defaults: `IsEnabled` is `false` on an instance nothing has populated. Projecting a principal sets it `true` on the system and unknown branches, so an instance that has been through the projection reads as enabled even when there was no principal at all.
+
 `HasTenant` is derived from `TenantId` and has no setter. `IsSetup` reports whether the instance has been populated; the claims middleware skips any instance where it is already `true`.
 
 `IsInRole(role)` returns `true` when the name appears in `Roles`, or when a claim of type `ClaimTypes.Role` carries it. Comparison is ordinal and case-sensitive, and an empty role name always returns `false`.
@@ -281,9 +288,11 @@ Three branches, and it sets `IsSetup = true` in all of them:
 
 | Condition | Result |
 |-----------|--------|
-| `principal` or its `Identity` is `null` | The system-user constants |
-| Identity present but not authenticated | The unknown-user constants — `"Unknown__ID"`, `"Unknown"`, `"<UNKNOWN@EMAIL>"` |
+| `principal` or its `Identity` is `null` | The system-user constants, and `IsEnabled` set to `true` |
+| Identity present but not authenticated | The unknown-user constants (`"Unknown__ID"`, `"Unknown"`, `"<UNKNOWN@EMAIL>"`), and `IsEnabled` set to `true` |
 | Authenticated | Every field projected from claims, and `Authority` stamped |
+
+**Neither pseudo-identity is a disabled account.** Both branches set `IsEnabled` to `true`, so nothing reading the flag treats the system or unknown user as disabled. On the authenticated branch it comes from the `is_enabled` claim, and is `false` where that claim is missing or carries anything other than `"true"`.
 
 On the authenticated branch, `TenantId` is assigned **only when the tenant claim carries a value**, so an empty claim leaves whatever was already there rather than clearing it.
 

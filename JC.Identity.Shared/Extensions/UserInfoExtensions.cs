@@ -85,6 +85,7 @@ public static class UserInfoExtensions
             userInfo.UserId = IUserInfo.SYSTEM_USER_ID;
             userInfo.Username = IUserInfo.SYSTEM_USER_NAME;
             userInfo.Email = IUserInfo.SYSTEM_USER_EMAIL;
+            userInfo.IsEnabled = true;
         }
         else if (!principal.Identity.IsAuthenticated)
         {
@@ -92,6 +93,7 @@ public static class UserInfoExtensions
             userInfo.UserId = IUserInfo.UNKNOWN_USER_ID;
             userInfo.Username = IUserInfo.UNKNOWN_USER_NAME;
             userInfo.Email = IUserInfo.UNKNOWN_USER_EMAIL;
+            userInfo.IsEnabled = true;
         }
         else
         {

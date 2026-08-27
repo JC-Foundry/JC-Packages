@@ -36,6 +36,9 @@ public class IdentityRuleSet
     /// <summary>Gets or sets the error route.</summary>
     public string ErrorRoute { get; set; } = "/Error";
 
-    /// <summary>Gets the paths excluded from enforcement (access denied, logout, and error routes).</summary>
-    public string[] ExcludedPaths => [AccessDeniedRoute, LogoutRoute, ErrorRoute];
+    /// <summary>Gets or sets paths excluded from enforcement beyond this set's own routes.</summary>
+    public string[] AdditionalExcludedPaths { get; set; } = [];
+
+    /// <summary>Gets the paths excluded from enforcement (access denied, logout, error routes, and any additional).</summary>
+    public string[] ExcludedPaths => [AccessDeniedRoute, LogoutRoute, ErrorRoute, ..AdditionalExcludedPaths];
 }
