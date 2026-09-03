@@ -37,10 +37,10 @@ public class CapOptions
     public string PostLogoutCallbackPath { get; set; } = CapEndpoints.PostLogoutCallbackPath;
 
     /// <summary>The local sign-in endpoint, and the cookie's login path.</summary>
-    public string LoginPath { get; set; } = CapEndpoints.LoginPath;
+    public string SignInPath { get; set; } = CapEndpoints.SignInPath;
 
     /// <summary>The local sign-out endpoint, and the cookie's logout path.</summary>
-    public string LogoutPath { get; set; } = CapEndpoints.LogoutPath;
+    public string SignOutPath { get; set; } = CapEndpoints.SignOutPath;
 
     /// <summary>The endpoint that re-reads the account from CAP on demand.</summary>
     public string RefreshPath { get; set; } = CapEndpoints.RefreshPath;

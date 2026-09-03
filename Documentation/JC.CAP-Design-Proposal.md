@@ -1,6 +1,6 @@
 # JC.CAP: design proposal
 
-> **Status:** proposal for review. Nothing here is agreed until John says so.
+> **Status:** accepted. All nine open questions were answered on 2026-09-03; section 12 records each answer. Build in progress.
 > **Owner:** John · **Drafted by:** Claude · **Date:** 2026-09-03
 > **Companions:** CAP's `docs/design-docs/sso/sso.md` (the identity provider's design), `implementation-plan.md` (its sequencing, phase 7 is this package), and the `CAP.SSO` README (the wire contract). Paths are relative to the Admin-Portal repository.
 
@@ -18,7 +18,7 @@ Three kinds of statement appear below, and they are labelled:
 - **Proposed.** Claude's recommendation, with the reasoning. Open to change.
 - **Open.** A choice that changes the work materially and needs John's call. Collected in section 12, each with a recommendation.
 
-Five source files already exist under `JC.CAP/` from the interrupted first attempt (section 11). They encode proposals, not decisions, and will be reshaped to whatever this review settles.
+Eight source files already exist under `JC.CAP/` (section 11). They are the record, not proposals: where this document disagreed with them, this document was corrected. Only the 12.1 rename changes any of them.
 
 ---
 
@@ -141,9 +141,26 @@ From here every request authenticates on the cookie alone. CAP is not contacted 
 
 **B. Direct.** The OpenIddict client scheme is the default challenge scheme. `[Authorize]` challenges CAP with no local hop, and no trigger endpoint exists. A "Sign in" link points at any protected page.
 
-The difference that matters is the return URL. The authorisation middleware challenges with no `RedirectUri`; the cookie handler always supplies one (the current URL) before redirecting to `LoginPath`, whereas whether the OpenIddict client defaults a missing `RedirectUri` to the current request is **unverified** (the source check was not completed). If it does not, option B lands every user on `/` after signing in.
+An earlier draft of this section claimed the return URL was the deciding factor, on the grounds that the OpenIddict client's defaulting of a missing `RedirectUri` was unverified. It is now verified, and the claim was wrong. `ResolveHostChallengeProperties` in `OpenIddict.Client.AspNetCore` 7.6.1 reads:
 
-**Proposed:** A, with the trigger renamed so it cannot be read as a login page: `/cap/signin` (open question 12.1). B stays available to an application by pointing the default challenge scheme at OpenIddict itself.
+```csharp
+context.TargetLinkUri = properties.RedirectUri switch
+{
+    // If a return URL - local or not - was explicitly set in the authentication properties, always honor it.
+    { Length: > 0 } uri => uri,
+
+    // If no return URL was explicitly set in the authentication properties (e.g because
+    // the challenge was triggered automatically by ASP.NET Core or because no return URL
+    // was specified by the user), use the current location as the default target link URI.
+    _ => (request.HttpContext.Features.Get<IAuthenticationFeature>()?.OriginalPathBase ?? request.PathBase) +
+         (request.HttpContext.Features.Get<IAuthenticationFeature>()?.OriginalPath     ?? request.Path)     +
+          request.QueryString
+};
+```
+
+`ResolveHostSignOutProperties` does the same for sign-out. So option B preserves the return URL exactly as option A does, and the choice rests on other grounds.
+
+**Decided (12.1): A**, with the trigger renamed so it cannot be read as a login page: `/cap/signin`. The reasons that survive are that an anonymous "Sign in" link needs a stable local URL to point at, which B gives it only if the application happens to have a protected landing page; and that keeping the cookie as the single default scheme leaves `ChallengeAsync`, `SignOutAsync` and the shared identity middleware behaving exactly as they do in a JC.Identity application. B stays available to an application by pointing the default challenge scheme at OpenIddict itself.
 
 ### 4.4 The other endpoints, and whether each earns its place
 
@@ -174,7 +191,7 @@ builder.Services.AddCap(options =>
     options.Issuer = "https://sso.cap.example";
     options.ClientId = "evbfqxmh";
     options.ClientSecret = builder.Configuration["CAP:ClientSecret"]!;
-    options.RoleCatalogue = CapRoles.GetCatalogue<AppRoles>();
+    options.RoleCatalogue = SystemRoles.GetAllRoles<AppRoles>().ToCatalogue();
 });
 
 // Bound from the "CAP" configuration section, with optional code on top
@@ -208,7 +225,7 @@ What `AddCap` registers:
 | `CapSessionRefresher` | scoped | The refresh itself, shared by the cookie events and the re-check endpoints |
 | `ICapClaimsPrincipalFactory` → `CapClaimsPrincipalFactory` | scoped, `TryAdd` | Section 6.1; replaceable |
 | OpenIddict client: code + refresh + client-credentials flows, one registration for CAP, ASP.NET Core integration with both passthroughs, System.Net.Http, Data Protection for state tokens, ephemeral keys | | Section 10 |
-| `CapApiClient` typed `HttpClient`, `CapAccessTokenProvider` | transient / singleton | Section 9 |
+| `CapApiClient` (Flurl), `CapAccessTokenProvider` | transient / singleton | Section 9 |
 | `CapLinks` | singleton | Section 5.5 |
 | `CapRoleCataloguePublisher` | hosted | Runs once at startup when `RoleCatalogue` is set (section 8) |
 | `TimeProvider.System` | singleton, `TryAdd` | So the refresh timing is testable |
@@ -275,7 +292,7 @@ This is the hook for JC.CAP.Tenancy: look up the tenant for `context.UserId`, ad
 
 ### 5.7 Helpers
 
-**`CapRoles`.** The application's role declarations, on JC.Identity's `SystemRoles` convention (section 8.2).
+**`SystemRoles`.** The application's role declarations, on JC.Identity's convention and under its name, so an application moving between authorities keeps writing `class AppRoles : SystemRoles` (section 8.2).
 
 ### 5.8 File layout
 
@@ -283,12 +300,12 @@ Mirrors JC.Identity:
 
 ```
 JC.CAP/
-  Authentication/   CapDefaults, CapEndpoints, CapClaimsPrincipalFactory, ICapClaimsEnricher,
-                    CapCookieEvents, CapSessionRefresher, CapTokens (internal)
+  Authentication/   CapDefaults, CapEndpoints, SystemRoles, CapClaimsPrincipalFactory,
+                    ICapClaimsEnricher, CapCookieEvents, CapSessionRefresher, CapTokens (internal)
   Extensions/       ServiceCollectionExtensions (AddCap), ApplicationBuilderExtensions (UseCap),
                     EndpointRouteBuilderExtensions (MapCap)
-  Helpers/          CapRoles, LocalUrl (internal)
-  Models/           CapUserInfo, Options/CapOptions, Options/CapOptionsValidator
+  Helpers/          LocalUrl (internal)
+  Models/           CapUser, CapUserInfo, Options/CapOptions, Options/CapOptionsValidator
   Services/         CapApiClient, CapAccessTokenProvider, CapApiException, CapLinks,
                     CapRoleCataloguePublisher
   README.md
@@ -398,18 +415,20 @@ The redirect targets are fixed by the package from the issuer and client id, nev
 JC.Identity's convention, extended by nothing:
 
 ```csharp
-public class AppRoles : CapRoles
+public class AppRoles : SystemRoles
 {
     public const string Editor = nameof(Editor);
     public const string EditorDesc = "Can create and edit content.";
 }
 
-options.RoleCatalogue = CapRoles.GetCatalogue<AppRoles>();
+options.RoleCatalogue = SystemRoles.GetAllRoles<AppRoles>().ToCatalogue();
 ```
 
-`GetCatalogue<T>()` reflects over public `const string` fields, skips those ending `Desc`, and produces `ApplicationRoleDto` with `Key` = the constant's value, `DisplayName` = the field name with spaces before capitals ("PageEditor" becomes "Page Editor"), and `Description` = the matching `Desc` constant. An application wanting other display names builds the list itself; the DTO is a plain class.
+`SystemRoles.GetAllRoles<T>()` is JC.Identity.Shared's own `IdentityHelper.GetAllRoles<T>()`, reachable because that package already carries `<InternalsVisibleTo Include="JC.CAP" />`. It reflects over public `const string` fields, skips those ending `Desc`, and returns a `List<RoleRecord>` of the constant's value paired with the matching `Desc` constant.
 
-`CapRoles` defines no roles of its own. The application owns what its roles mean.
+`RoleRecord` carries no display name and CAP's `ApplicationRoleDto` needs one, so JC.CAP supplies the projection — `ToCatalogue()` — which derives `DisplayName` from the key by inserting spaces before capitals ("PageEditor" becomes "Page Editor"). `CapOptions.RoleCatalogue` stays `IReadOnlyList<ApplicationRoleDto>`, so an application wanting other display names assigns its own list and skips the convention entirely.
+
+`SystemRoles` defines no roles of its own, unlike JC.Identity's. The application owns what its roles mean.
 
 ### 8.3 Casing
 
@@ -419,7 +438,7 @@ CAP keeps the casing a key was first published with and every role check is ordi
 
 ## 9. The API client
 
-`CapApiClient`, a typed `HttpClient` against the issuer:
+`CapApiClient`, built on `Flurl.Http` against the issuer:
 
 | Method | Endpoint | Returns |
 |---|---|---|
@@ -439,7 +458,9 @@ Query parameter names come from `ApiEndpoints` constants, never literals. `enabl
 
 ## 10. Packaging
 
-**Dependencies** (all 7.6.1, already in the local cache): `OpenIddict.Client.AspNetCore`, `OpenIddict.Client.SystemNetHttp`, `OpenIddict.Client.DataProtection`, plus `CAP.SSO` 1.0.0 and the two JC.Identity.Shared halves the csproj already references. Versions go in `Directory.Packages.props`.
+**Dependencies.** Three OpenIddict client packages at 7.6.1, all already in the local cache: `OpenIddict.Client.AspNetCore`, `OpenIddict.Client.SystemNetHttp`, `OpenIddict.Client.DataProtection`. Their versions go in `Directory.Packages.props`. `CAP.SSO` 1.0.0, `Flurl.Http` 4.0.2 and the two JC.Identity.Shared halves are already referenced from the csproj with `versionOverride`, and are left as they are.
+
+`OpenIddict.Client.SystemNetHttp` is how OpenIddict itself reaches CAP's discovery, token and userinfo endpoints; it is not an alternative to Flurl. JC.CAP's own calls to CAP's API go through Flurl (section 9), as every JC service does.
 
 **Keys.** Verified in OpenIddict's source: the client refuses to start without at least one signing and one encryption credential once a redirection endpoint is configured. Proposed: ephemeral keys to satisfy that, with state tokens formatted through ASP.NET Core Data Protection (`UseDataProtection()`), so they survive a restart and work across a farm through the application's existing key ring rather than a certificate every consumer must provision. An application can add certificates through `configureClient`.
 
@@ -453,21 +474,39 @@ Query parameter names come from `ApiEndpoints` constants, never literals. `enabl
 
 ## 11. What exists on disk today
 
-From the interrupted first attempt, all encoding **proposals**:
+Eight files, and they are the record: where this document disagreed with them on 2026-09-03 the document was wrong and has been corrected above. Only 12.1's rename changes any of them.
 
-| File | Encodes | Will change if |
+| File | Holds | Changed by this review |
 |---|---|---|
-| `Authentication/CapDefaults.cs` | scheme `JC.CAP`, cookie `.JC.CAP.Session`, registration id `cap` | 12.7 |
-| `Authentication/CapEndpoints.cs` | the seven default paths, including `LoginPath = /cap/login` | 12.1, 12.2 |
-| `Models/Options/CapOptions.cs`, `CapOptionsValidator.cs` | section 5.2 as written, with the `LoginPath` name | 12.1 to 12.4 |
-| `Models/CapUserInfo.cs` | an empty derivation of `UserInfoBase` | unlikely |
-| `JC.CAP.csproj` | placeholder version, CAP.SSO and JC.Identity.Shared references, no OpenIddict yet | section 10 |
+| `Authentication/CapDefaults.cs` | scheme `JC.CAP`, cookie `.JC.CAP.Session`, registration id `cap`, provider `CAP`, rule-set name `CAP` | No — 12.7 confirmed it |
+| `Authentication/CapEndpoints.cs` | the seven default paths and `returnUrl` | `LoginPath`/`LogoutPath` become `SignInPath`/`SignOutPath` at `/cap/signin`, `/cap/signout` (12.1). The callback names stand (12.2) |
+| `Authentication/SystemRoles.cs` | the role-declaration base, delegating to `IdentityHelper.GetAllRoles<T>()` | No. Section 8.2 was corrected to match it |
+| `Models/CapUser.cs` | the application-facing user model, built from `ApplicationUserDto`. What `BaseUser` is to JC.Identity, minus the persistence | No. It was missing from this document and has been added |
+| `Models/CapUserInfo.cs` | an empty derivation of `UserInfoBase` | No |
+| `Models/Options/CapOptions.cs`, `CapOptionsValidator.cs` | section 5.2 as written | The two path renames only; 12.3, 12.4 and 12.6 confirmed the defaults |
+| `JC.CAP.csproj` | version 7.1.0, CAP.SSO, Flurl.Http and the JC.Identity.Shared pair | Gains the three OpenIddict client packages (section 10) |
+
+The project builds clean as it stands, so every step below starts from a green baseline.
 
 ---
 
-## 12. Open questions
+## 12. Open questions — answered
 
-Each with a recommendation. None is blocking a decision on the rest.
+**All nine were answered on 2026-09-03.** Every recommendation was accepted, so the body of this document stands as written except where 12.1 corrects section 4.3's reasoning. The answers:
+
+| | Question | Answer |
+|---|---|---|
+| 12.1 | Challenge trigger | **A**, a local trigger at `/cap/signin`, option `SignInPath`. Sign-out follows suit: `/cap/signout`, option `SignOutPath`. The `LoginPath`/`LogoutPath` names and `/cap/login`, `/cap/logout` paths on disk are superseded |
+| 12.2 | Callback path names | `/signin-oidc` and `/signout-callback-oidc`, matching CAP's settings-page placeholder |
+| 12.3 | Persistent cookie | No. `Session.Persistent` defaults to `false` |
+| 12.4 | CAP unreachable | Five-minute grace, `Session.RefreshFailureGrace` |
+| 12.5 | Token storage | `DisableTokenStorage()`, with re-enabling documented |
+| 12.6 | Default scopes | `openid`, `roles`, `cap_identity`, `offline_access`. No `profile`, no `email` |
+| 12.7 | Scheme name | `JC.CAP`, cookie `.JC.CAP.Session` |
+| 12.8 | Role declaration | Both the `const`/`Desc` convention and an explicit list |
+| 12.9 | Re-check endpoints | Keep all three |
+
+The reasoning behind each, as it was put for review:
 
 **12.1 The challenge trigger.** Keep a local trigger endpoint (option A, section 4.3) or challenge CAP directly from `[Authorize]` (option B)? Recommendation: A, renamed `/cap/signin` with the option `SignInPath`, because the return URL is guaranteed and the application gets a stable link. If John would rather have no local endpoint, B needs the OpenIddict default-`RedirectUri` behaviour verified first.
 
@@ -483,7 +522,7 @@ Each with a recommendation. None is blocking a decision on the rest.
 
 **12.7 Scheme name.** `JC.CAP` as the cookie scheme, or reuse `IdentityConstants.ApplicationScheme` (`Identity.Application`) so code that names Identity's scheme keeps working? Recommendation: `JC.CAP`. `[Authorize]` uses the default scheme without naming it, and borrowing Identity's constant would mislead anyone reading the cookie jar.
 
-**12.8 Role declaration.** The `CapRoles` const convention with `Desc` suffixes, or only an explicit `ApplicationRoleDto` list? Recommendation: both, as section 8.2 has it; the convention is what JC.Identity applications already know.
+**12.8 Role declaration.** The `SystemRoles` const convention with `Desc` suffixes, or only an explicit `ApplicationRoleDto` list? Recommendation: both, as section 8.2 has it; the convention is what JC.Identity applications already know.
 
 **12.9 The re-check endpoints.** Are `/cap/refresh`, `/cap/denied` and `/cap/two-factor` worth three endpoints, or should the rule routes point straight at CAP's pages and accept the fifteen-minute loop? Recommendation: keep them. They share one function, and the loop is the kind of defect that is invisible until the first user enrols.
 

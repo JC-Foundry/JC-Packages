@@ -7,10 +7,11 @@ namespace JC.CAP.Authentication;
 public static class CapEndpoints
 {
     /// <summary>Starts a sign-in by challenging CAP. Accepts <see cref="ReturnUrlParameter"/>.</summary>
-    public const string LoginPath = "/cap/login";
+    /// <remarks>Not a login page: CAP serves the only one of those. This issues the authorize request.</remarks>
+    public const string SignInPath = "/cap/signin";
 
     /// <summary>Ends the session here and at CAP. POST only, so a link cannot sign a visitor out.</summary>
-    public const string LogoutPath = "/cap/logout";
+    public const string SignOutPath = "/cap/signout";
 
     /// <summary>Re-reads the account from CAP now rather than at the next token expiry.</summary>
     public const string RefreshPath = "/cap/refresh";

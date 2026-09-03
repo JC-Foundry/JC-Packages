@@ -27,7 +27,10 @@
     </ItemGroup>
     
     <ItemGroup>
-      <PackageReference Include="CAP.SSO" versionOverride="1.0.0"/>
-      <PackageReference Include="Flurl.Http" versionOverride="4.0.2"/>
+        <PackageReference Include="CAP.SSO" versionOverride="1.0.0"/>
+        <PackageReference Include="Flurl.Http" versionOverride="4.0.2"/>
+        <PackageReference Include="OpenIddict.Client.AspNetCore" versionOverride="7.6.1" />
+        <PackageReference Include="OpenIddict.Client.DataProtection" versionOverride="7.6.1" />
+        <PackageReference Include="OpenIddict.Client.SystemNetHttp" versionOverride="7.6.1" />
     </ItemGroup>
 </Project>

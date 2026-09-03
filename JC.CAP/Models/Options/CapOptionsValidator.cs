@@ -40,8 +40,8 @@ internal sealed class CapOptionsValidator : IValidateOptions<CapOptions>
     {
         yield return (nameof(o.CallbackPath), o.CallbackPath);
         yield return (nameof(o.PostLogoutCallbackPath), o.PostLogoutCallbackPath);
-        yield return (nameof(o.LoginPath), o.LoginPath);
-        yield return (nameof(o.LogoutPath), o.LogoutPath);
+        yield return (nameof(o.SignInPath), o.SignInPath);
+        yield return (nameof(o.SignOutPath), o.SignOutPath);
         yield return (nameof(o.RefreshPath), o.RefreshPath);
         yield return (nameof(o.DeniedPath), o.DeniedPath);
         yield return (nameof(o.TwoFactorPath), o.TwoFactorPath);
