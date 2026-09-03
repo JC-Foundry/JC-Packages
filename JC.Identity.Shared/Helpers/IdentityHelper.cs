@@ -1,6 +1,8 @@
 using System.Globalization;
+using System.Reflection;
 using System.Text;
 using System.Text.Encodings.Web;
+using JC.Identity.Shared.Models;
 
 namespace JC.Identity.Shared.Helpers;
 
@@ -79,4 +81,28 @@ public class IdentityHelper
     /// <returns>The authenticator URI and the display-formatted key.</returns>
     public (string AuthenticatorUri, string FormattedKey) Generate2faKey(string name, string email, string secret)
         => (Generate2faQrCodeUri(name, email, secret), Format2faKey(secret));
+    
+    internal static List<RoleRecord> GetAllRoles<T>()
+    {
+        var fields = typeof(T)
+            .GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
+            .Where(f => f.IsLiteral && !f.IsInitOnly && f.FieldType == typeof(string))
+            .Where(f => !f.Name.EndsWith("Desc"))
+            .ToList();
+
+        var result = new List<RoleRecord>();
+
+        foreach (var field in fields)
+        {
+            var role = (string?)field.GetRawConstantValue() ?? field.Name;
+            var descField = typeof(T).GetField(
+                $"{field.Name}Desc",
+                BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
+
+            var description = (string?)descField?.GetRawConstantValue() ?? string.Empty;
+            result.Add(new RoleRecord(role, description));
+        }
+
+        return result;
+    }
 }

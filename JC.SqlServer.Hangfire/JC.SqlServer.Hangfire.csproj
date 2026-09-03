@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.SqlServer.Hangfire</PackageId>
-        <Version>7.0.0</Version>
+        <Version>7.1.0</Version>
         <Description>One call that stands Hangfire up on SQL Server storage and starts a job server. Reads the connection string by name from configuration (defaulting to HangfireConnection) and fails fast when it is absent, prepares the Hangfire schema on first run, and leaves the global configuration, storage options and server options open to callbacks for queues, worker counts and the rest. This is the storage half that JC.BackgroundJobs' Hangfire path expects but deliberately does not provide, so the two can version and deploy separately. Standalone — it takes no dependency on JC.Core or any other JC package.</Description>
         <PackageTags>$(PackageTags);hangfire;sqlserver;background-jobs;job-storage</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -12,8 +12,6 @@
       <FrameworkReference Include="Microsoft.AspNetCore.App" />
       <PackageReference Include="Hangfire.SqlServer" VersionOverride="1.8.24" />
       <PackageReference Include="Hangfire.AspNetCore" VersionOverride="1.8.24" />
-      <PackageReference Include="Microsoft.Data.SqlClient" />
-      <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     </ItemGroup>
 
     <!-- The README ships in the package: it is the landing page on a feed, and the

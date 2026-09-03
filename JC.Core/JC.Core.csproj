@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.Core</PackageId>
-        <Version>7.0.0</Version>
+        <Version>7.1.0</Version>
         <Description>The foundation every other JC package builds on. Provides a repository and unit-of-work layer over EF Core — IRepositoryManager with typed IRepositoryContext&lt;T&gt; access, transactions, and multi-DbContext support where each context is reached through For&lt;T&gt;() and keeps its own transaction. Adds an audit trail written automatically on SaveChanges, optionally stamped with a source application name so several applications can share a database; soft-delete with query filtering; pagination; and retention cleanup jobs for audit entries and soft-deleted rows. It also owns the contracts the suite shares — IUserInfo and IApplicationUser, separating the current authenticated user from an authoritative user record, with the IdentityAuthority naming who supplied it; IBackgroundJob; and the IMultiTenancy/ITenantContext pair, which lets any package mark an entity tenant-scoped and read the tenant an operation is running against without depending on the tenancy engine that establishes it — plus helpers for strings, enums, dates, colours and countries.</Description>
         <PackageTags>$(PackageTags);repository;unit-of-work;efcore;audit-trail;soft-delete;pagination;multi-tenancy</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>

@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <PackageId>JC.CAP</PackageId>
+        <Version>7.1.0</Version>
+        <Description>TBD</Description>
+        <PackageTags>$(PackageTags)</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' == 'true'">
+        <ProjectReference Include="..\JC.Identity.Shared\JC.Identity.Shared.csproj" />
+        <ProjectReference Include="..\JC.Identity.Shared.Web\JC.Identity.Shared.Web.csproj" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(UseLocalProjectReferences)' != 'true'">
+        <PackageReference Include="JC.Identity.Shared" versionOverride="7.0.1"/>
+        <PackageReference Include="JC.Identity.Shared.Web" versionOverride="7.0.1"/>
+    </ItemGroup>
+    
+    <ItemGroup>
+        <None Update="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+    
+    <ItemGroup>
+      <PackageReference Include="CAP.SSO" versionOverride="1.0.0"/>
+      <PackageReference Include="Flurl.Http" versionOverride="4.0.2"/>
+    </ItemGroup>
+</Project>

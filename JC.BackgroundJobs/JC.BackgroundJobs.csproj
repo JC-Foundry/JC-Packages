@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.BackgroundJobs</PackageId>
-        <Version>7.0.0</Version>
+        <Version>7.1.0</Version>
         <Description>Background job hosting for .NET applications, built on the single IBackgroundJob contract defined in JC.Core. Two independent paths share it: lightweight in-process recurring jobs hosted on BackgroundService, with configurable interval, initial delay, DI lifetime, error behaviour and log verbosity; and Hangfire-backed recurring jobs with cron, queue, time zone and misfire options, plus an ad-hoc scheduler for fire-and-forget, delayed and continuation work. Both paths support a per-run execution timeout, and closed generic jobs are named distinctly so per-context registrations cannot collide. Hangfire storage is registered separately.</Description>
         <PackageTags>$(PackageTags);background-jobs;hangfire;hosted-service;cron;scheduling</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>

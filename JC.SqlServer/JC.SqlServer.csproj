@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.SqlServer</PackageId>
-        <Version>7.0.0</Version>
+        <Version>7.1.0</Version>
         <Description>Registers a JC.Core DbContext against SQL Server using Microsoft.EntityFrameworkCore.SqlServer. Takes the connection string by name from configuration (defaulting to DefaultConnection) and fails fast when it is absent, names the migrations assembly, and exposes the provider's own options for anything further. A SQL Server health check can be registered alongside, opt-in. Interchangeable with JC.MySql — the two present the same shape, so the provider is a one-line choice.</Description>
         <PackageTags>$(PackageTags);sqlserver;efcore;database-provider</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -19,7 +19,6 @@
     <ItemGroup>
       <PackageReference Include="AspNetCore.HealthChecks.SqlServer" VersionOverride="9.0.0" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" VersionOverride="9.0.19" />
-      <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     </ItemGroup>
 
     <!-- The README ships in the package: it is the landing page on a feed, and the

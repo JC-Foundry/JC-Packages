@@ -22,15 +22,15 @@ See minor and patch releases below.
 
 ### v7.x.x
 
-| Version | Date | Summary |
-|---------|------|---------|
-| 7.1.0   | -    | -       |
+| Version                  | Date | Summary                 |
+|--------------------------|------|-------------------------|
+| [7.1.0](Minor/v7.1.0.md) | -    | New JC.CAP package. TBD |
 
 ### v6.x.x
 
-| Version                          | Date           | Summary                                                                                                                                                                     |
-|----------------------------------|----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [6.1.0](Minor/v6.1.0.md)         | 19 August 2026 | New JC.Content package — moderation, diffing, conversion, sanitisation and normalisation; read-only static files in JC.FileStorage; `ContentSanitiser` moves out of JC.Web |
+| Version                  | Date           | Summary                                                                                                                                                                    |
+|--------------------------|----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [6.1.0](Minor/v6.1.0.md) | 19 August 2026 | New JC.Content package — moderation, diffing, conversion, sanitisation and normalisation; read-only static files in JC.FileStorage; `ContentSanitiser` moves out of JC.Web |
 
 
 ---
@@ -46,8 +46,8 @@ See minor and patch releases below.
 ### Version 7
 #### v7.0.x
 
-| Version | Packages                                                      | Date           | Summary                                                                                                                                                                                                                                                                                                                                                                                                    |
-|---------|---------------------------------------------------------------|----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Version | Packages                                                      | Date           | Summary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+|---------|---------------------------------------------------------------|----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 7.0.1   | JC.Identity.Shared<br/>JC.Identity.Shared.Web<br/>JC.Identity | 27 August 2026 | `IdentityRuleSet` gains `AdditionalExcludedPaths`, for paths that must stay reachable beyond the set's own access denied, logout and error routes; `ExcludedPaths` is still derived and now carries them too. The claims projection marks the system and unknown identities `IsEnabled`, so neither pseudo-identity reads as a disabled account to anything checking the flag outside the account rules. JC.Identity.Shared.Web and JC.Identity carry no code change and are bumped to keep the identity packages aligned. |
 
 ---

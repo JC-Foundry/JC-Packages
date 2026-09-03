@@ -11,7 +11,7 @@ public static class CoreHelpers
     public const string PackageVersionPrefix = "v";
     
     /// <summary>The current version for JC Packages</summary>
-    public const string PackageVersion = "7.0.0";
+    public const string PackageVersion = "7.1.0";
 
     /// <summary>
     /// Generates a display string for a package, combining an optional introductory text,
