@@ -11,6 +11,7 @@ A suite of .NET 9 NuGet packages providing shared infrastructure for .NET applic
 | **JC.Identity** | ASP.NET Core Identity integration — users, roles, claims, account rules, and role and administrator seeding | [Documentation](Documentation/JC.Identity/) |
 | **JC.Identity.Shared** | The identity runtime shared by every authority — the default `IUserInfo` implementation, the claims projection, account rules, two-factor helpers. The contract itself lives in JC.Core. No ASP.NET Core dependency | [Documentation](Documentation/JC.Identity.Shared/) |
 | **JC.Identity.Shared.Web** | The ASP.NET Core half of JC.Identity.Shared — the claims and account-rule middleware | [Documentation](Documentation/JC.Identity.Shared/) |
+| **JC.CAP** | Single sign-on against CAP, the Central Admin Portal: an OpenIddict client, a token-backed session that refreshes silently, CAP's claims in ASP.NET Identity's vocabulary, role publishing, CAP's API, a member cache and branded links into CAP's account pages. The second identity authority on JC.Identity.Shared | [Documentation](Documentation/JC.CAP/) |
 | **JC.Tenancy** | Application tenancy — tenant scope, EF Core query filters, a tenant store with caching, and safe and unsafe cross-tenant access | [Documentation](Documentation/JC.Tenancy/) |
 | **JC.MySql** | MySQL database provider extensions using Pomelo.EntityFrameworkCore.MySql | [Database Setup](Documentation/JC.Core/Database-Setup.md) |
 | **JC.SqlServer** | SQL Server database provider extensions using Microsoft.EntityFrameworkCore.SqlServer | [Database Setup](Documentation/JC.Core/Database-Setup.md) |
@@ -44,7 +45,8 @@ git clone https://github.com/JC-Foundry/JC-Packages.git
 JC.Core (foundation — no JC dependencies)
 ├── JC.Identity.Shared
 │   ├── JC.Identity.Shared.Web
-│   └── JC.Identity (depends on both halves)
+│   ├── JC.Identity (depends on both halves)
+│   └── JC.CAP (depends on both halves, and on CAP.SSO from the CAP repository)
 ├── JC.Tenancy
 ├── JC.Web
 ├── JC.Communication
@@ -62,7 +64,7 @@ JC.SqlServer.Hangfire (standalone — no JC dependencies)
 
 Every package except JC.SqlServer.Hangfire depends on **JC.Core**. The database providers (JC.MySql / JC.SqlServer) are interchangeable. **JC.Communication.Web** depends on both **JC.Communication** and **JC.Web**, and **JC.FileStorage.Web** depends on both **JC.FileStorage** and **JC.Web**.
 
-**Identity and tenancy are independent.** `JC.Tenancy` references no identity package, and no identity package references `JC.Tenancy` — the consuming application joins them. That is what lets an application take tenancy without users, or identity without tenants. `JC.Identity` brings `JC.Identity.Shared` and `JC.Identity.Shared.Web` with it; reference the Shared halves directly only when supplying identity from somewhere other than local ASP.NET Identity.
+**Identity and tenancy are independent.** `JC.Tenancy` references no identity package, and no identity package references `JC.Tenancy` — the consuming application joins them. That is what lets an application take tenancy without users, or identity without tenants. `JC.Identity` and `JC.CAP` each bring `JC.Identity.Shared` and `JC.Identity.Shared.Web` with them; reference the Shared halves directly only when supplying identity from somewhere other than local ASP.NET Identity or CAP.
 
 **JC.Core, JC.Tenancy, JC.Identity.Shared, JC.Communication, JC.BackgroundJobs, JC.Content and JC.FileStorage carry no ASP.NET Core dependency**, so they run unchanged from a worker service or console host.
 
@@ -110,6 +112,32 @@ var admin = await app.ConfigureAdminAndRolesAsync<AppUser, AppRole, AppRoles>();
 ```
 
 See [JC.Identity documentation](Documentation/JC.Identity/) for the account rules, claims, custom `IUserInfo` and role configuration. Tenancy is a separate package — see JC.Tenancy below.
+
+### JC.CAP
+
+```csharp
+builder.Services.AddCore<AppDbContext>();
+builder.Services.AddCap(builder.Configuration);
+
+var app = builder.Build();
+app.UseCap();
+app.MapCap();
+
+// Publish the application's roles to CAP once, failing startup if CAP refuses
+await app.SyncCapRolesAsync<AppRoles>();
+```
+
+```json
+{
+  "SSO": {
+    "BaseUrl": "https://sso.example.com",
+    "ClientId": "evbfqxmh",
+    "ClientSecret": "the-secret-CAP-showed-once"
+  }
+}
+```
+
+Users sign in at CAP and arrive back as an ordinary cookie session with `IUserInfo` populated and `Authority` reading `CAP`. See [JC.CAP documentation](Documentation/JC.CAP/) for the session and its refresh, the account rules, roles, CAP's API and extending the principal. JC.Identity and JC.CAP are alternatives: an application takes one.
 
 ### JC.Tenancy
 
@@ -411,6 +439,7 @@ Full documentation for each package is available in the [Documentation](Document
 | JC.Identity | [Setup](Documentation/JC.Identity/Setup.md) | [Guide](Documentation/JC.Identity/Guide.md) | [API](Documentation/JC.Identity/API.md) |
 | JC.Identity.Shared | [Setup](Documentation/JC.Identity.Shared/Setup.md) | [Guide](Documentation/JC.Identity.Shared/Guide.md) | [API](Documentation/JC.Identity.Shared/API.md) |
 | JC.Identity.Shared.Web | [Setup](Documentation/JC.Identity.Shared/Setup.md#adding-the-aspnet-core-middleware) | [Guide](Documentation/JC.Identity.Shared/Guide.md) | [API](Documentation/JC.Identity.Shared/API.md) |
+| JC.CAP | [Setup](Documentation/JC.CAP/Setup.md) | [Guide](Documentation/JC.CAP/Guide.md) | [API](Documentation/JC.CAP/API.md) |
 | JC.Tenancy | [Setup](Documentation/JC.Tenancy/Setup.md) | [Guide](Documentation/JC.Tenancy/Guide.md) | [API](Documentation/JC.Tenancy/API.md) |
 | JC.Communication | [Email Setup](Documentation/JC.Communication/Email-Setup.md) · [Notifications Setup](Documentation/JC.Communication/Notifications-Setup.md) · [Messaging Setup](Documentation/JC.Communication/Messaging-Setup.md) | [Email Guide](Documentation/JC.Communication/Email-Guide.md) · [Notifications Guide](Documentation/JC.Communication/Notifications-Guide.md) · [Messaging Guide](Documentation/JC.Communication/Messaging-Guide.md) | [Email API](Documentation/JC.Communication/Email-API.md) · [Notifications API](Documentation/JC.Communication/Notifications-API.md) · [Messaging API](Documentation/JC.Communication/Messaging-API.md) |
 | JC.Communication.Web | [Setup](Documentation/JC.Communication/Communication.Web-Setup.md) | [Guide](Documentation/JC.Communication/Communication.Web-Guide.md) | [API](Documentation/JC.Communication/Communication.Web-API.md) |

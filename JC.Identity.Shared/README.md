@@ -116,6 +116,8 @@ var redirect = IdentityRules.GetRedirect(userInfo, path, isAuthenticated, option
 
 Plain code rather than middleware, so a minimal API filter, a Blazor circuit or a desktop shell reaches the same behaviour. `IdentityMiddleware` in `JC.Identity.Shared.Web` is a wrapper that supplies the request and performs the redirect.
 
+Given the current URL as `returnUrl`, a local route comes back with it appended as the set's `ReturnUrlParameter`, so the page can return the caller once the rule is satisfied.
+
 Disabled accounts are checked first, deliberately — a disabled account should not be routed to a password-change page it has no business completing.
 
 ### Rule sets

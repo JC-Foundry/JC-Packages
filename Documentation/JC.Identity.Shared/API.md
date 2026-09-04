@@ -111,7 +111,7 @@ Static class evaluating the identity business rules — disabled accounts, requi
 
 #### Methods
 
-##### GetRedirect(IUserInfo userInfo, string path, bool isAuthenticated, IdentityMiddlewareOptions options, ILogger? logger = null, IServiceProvider? services = null)
+##### GetRedirect(IUserInfo userInfo, string path, bool isAuthenticated, IdentityMiddlewareOptions options, ILogger? logger = null, IServiceProvider? services = null, string? returnUrl = null)
 
 **Returns:** `string?`
 
@@ -123,6 +123,7 @@ Static class evaluating the identity business rules — disabled accounts, requi
 | `options` | `IdentityMiddlewareOptions` | — | The rule sets to choose between. |
 | `logger` | `ILogger?` | `null` | Records why a caller was redirected. Nothing is logged when a request passes. |
 | `services` | `IServiceProvider?` | `null` | Placed on the `IdentityRuleContext` handed to each condition. |
+| `returnUrl` | `string?` | `null` | The local URL to come back to afterwards. Appended to the returned route, see below. |
 
 Returns the route the caller should be sent to, or `null` where the request may proceed.
 
@@ -138,7 +139,9 @@ Otherwise three rules are evaluated in order, and the first that matches returns
 
 Rules 2 and 3 are skipped when `path` already starts with the route they would return, so the target page remains reachable. Rule 1 needs no such guard because `AccessDeniedRoute` is one of the selected set's `ExcludedPaths` and is filtered out before the rules run.
 
-##### GetRedirect(IUserInfo userInfo, string path, bool isAuthenticated, IdentityRuleSet ruleSet, ILogger? logger = null)
+Where `returnUrl` is given and the returned route is local (it starts with `/`), the route comes back with the URL appended as the selected set's `ReturnUrlParameter`, URL-encoded, joined with `&` where the route already carries a query string. An absolute route is returned unchanged: it belongs to another host, which cannot use a local URL.
+
+##### GetRedirect(IUserInfo userInfo, string path, bool isAuthenticated, IdentityRuleSet ruleSet, ILogger? logger = null, string? returnUrl = null)
 
 **Returns:** `string?`
 
@@ -149,6 +152,7 @@ Rules 2 and 3 are skipped when `path` already starts with the route they would r
 | `isAuthenticated` | `bool` | — | Whether the caller is authenticated. |
 | `ruleSet` | `IdentityRuleSet` | — | The set to apply. Its `Condition` is not consulted. |
 | `logger` | `ILogger?` | `null` | Records why a caller was redirected. |
+| `returnUrl` | `string?` | `null` | The local URL to come back to afterwards, appended as above. |
 
 The same evaluation against a set the caller has already chosen. Applies the identical unauthenticated, static-file and `ExcludedPaths` short-circuits, then the three rules above. Selecting nothing means `Condition` is ignored: the set passed in is the set applied.
 

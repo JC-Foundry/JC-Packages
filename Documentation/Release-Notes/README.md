@@ -22,9 +22,9 @@ See minor and patch releases below.
 
 ### v7.x.x
 
-| Version                  | Date | Summary                 |
-|--------------------------|------|-------------------------|
-| [7.1.0](Minor/v7.1.0.md) | -    | New JC.CAP package. TBD |
+| Version                  | Date             | Summary                                                                                                                                                                                                                 |
+|--------------------------|------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [7.1.0](Minor/v7.1.0.md) | 4 September 2026 | New JC.CAP package, single sign-on against CAP as the second identity authority; account-rule redirects carry a return URL; `RoleRecord` replaces the role tuple in `SystemRoles.GetAllRoles`; `LocalUrlHelper` in JC.Core |
 
 ### v6.x.x
 
@@ -44,6 +44,14 @@ See minor and patch releases below.
 ---
 
 ### Version 7
+#### v7.1.x
+
+| Version | Packages | Date             | Summary                                                                                                                                                                                                                                                                    |
+|---------|----------|------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 7.1.2   | JC.CAP   | 4 September 2026 | A role refusal now answers as configured. `CapOptions.AccessDenied` selects a plain 403, the default, CAP's denied page, or a local page at `AccessDeniedPath`. Previously the cookie's framework default redirected to `/Account/AccessDenied`, which no consumer serves. |
+| 7.1.1   | JC.CAP   | 4 September 2026 | Update to CAP.SSO from v1.0.0 to v1.0.1.                                                                                                                                                                                                                                   |
+
+
 #### v7.0.x
 
 | Version | Packages                                                      | Date           | Summary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |

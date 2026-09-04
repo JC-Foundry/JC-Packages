@@ -36,6 +36,9 @@ public class IdentityRuleSet
     /// <summary>Gets or sets the error route.</summary>
     public string ErrorRoute { get; set; } = "/Error";
 
+    /// <summary>Gets or sets the query parameter a redirect carries the return URL in. Defaults to <c>ReturnUrl</c>.</summary>
+    public string ReturnUrlParameter { get; set; } = "ReturnUrl";
+
     /// <summary>Gets or sets paths excluded from enforcement beyond this set's own routes.</summary>
     public string[] AdditionalExcludedPaths { get; set; } = [];
 

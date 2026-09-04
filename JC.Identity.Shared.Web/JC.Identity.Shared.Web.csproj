@@ -20,7 +20,7 @@
     </ItemGroup>
 
     <ItemGroup Condition="'$(UseLocalProjectReferences)' != 'true'">
-        <PackageReference Include="JC.Identity.Shared" versionOverride="7.0.1" />
+        <PackageReference Include="JC.Identity.Shared" versionOverride="7.1.0" />
     </ItemGroup>
 
     <!-- The README ships in the package: it is the landing page on a feed, and the

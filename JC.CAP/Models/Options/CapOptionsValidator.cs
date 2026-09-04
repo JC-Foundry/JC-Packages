@@ -1,4 +1,5 @@
 using CAP.SSO.Models;
+using JC.CAP.Enums;
 using Microsoft.Extensions.Options;
 
 namespace JC.CAP.Models.Options;
@@ -10,31 +11,45 @@ internal sealed class CapOptionsValidator : IValidateOptions<CapOptions>
     {
         var failures = new List<string>();
 
-        if (!Uri.TryCreate(options.Issuer, UriKind.Absolute, out var issuer)
-            || (issuer.Scheme != Uri.UriSchemeHttps && issuer.Scheme != Uri.UriSchemeHttp))
-            failures.Add("CAP:Issuer must be an absolute http or https URL.");
+        if (!Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var baseUrl)
+            || (baseUrl.Scheme != Uri.UriSchemeHttps && baseUrl.Scheme != Uri.UriSchemeHttp))
+            failures.Add($"{CapDictionary.BaseUrlKey} is required and must be an absolute http or https URL.");
 
         if (string.IsNullOrWhiteSpace(options.ClientId))
-            failures.Add("CAP:ClientId is required.");
+            failures.Add($"{Key(nameof(options.ClientId))} is required.");
 
         if (string.IsNullOrWhiteSpace(options.ClientSecret))
-            failures.Add("CAP:ClientSecret is required.");
+            failures.Add($"{Key(nameof(options.ClientSecret))} is required.");
 
         if (!options.Scopes.Contains(OIDC.Scopes.OpenId))
-            failures.Add($"CAP:Scopes must include {OIDC.Scopes.OpenId}.");
+            failures.Add($"{Key(nameof(options.Scopes))} must include {OIDC.Scopes.OpenId}.");
+
+        // Without it is_enabled never arrives, and an absent claim reads as a disabled account.
+        if (!options.Scopes.Contains(OIDC.Scopes.CapIdentity))
+            failures.Add($"{Key(nameof(options.Scopes))} must include {OIDC.Scopes.CapIdentity}.");
 
         foreach (var (label, path) in LocalPaths(options))
             if (string.IsNullOrEmpty(path) || path[0] != '/')
-                failures.Add($"CAP:{label} must be a local path starting with '/'.");
+                failures.Add($"{Key(label)} must be a local path starting with '/'.");
+
+        if (options.AccessDenied == CapAccessDenied.LocalPath
+            && (string.IsNullOrEmpty(options.AccessDeniedPath) || options.AccessDeniedPath[0] != '/'))
+            failures.Add($"{Key(nameof(options.AccessDeniedPath))} must be a local path starting with '/' when {Key(nameof(options.AccessDenied))} is {nameof(CapAccessDenied.LocalPath)}.");
 
         if (options.Session.Lifetime <= TimeSpan.Zero)
-            failures.Add("CAP:Session:Lifetime must be positive.");
+            failures.Add($"{Key("Session:Lifetime")} must be positive.");
 
         if (options.Session.RefreshSkew < TimeSpan.Zero || options.Session.RefreshFailureGrace < TimeSpan.Zero)
-            failures.Add("CAP:Session:RefreshSkew and RefreshFailureGrace cannot be negative.");
+            failures.Add($"{Key("Session:RefreshSkew")} and {Key("Session:RefreshFailureGrace")} cannot be negative.");
+
+        // IMemoryCache refuses a non-positive expiry.
+        if (options.Cache.UserLifetime <= TimeSpan.Zero)
+            failures.Add($"{Key("Cache:UserLifetime")} must be positive.");
 
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
+
+    private static string Key(string name) => $"{CapOptions.ConfigSection}:{name}";
 
     private static IEnumerable<(string Label, string Path)> LocalPaths(CapOptions o)
     {

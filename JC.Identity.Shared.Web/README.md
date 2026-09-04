@@ -53,7 +53,7 @@ Evaluates the account rules against the request path and either redirects or con
 
 Skips unauthenticated requests, static files by extension, and the excluded paths of whichever rule set matched. The rules themselves, and the choice of rule set, are `IdentityRules.GetRedirect` in JC.Identity.Shared, which returns a route or nothing — this middleware supplies the request and performs the redirect.
 
-It passes `HttpContext.RequestServices` through, so a rule set's condition can resolve services to decide whether it applies.
+It passes `HttpContext.RequestServices` through, so a rule set's condition can resolve services to decide whether it applies, and the request's full local URL, which a local route carries back as the set's `ReturnUrlParameter` so the page can send the user back.
 
 Configure the rule sets and their routes through `IdentityMiddlewareOptions`, on `AddSharedIdentityServices`.
 

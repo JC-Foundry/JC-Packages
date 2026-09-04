@@ -345,7 +345,7 @@ public class AccountGate(IUserInfo userInfo, IOptions<IdentityMiddlewareOptions>
 }
 ```
 
-A `null` return means the request may proceed; anything else is the route to send the caller to. Selection happens inside `GetRedirect`, so a host with no pipeline gets rule sets on the same terms as the middleware. Pass a service provider as the last argument if any of your conditions resolve services.
+A `null` return means the request may proceed; anything else is the route to send the caller to. Selection happens inside `GetRedirect`, so a host with no pipeline gets rule sets on the same terms as the middleware. Pass a service provider if any of your conditions resolve services, and the current URL as `returnUrl` so the page you send the caller to can bring them back.
 
 ### Returning a status code instead of a redirect
 
@@ -404,6 +404,8 @@ public class SecurityLinks(IUserInfo userInfo, IOptions<IdentityMiddlewareOption
 **The order of the checks is deliberate.** Disabled accounts are caught first, before password change and two-factor. A disabled account should not be routed to a page it has no business completing.
 
 **Rules 2 and 3 guard against a redirect loop; rule 1 does not need to.** The password-change and two-factor checks are skipped when the path already starts with their own route. The disabled check has no such guard because `AccessDeniedRoute` is one of the selected set's `ExcludedPaths` and never reaches the rules at all.
+
+**A return URL is appended only to a local route.** Given a `returnUrl`, the rules append it to the route as the set's `ReturnUrlParameter`. A route pointing at another host is returned unchanged, since that host cannot use a local URL.
 
 **Static files are matched by extension, not by middleware order.** `.css`, `.js`, `.jpg`, `.jpeg`, `.png`, `.gif`, `.svg`, `.ico`, `.woff`, `.woff2`, `.ttf`, `.eot`, `.map`, `.json`, `.xml`. A `.json` API endpoint whose path ends in that extension is skipped along with them.
 

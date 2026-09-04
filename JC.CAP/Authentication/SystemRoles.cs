@@ -1,3 +1,5 @@
+using CAP.SSO.Models;
+using JC.Core.Extensions;
 using JC.Identity.Shared.Helpers;
 using JC.Identity.Shared.Models;
 
@@ -14,4 +16,22 @@ public class SystemRoles
     /// </summary>
     public static List<RoleRecord> GetAllRoles<T>() where T : SystemRoles
         => IdentityHelper.GetAllRoles<T>();
+    
+    /// <summary>
+    /// Projects role declarations onto CAP's catalogue shape, deriving each display name from its key so
+    /// <c>PageEditor</c> shows as <c>Page Editor</c>. What <see cref="Services.CapRoleSyncJob{TRoles}"/> publishes.
+    /// </summary>
+    /// <param name="roles">The declarations, typically <c>SystemRoles.GetAllRoles&lt;AppRoles&gt;()</c>.</param>
+    /// <returns>The catalogue to publish.</returns>
+    public static IReadOnlyList<ApplicationRoleDto> ToCatalogue(IEnumerable<RoleRecord> roles)
+    {
+        ArgumentNullException.ThrowIfNull(roles);
+
+        return roles.Select(role => new ApplicationRoleDto
+        {
+            Key = role.Role,
+            DisplayName = role.Role.ToDisplayName(),
+            Description = string.IsNullOrWhiteSpace(role.Description) ? null : role.Description
+        }).ToList();
+    }
 }

@@ -22,8 +22,12 @@ public class CapUser : IApplicationUser
     public DateTime? RegistrationUtc { get; set; }
     public string? IdentityTenantId { get; set; }
 
+    /// <summary>The role keys held in this application, as CAP's users API returned them.</summary>
+    public IReadOnlyList<string> Roles { get; set; } = [];
+
     public CapUser(ApplicationUserDto dto)
     {
+        Roles = dto.Roles;
         Id = dto.UserId;
         UserName = dto.Username;
         Email = dto.Email;

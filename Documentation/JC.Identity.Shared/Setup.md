@@ -223,6 +223,7 @@ One set of account rules: which are enforced, and where each sends the caller.
 | `AccessDeniedRoute` | `string` | `/Identity/Account/AccessDenied` | Where disabled accounts are sent |
 | `LogoutRoute` | `string` | `/Identity/Account/Logout` | Logout route, excluded from enforcement |
 | `ErrorRoute` | `string` | `/Error` | Error route, excluded from enforcement |
+| `ReturnUrlParameter` | `string` | `ReturnUrl` | The query parameter a redirect carries the return URL in |
 | `AdditionalExcludedPaths` | `string[]` | Empty | Further paths excluded from enforcement, on top of the three routes above |
 | `ExcludedPaths` | `string[]` | Derived | Read-only. Built on each read from `AccessDeniedRoute`, `LogoutRoute`, `ErrorRoute` and `AdditionalExcludedPaths` |
 
@@ -341,7 +342,7 @@ await using var asyncScope = services.CreateAsyncScopeForUser(user, roles, user.
 **Namespace:** `JC.Identity.Shared.Helpers`
 
 ```csharp
-var redirect = IdentityRules.GetRedirect(userInfo, path, isAuthenticated, options, logger, services);
+var redirect = IdentityRules.GetRedirect(userInfo, path, isAuthenticated, options, logger, services, returnUrl);
 
 if (redirect is not null)
 {
@@ -357,6 +358,7 @@ if (redirect is not null)
 | `options` | `IdentityMiddlewareOptions` | — | The rule sets to choose between |
 | `logger` | `ILogger?` | `null` | Records why a caller was redirected |
 | `services` | `IServiceProvider?` | `null` | Passed to the conditions, so they can resolve what they need |
+| `returnUrl` | `string?` | `null` | The local URL to come back to afterwards, appended to a local route as the set's `ReturnUrlParameter` |
 
 **Returns** the route to redirect to, or `null` to continue.
 
@@ -373,6 +375,8 @@ Against that set it returns `null` for a path matching one of its `ExcludedPaths
 3. **Two-factor:** the set's `EnforceTwoFactor` is on and the user's `TwoFactorEnabled` is `false`, so return `TwoFactorRoute`.
 
 Rules 2 and 3 are skipped when the path already starts with their own route, so the target page stays reachable. Rule 1 needs no such guard, because `AccessDeniedRoute` is one of the selected set's `ExcludedPaths`.
+
+Given a `returnUrl`, a local route comes back with it appended as the set's `ReturnUrlParameter`, URL-encoded, so the page can send the caller back once the rule is satisfied. A route pointing at another host is returned unchanged.
 
 `SelectRuleSet(IdentityRuleContext context, IdentityMiddlewareOptions options)` is public and returns the same set the rules would apply. Call it wherever you have to name one of these routes yourself, such as a link to the change-password page, so the link and the enforcement cannot disagree.
 
@@ -391,7 +395,7 @@ app.UseIdentityMiddleware(); // after UseUserInfo — enforces rules against wha
 
 `UserInfoMiddleware` resolves the scoped `IUserInfo` and populates it only when `IsSetup` is `false`, so an instance established earlier — by a background job, or by impersonation — is left alone.
 
-`IdentityMiddleware` resolves `IUserInfo` as a method parameter, passes the path, the authentication state and `HttpContext.RequestServices` to `IdentityRules.GetRedirect`, and either redirects or calls the next middleware. It reads `IOptions<IdentityMiddlewareOptions>` once at construction, since only the conditions on it are evaluated per request.
+`IdentityMiddleware` resolves `IUserInfo` as a method parameter, passes the path, the authentication state, `HttpContext.RequestServices` and the request's full local URL as the return URL to `IdentityRules.GetRedirect`, and either redirects or calls the next middleware. It reads `IOptions<IdentityMiddlewareOptions>` once at construction, since only the conditions on it are evaluated per request.
 
 Neither adds behaviour of its own. Both are wrappers, which is what allows an authority with no HTTP pipeline to reach identical results.
 

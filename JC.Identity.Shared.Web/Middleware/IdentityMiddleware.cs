@@ -29,13 +29,17 @@ public class IdentityMiddleware(RequestDelegate next, IOptions<IdentityMiddlewar
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task InvokeAsync(HttpContext context, IUserInfo userInfo)
     {
+        var request = context.Request;
+
         var redirect = IdentityRules.GetRedirect(
             userInfo,
-            context.Request.Path.Value ?? string.Empty,
+            request.Path.Value ?? string.Empty,
             context.User.Identity?.IsAuthenticated ?? false,
             _options,
             logger,
-            context.RequestServices);
+            context.RequestServices,
+            // The whole local URL, as the cookie handler's own challenge builds it.
+            returnUrl: request.PathBase + request.Path + request.QueryString);
 
         if (redirect is not null)
         {

@@ -25,8 +25,8 @@
     </ItemGroup>
 
     <ItemGroup Condition="'$(UseLocalProjectReferences)' != 'true'">
-        <PackageReference Include="JC.FileStorage" versionOverride="7.0.0"/>
-        <PackageReference Include="JC.Web" versionOverride="7.0.0"/>
+        <PackageReference Include="JC.FileStorage" versionOverride="7.1.0"/>
+        <PackageReference Include="JC.Web" versionOverride="7.1.0"/>
     </ItemGroup>
 
     <!-- The README ships in the package: it is the landing page on a feed, and the

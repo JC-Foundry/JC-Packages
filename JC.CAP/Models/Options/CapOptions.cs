@@ -1,5 +1,6 @@
 using CAP.SSO.Models;
 using JC.CAP.Authentication;
+using JC.CAP.Enums;
 
 namespace JC.CAP.Models.Options;
 
@@ -9,11 +10,17 @@ namespace JC.CAP.Models.Options;
 /// </summary>
 public class CapOptions
 {
-    /// <summary>The configuration section the <c>IConfiguration</c> overload of <c>AddCap</c> binds.</summary>
-    public const string ConfigSection = "CAP";
+    /// <summary>
+    /// The configuration section the <c>IConfiguration</c> overload of <c>AddCap</c> binds: CAP.SSO's root,
+    /// so CAP and its clients read the SSO host from the same key.
+    /// </summary>
+    public const string ConfigSection = CapDictionary.ConfigSection;
 
-    /// <summary>CAP's SSO host as an absolute URL. The OIDC issuer, and the origin the discovery document is read from.</summary>
-    public string Issuer { get; set; } = string.Empty;
+    /// <summary>
+    /// CAP's SSO host as an absolute URL, bound from <see cref="CapDictionary.BaseUrlKey"/>. The OIDC issuer,
+    /// and the origin the discovery document is read from.
+    /// </summary>
+    public string BaseUrl { get; set; } = string.Empty;
 
     /// <summary>The client id CAP allocated to this application.</summary>
     public string ClientId { get; set; } = string.Empty;
@@ -51,17 +58,33 @@ public class CapOptions
     /// <summary>Where the identity rules send an account owing two-factor enrolment.</summary>
     public string TwoFactorPath { get; set; } = CapEndpoints.TwoFactorPath;
 
+    /// <summary>What a role refusal becomes. Defaults to <see cref="CapAccessDenied.Forbid"/>, a plain 403.</summary>
+    public CapAccessDenied AccessDenied { get; set; } = CapAccessDenied.Forbid;
+
     /// <summary>
-    /// The role catalogue to publish to CAP at startup. <c>null</c> publishes nothing; an empty list is a
-    /// valid publish meaning the application defines no roles.
+    /// The application's own page for a role refusal, used only when <see cref="AccessDenied"/> is
+    /// <see cref="CapAccessDenied.LocalPath"/>. Receives the return URL.
     /// </summary>
-    public IReadOnlyList<ApplicationRoleDto>? RoleCatalogue { get; set; }
+    public string? AccessDeniedPath { get; set; }
 
     /// <summary>Lets the callback endpoints answer over plain http. Development only.</summary>
     public bool AllowInsecureHttp { get; set; }
 
     /// <summary>How the session cookie and its tokens behave.</summary>
     public CapSessionOptions Session { get; } = new();
+
+    /// <summary>How long what is read from CAP's API is kept in memory.</summary>
+    public CapCacheOptions Cache { get; } = new();
+}
+
+/// <summary>How long JC.CAP keeps what it reads from CAP's API.</summary>
+public class CapCacheOptions
+{
+    /// <summary>Whether members read from CAP are cached at all. Defaults to <c>true</c>.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>How long the set of members is held before the next read refreshes it. Defaults to five minutes.</summary>
+    public TimeSpan UserLifetime { get; set; } = TimeSpan.FromMinutes(5);
 }
 
 /// <summary>The session JC.CAP keeps once CAP has signed a user in.</summary>

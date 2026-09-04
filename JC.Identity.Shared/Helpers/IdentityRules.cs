@@ -27,16 +27,21 @@ public static class IdentityRules
     /// <param name="options">The rule sets to choose between.</param>
     /// <param name="logger">Optional logger recording why a caller was redirected.</param>
     /// <param name="services">The request's services, passed to the conditions. Optional.</param>
+    /// <param name="returnUrl">
+    /// The local URL to come back to afterwards, appended to a local route under the set's
+    /// <see cref="IdentityRuleSet.ReturnUrlParameter"/>. Optional.
+    /// </param>
     /// <returns>The route to redirect to, or <c>null</c> to continue.</returns>
     public static string? GetRedirect(IUserInfo userInfo, string path, bool isAuthenticated,
-        IdentityMiddlewareOptions options, ILogger? logger = null, IServiceProvider? services = null)
+        IdentityMiddlewareOptions options, ILogger? logger = null, IServiceProvider? services = null,
+        string? returnUrl = null)
     {
         // Selected after the cheap checks, so a condition never runs on a stylesheet.
         if (!isAuthenticated || IsStaticFile(path)) return null;
 
         var context = new IdentityRuleContext(path, isAuthenticated, userInfo, services);
 
-        return Evaluate(userInfo, path, SelectRuleSet(context, options), logger);
+        return Evaluate(userInfo, path, SelectRuleSet(context, options), logger, returnUrl);
     }
 
     /// <summary>
@@ -48,13 +53,17 @@ public static class IdentityRules
     /// <param name="isAuthenticated">Whether the caller is authenticated.</param>
     /// <param name="ruleSet">The rule set to apply.</param>
     /// <param name="logger">Optional logger recording why a caller was redirected.</param>
+    /// <param name="returnUrl">
+    /// The local URL to come back to afterwards, appended to a local route under the set's
+    /// <see cref="IdentityRuleSet.ReturnUrlParameter"/>. Optional.
+    /// </param>
     /// <returns>The route to redirect to, or <c>null</c> to continue.</returns>
     public static string? GetRedirect(IUserInfo userInfo, string path, bool isAuthenticated,
-        IdentityRuleSet ruleSet, ILogger? logger = null)
+        IdentityRuleSet ruleSet, ILogger? logger = null, string? returnUrl = null)
     {
         if (!isAuthenticated || IsStaticFile(path)) return null;
 
-        return Evaluate(userInfo, path, ruleSet, logger);
+        return Evaluate(userInfo, path, ruleSet, logger, returnUrl);
     }
 
     /// <summary>
@@ -71,7 +80,8 @@ public static class IdentityRules
     public static IdentityRuleSet SelectRuleSet(IdentityRuleContext context, IdentityMiddlewareOptions options)
         => options.RuleSets.FirstOrDefault(r => r.Condition is null || r.Condition(context)) ?? options.Default;
 
-    private static string? Evaluate(IUserInfo userInfo, string path, IdentityRuleSet ruleSet, ILogger? logger)
+    private static string? Evaluate(IUserInfo userInfo, string path, IdentityRuleSet ruleSet, ILogger? logger,
+        string? returnUrl)
     {
         if (IsExcludedPath(path, ruleSet)) return null;
 
@@ -81,7 +91,7 @@ public static class IdentityRules
         {
             logger?.LogWarning("Disabled user {UserId} attempted to access {Path}, redirecting to access denied under rule set {RuleSet}.",
                 userInfo.UserId, path, ruleSet.Name);
-            return ruleSet.AccessDeniedRoute;
+            return WithReturnUrl(ruleSet.AccessDeniedRoute, returnUrl, ruleSet);
         }
 
         if (ruleSet.RequirePasswordChange && userInfo.RequiresPasswordChange
@@ -89,7 +99,7 @@ public static class IdentityRules
         {
             logger?.LogInformation("User {UserId} requires password change, redirecting from {Path} under rule set {RuleSet}.",
                 userInfo.UserId, path, ruleSet.Name);
-            return ruleSet.ChangePasswordRoute;
+            return WithReturnUrl(ruleSet.ChangePasswordRoute, returnUrl, ruleSet);
         }
 
         if (ruleSet.EnforceTwoFactor && !userInfo.TwoFactorEnabled
@@ -97,10 +107,21 @@ public static class IdentityRules
         {
             logger?.LogInformation("User {UserId} requires 2FA setup, redirecting from {Path} under rule set {RuleSet}.",
                 userInfo.UserId, path, ruleSet.Name);
-            return ruleSet.TwoFactorRoute;
+            return WithReturnUrl(ruleSet.TwoFactorRoute, returnUrl, ruleSet);
         }
 
         return null;
+    }
+
+    // Appended only to a local route: an absolute one belongs to another host, which cannot use it.
+    private static string WithReturnUrl(string route, string? returnUrl, IdentityRuleSet ruleSet)
+    {
+        if (string.IsNullOrEmpty(returnUrl) || !route.StartsWith('/'))
+            return route;
+
+        var separator = route.Contains('?') ? '&' : '?';
+
+        return $"{route}{separator}{ruleSet.ReturnUrlParameter}={Uri.EscapeDataString(returnUrl)}";
     }
 
     private static bool IsStaticFile(string path)

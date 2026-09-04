@@ -1,6 +1,8 @@
 using JC.CAP.Authentication;
+using JC.CAP.Enums;
 using JC.CAP.Models;
 using JC.CAP.Models.Options;
+using JC.CAP.Services;
 using JC.Core.Enums;
 using JC.Core.Models;
 using JC.Identity.Shared.Extensions;
@@ -67,7 +69,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers JC.CAP from the <c>CAP</c> configuration section, with the default <see cref="CapUserInfo"/>.
+    /// Registers JC.CAP from the <c>SSO</c> configuration section CAP.SSO names, with the default <see cref="CapUserInfo"/>.
     /// </summary>
     /// <param name="services">The service collection to register into.</param>
     /// <param name="configuration">The configuration to bind <see cref="CapOptions.ConfigSection"/> from.</param>
@@ -86,7 +88,7 @@ public static class ServiceCollectionExtensions
         => services.AddCap<CapUserInfo>(configuration, configure, configureMiddleware, configureCookie, configureClient);
 
     /// <summary>
-    /// Registers JC.CAP from the <c>CAP</c> configuration section, with a derived <see cref="CapUserInfo"/>.
+    /// Registers JC.CAP from the <c>SSO</c> configuration section CAP.SSO names, with a derived <see cref="CapUserInfo"/>.
     /// </summary>
     /// <typeparam name="TUserInfo">The <see cref="IUserInfo"/> implementation to register.</typeparam>
     /// <param name="services">The service collection to register into.</param>
@@ -98,7 +100,7 @@ public static class ServiceCollectionExtensions
     /// <returns>The service collection for chaining.</returns>
     /// <remarks>
     /// <see cref="CapOptions.Scopes"/> is a getter-only collection, so the binder adds to the defaults
-    /// rather than replacing them. A <c>CAP:Scopes</c> array in configuration therefore reads as
+    /// rather than replacing them. An <c>SSO:Scopes</c> array in configuration therefore reads as
     /// "these as well", never "these instead".
     /// </remarks>
     public static IServiceCollection AddCap<TUserInfo>(
@@ -147,11 +149,30 @@ public static class ServiceCollectionExtensions
 
         services.AddAuthorization();
 
+        // Before the shared registration, so the application's configureMiddleware runs after and wins.
+        services.TryAddSingleton<CapLinks>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<
+            IConfigureOptions<IdentityMiddlewareOptions>, ConfigureCapRuleSet>());
+
         // The cookie carries ASP.NET Identity's claim types, so the projection's own defaults are
         // already right. Only the authority has to be stated.
         services.AddSharedIdentityServices<TUserInfo>(
             configureMiddleware,
             projection => projection.Authority = IdentityAuthority.CAP);
+
+        // TryAdd, so an application registering its own factory first keeps it.
+        services.TryAddScoped<ICapClaimsPrincipalFactory, CapClaimsPrincipalFactory>();
+        services.TryAddScoped<CapSessionRefresher>();
+        services.TryAddScoped<CapCookieEvents>();
+
+        // One client and one API token per process. The sync job is open generic: an application closes
+        // it over its roles class, at startup through SyncCapRolesAsync or on a schedule through JC.BackgroundJobs.
+        services.TryAddSingleton<CapAccessTokenProvider>();
+        services.TryAddSingleton<CapApiClient>();
+        services.TryAddScoped(typeof(CapRoleSyncJob<>));
+
+        services.AddMemoryCache();
+        services.TryAddSingleton<CapUserCache>();
 
         AddCapCookie(services, configureCookie);
         AddCapClient(services, configureClient);
@@ -250,13 +271,50 @@ public static class ServiceCollectionExtensions
             options.ExpireTimeSpan = capOptions.Session.Lifetime;
             options.SlidingExpiration = true;
 
+            // Resolved from the request scope, so the silent refresh runs inside authentication.
+            options.EventsType = typeof(CapCookieEvents);
+
             options.LoginPath = capOptions.SignInPath;
             options.LogoutPath = capOptions.SignOutPath;
-            options.AccessDeniedPath = capOptions.DeniedPath;
             options.ReturnUrlParameter = CapEndpoints.ReturnUrlParameter;
+
+            // Only LocalPath reads the cookie's path. The framework's post-configure fills any empty
+            // path with /Account/AccessDenied, so the other two modes are decided in CapCookieEvents.
+            if (capOptions.AccessDenied == CapAccessDenied.LocalPath)
+                options.AccessDeniedPath = capOptions.AccessDeniedPath;
         }
 
         public void Configure(CookieAuthenticationOptions options) { }
+    }
+
+    /// <summary>JC.CAP's rule-set defaults: CAP's routes in place of Identity UI's, and its own endpoints excluded.</summary>
+    private sealed class ConfigureCapRuleSet(IOptions<CapOptions> cap, CapLinks links)
+        : IConfigureOptions<IdentityMiddlewareOptions>
+    {
+        public void Configure(IdentityMiddlewareOptions options)
+        {
+            var capOptions = cap.Value;
+            var rules = options.Default;
+
+            rules.Name = CapDefaults.RuleSetName;
+
+            // CAP never issues a token to an account still owing a password change, so the claim is absent
+            // and the rule could only ever fire off a stale cookie. Pointed at CAP's page all the same.
+            rules.RequirePasswordChange = false;
+            rules.ChangePasswordRoute = links.ForcedPassword;
+
+            rules.EnforceTwoFactor = false;
+            rules.TwoFactorRoute = capOptions.TwoFactorPath;
+            rules.AccessDeniedRoute = capOptions.DeniedPath;
+            rules.LogoutRoute = capOptions.SignOutPath;
+            rules.ReturnUrlParameter = CapEndpoints.ReturnUrlParameter;
+
+            // A session mid-repair is never judged by the rules it is trying to satisfy.
+            rules.AdditionalExcludedPaths =
+            [
+                capOptions.SignInPath, capOptions.CallbackPath, capOptions.PostLogoutCallbackPath, capOptions.RefreshPath
+            ];
+        }
     }
 
     /// <summary>
@@ -286,7 +344,7 @@ public static class ServiceCollectionExtensions
 
             var registration = new OpenIddictClientRegistration
             {
-                Issuer = new Uri(capOptions.Issuer, UriKind.Absolute),
+                Issuer = new Uri(capOptions.BaseUrl, UriKind.Absolute),
                 ClientId = capOptions.ClientId,
                 ClientSecret = capOptions.ClientSecret,
                 RegistrationId = CapDefaults.RegistrationId,
