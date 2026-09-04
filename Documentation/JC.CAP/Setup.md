@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
-- An existing ASP.NET Core project, with JC.Core registered where the application keeps an audit trail
+- An existing ASP.NET Core project
 - An application registered at CAP by a CAP operator. That gives you a client id and a client secret, shown once, and is where the two callback URIs in [Quick setup](#1-quick-setup) are entered
 - See [Installation](../../README.md#installation) for how to add JC-Packages to your project
 
@@ -47,12 +47,15 @@ Unlike JC.Identity's `SystemRoles`, this one declares nothing: there is no `Syst
 ### Services in `Program.cs`
 
 ```csharp
-builder.Services.AddCore<AppDbContext>();
-
 // Binds the SSO section, registers the session cookie as the default scheme, the OpenIddict client
 // for CAP, the API client, and the shared identity runtime
 builder.Services.AddCap(builder.Configuration);
+
+// Strongly recommended, not required: JC.Core's data services. See below.
+builder.Services.AddCore<AppDbContext>();
 ```
+
+**`AddCore` is not a requirement of JC.CAP.** Signing in, the session, the rules, the roles and CAP's API all work without it, and `IUserInfo` is populated either way. What needs it is everything in JC.Core: a `DbContext` extending `DataDbContext` with its audit trail, `IRepositoryManager`, and the background-job options. An application with a database should register it, since attributing that work to the signed-in CAP user is the reason to sign one in; an application with no database can leave it out. What `AddCore<TContext>` registers and what the audit trail does with `IUserInfo` are in [JC.Core — Setup](../JC.Core/Setup.md#addcore--service-registration).
 
 ### Middleware and endpoints in `Program.cs`
 
@@ -422,7 +425,7 @@ A request carrying `X-Requested-With: XMLHttpRequest` gets a 403 in every mode, 
 - the authorization code, refresh token and client credentials flows;
 - one registration for CAP, id `cap`, provider name `CAP`, with `BaseUrl` as the issuer and the two callback paths as relative redirect URIs. Grant types, response types and the code challenge method are left for the discovery document to decide, which is where CAP advertises S256 only;
 - ephemeral signing and encryption keys, which the client insists on once a redirection endpoint exists, with state tokens protected through ASP.NET Core Data Protection so they survive a restart and work across a farm on the application's existing key ring;
-- token storage disabled, so no consumer needs `AddCore()` or OpenIddict's tables. The tokens JC.CAP needs live in the cookie and CAP holds the authoritative copies;
+- token storage disabled, so no consumer needs OpenIddict's own `AddCore()` or its tables. The tokens JC.CAP needs live in the cookie and CAP holds the authoritative copies;
 - WS-Federation claim mapping disabled, so `CapClaimsPrincipalFactory` is the only thing writing `ClaimTypes.*` onto the cookie;
 - ASP.NET Core integration with passthrough on both callbacks, so JC.CAP's own endpoints finish them;
 - System.Net.Http, with this package's assembly as the product information.

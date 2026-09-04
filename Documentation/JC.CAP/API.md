@@ -333,12 +333,13 @@ Normalises `BaseUrl` to a trailing slash before it is used as a base, so a host 
 
 | Property | Type | Default | Access | Description |
 |----------|------|---------|--------|-------------|
-| `Manage` | `string` | | get; | The account home: profile, security and personal data. |
+| `Manage` | `string` | | get; | The account home: the applications the signed-in account can reach, with the tabs to profile, security and personal data. |
+| `Profile` | `string` | | get; | The account's own details: display name, email and phone. |
 | `Security` | `string` | | get; | Password and two-factor. |
 | `PersonalData` | `string` | | get; | Download or delete the personal data CAP holds. |
 | `EnableAuthenticator` | `string` | | get; | Enrol an authenticator. Where the two-factor endpoint hands over to. |
 | `ForcedPassword` | `string` | | get; | The forced set-password screen. The rules' change-password route. |
-| `Register` | `string` | | get; | Self-registration. Meaningful only when CAP reports standard registration for the application. |
+| `Register` | `string` | | get; | Self-registration. Meaningful only when CAP reports standard registration for the application. See `RegisterReturningTo` to say where the new account should land. |
 | `ForgotPassword` | `string` | | get; | Starts a password reset. |
 | `Denied` | `string` | | get; | Where a refused sign-in lands. Where the denied endpoint hands over to. |
 | `Discovery` | `string` | | get; | CAP's discovery document. Not branded. |
@@ -356,6 +357,31 @@ Every branded property is `For` applied to the matching `SsoEndpoints` constant,
 | `route` | `string` | required | An `SsoEndpoints` constant, or any path under CAP's account surface. |
 
 Appends the client id through `SsoEndpoints.ForApplication`, combines the result onto the normalised host and returns the absolute URI.
+
+##### For(string route, string? returnUrl)
+
+**Returns:** `string`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `route` | `string` | required | As above. |
+| `returnUrl` | `string?` | required | Where CAP sends the user once it is done with them. Absolute, and on an origin the application registered with CAP. Null or blank appends nothing. |
+
+As `For(route)`, with `SsoEndpoints.ReturnUrlParameter` appended.
+
+**CAP checks the value against the origins this application declared**, its registered redirect URIs and its home URL, and ignores anything else, so a return URL that reaches CAP by some other route cannot redirect a user off-site.
+
+The value rides CAP's confirmation email, so it still works when that is opened an hour later or on another device. **Never pass an authorize request**: it is bound to the browser that began it and its state token expires in minutes, so replaying it fails at the callback.
+
+##### RegisterReturningTo(string? returnUrl)
+
+**Returns:** `string`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `returnUrl` | `string?` | required | As above. |
+
+`For(SsoEndpoints.SsoRegisterPath, returnUrl)`. Without a return URL a newly registered account is left on CAP's account pages, which carry no way back to the application.
 
 ### CapAccessTokenProvider
 

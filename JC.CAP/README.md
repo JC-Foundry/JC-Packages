@@ -19,7 +19,6 @@ Or pack them to a local feed and reference by package ID. See [Installation](htt
 ## Prerequisites
 
 - .NET 9.0 SDK, and an ASP.NET Core project
-- **JC.Core**, registered with `AddCore<AppDbContext>()`, where the application keeps an audit trail
 - An application registered at CAP by a CAP operator, which gives you a client id, a client secret shown once, and the two callback URIs below entered against it
 
 ## Quick start
@@ -39,8 +38,11 @@ public class AppRoles : SystemRoles
 ### Services and middleware
 
 ```csharp
-builder.Services.AddCore<AppDbContext>();
 builder.Services.AddCap(builder.Configuration);
+
+// Strongly recommended: JC.Core's data services, so the audit trail and repositories attribute
+// their work to the signed-in CAP user. Not needed for the sign-in itself.
+builder.Services.AddCore<AppDbContext>();
 
 var app = builder.Build();
 
@@ -77,6 +79,8 @@ Register `https://your-app/signin-oidc` and `https://your-app/signout-callback-o
 This package is the **CAP authority**, the second identity authority built on `JC.Identity.Shared`. The parts every authority needs, the `IUserInfo` implementation, the claims projection, the account rules and their options, live there, with the ASP.NET Core middleware in `JC.Identity.Shared.Web`. `CAP.SSO` carries the wire contract: endpoint paths, scope and claim names, the API's DTOs and the redirect URI rules.
 
 There is no user table and no `DbContext`. CAP holds the account; the application holds only what it needs against the CAP account id. Tenancy is a separate package, joined through the enricher hook described below.
+
+JC.CAP does not require `AddCore`: signing in and populating `IUserInfo` work without it. Everything in JC.Core does need it, the `DbContext` with its audit trail, `IRepositoryManager` and the background-job options, and an application with a database should register it, because attributing that work to the real user is the reason to sign one in. See [JC.Core](https://github.com/JC-Foundry/JC-Packages/blob/master/Documentation/JC.Core/Setup.md) for what it registers.
 
 ## Feature areas
 
@@ -125,7 +129,7 @@ The application publishes its role catalogue to CAP, and CAP operators assign fr
 
 ### Links into CAP
 
-`CapLinks` builds the absolute, branded URLs into CAP's account pages from the host and client id you already configured: manage account, security, two-factor enrolment, registration, forgotten password.
+`CapLinks` builds the absolute, branded URLs into CAP's account pages from the host and client id you already configured: the account home, profile, security, two-factor enrolment, registration, forgotten password. A link can carry a return URL, so a user who registers at CAP comes back to the application rather than being left on CAP's account pages.
 
 ### Extending the principal
 

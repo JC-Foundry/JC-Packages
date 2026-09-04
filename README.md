@@ -116,8 +116,11 @@ See [JC.Identity documentation](Documentation/JC.Identity/) for the account rule
 ### JC.CAP
 
 ```csharp
-builder.Services.AddCore<AppDbContext>();
 builder.Services.AddCap(builder.Configuration);
+
+// Strongly recommended, not required by JC.CAP: JC.Core's data services, so the audit trail and
+// repositories attribute their work to the signed-in CAP user
+builder.Services.AddCore<AppDbContext>();
 
 var app = builder.Build();
 app.UseCap();

@@ -360,12 +360,29 @@ catch (CapApiException ex)
 @inject CapLinks Links
 
 <a href="@Links.Manage">My account</a>
+<a href="@Links.Profile">Profile</a>
 <a href="@Links.Security">Password and two-factor</a>
 <a href="@Links.EnableAuthenticator">Set up an authenticator</a>
 <a href="@Links.ForgotPassword">Forgotten password</a>
 ```
 
-`Register` is meaningful only when CAP reports standard registration, as shown [above](#what-cap-is-configured-as-for-you). `For(route)` takes any constant from CAP.SSO's `SsoEndpoints` and brands it the same way; `Discovery` is the discovery document, unbranded.
+`Manage` is the account home, which lists the applications the account can reach and carries the tabs to profile, security and personal data; `Profile` goes straight to the account's own details. `Register` is meaningful only when CAP reports standard registration, as shown [above](#what-cap-is-configured-as-for-you). `For(route)` takes any constant from CAP.SSO's `SsoEndpoints` and brands it the same way; `Discovery` is the discovery document, unbranded.
+
+### Coming back afterwards
+
+A user who registers at CAP confirms by email and signs in there, and CAP has nowhere to send them next unless you say so. Left unsaid they land on CAP's account pages, which carry no link back:
+
+```html
+<a href="@Links.RegisterReturningTo("https://orders.example.com/")">Create an account</a>
+```
+
+The return URL must be **absolute** and on an origin this application registered with CAP: a redirect URI's origin, or the home URL a CAP operator set against the application. CAP checks it on arrival and ignores anything else, so it cannot be used to redirect a user off-site, and it is safe for the value to ride the confirmation email.
+
+`For(route, returnUrl)` does the same for any other route, a password reset for instance.
+
+**Do not pass an authorize request as the return URL.** It is bound to the browser that began it and its state token expires after fifteen minutes by default, so a user opening the email later, or on their phone, arrives with a request that fails at the callback. Pass a page of your own instead.
+
+**Where CAP goes when you say nothing:** the application's home URL if an operator set one, otherwise the origin of a registered redirect URI, which is a guess, and otherwise CAP's own account page.
 
 **Link to the branded form.** CAP remembers the application for the rest of the visit once a branded link has been followed, but the first link has to carry the client id, which is what these do.
 

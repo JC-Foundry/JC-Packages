@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <PackageId>JC.CAP</PackageId>
-        <Version>7.1.2</Version>
+        <Version>7.1.4</Version>
         <Description>Single sign-on against CAP, the Central Admin Portal, wired into the JC suite as the second identity authority on JC.Identity.Shared. One AddCap call binds the SSO section CAP itself reads, registers a session cookie as the application's default scheme, an OpenIddict client for CAP with token storage and WS-Federation claim mapping switched off, and the shared identity runtime with IUserInfo stamped CAP. A user signs in at CAP through a local trigger, the code comes back to a mapped callback, and CapClaimsPrincipalFactory translates CAP's claims into ASP.NET Identity's vocabulary so [Authorize(Roles)], User.IsInRole and IUserInfo.IsInRole work unchanged; ICapClaimsEnricher adds claims at sign-in and on every refresh, which is how a tenant reaches IUserInfo.TenantId. The cookie carries CAP's tokens and CapCookieEvents refreshes them silently inside authentication as the access token nears expiry, so a role granted in CAP appears within fifteen minutes and an account withdrawn there is signed out at its next refresh, with a grace period while CAP is unreachable. The shared account rules are pointed at local endpoints that re-check with CAP before handing over to its pages, so an enrolment or re-enablement never loops. SystemRoles declares no roles: an application extends it, and CapRoleSyncJob publishes the catalogue to CAP, once at startup through SyncCapRolesAsync, which fails the application if CAP refuses, or on a schedule through JC.BackgroundJobs. CapApiClient calls CAP's API as the application with a client-credentials token it renews itself, CapUserCache keeps the live members in memory one entry each, and CapLinks builds the branded URLs into CAP's account pages. No user table and no DbContext: CAP holds the account.</Description>
         <PackageTags>$(PackageTags);cap;sso;oidc;openiddict;identity;authentication;claims;roles;aspnetcore</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -27,7 +27,7 @@
     </ItemGroup>
     
     <ItemGroup>
-        <PackageReference Include="CAP.SSO" versionOverride="1.0.1"/>
+        <PackageReference Include="CAP.SSO" versionOverride="1.0.3"/>
         <PackageReference Include="Flurl.Http" versionOverride="4.0.2"/>
         <PackageReference Include="OpenIddict.Client.AspNetCore" versionOverride="7.6.1" />
         <PackageReference Include="OpenIddict.Client.DataProtection" versionOverride="7.6.1" />
