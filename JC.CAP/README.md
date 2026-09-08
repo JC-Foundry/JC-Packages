@@ -105,6 +105,8 @@ The cookie is the application's default scheme. An `[Authorize]` page with no se
 
 Sign-out is a POST to `/cap/signout`. It clears the cookie, ends the session at CAP, and returns through `/signout-callback-oidc`.
 
+The sign-out redirect carries `client_id` and `post_logout_redirect_uri`, which is all CAP needs: it ends the session without prompting, and treats an absent `id_token_hint` as valid. No hint is sent. It would be a whole identity token carrying the user's roles, adding one to two kilobytes to the query string, and OpenIddict would copy it into the state token as well, roughly doubling that again — enough to trip IIS's 2048-character `maxQueryString`.
+
 ### Claims
 
 CAP's vocabulary arrives on the tokens and is translated onto the cookie in ASP.NET Identity's: the subject becomes `ClaimTypes.NameIdentifier`, the username `ClaimTypes.Name`, each role `ClaimTypes.Role`. So `[Authorize(Roles = AppRoles.Editor)]`, `User.IsInRole` and `IUserInfo.IsInRole` all work with no configuration, and the eight identity claims CAP sends under JC's own names are copied across for the projection to read.
@@ -150,6 +152,7 @@ An `ICapClaimsEnricher` runs at sign-in and on every refresh, and is how a tenan
 | `IUserInfo` implementation | Built-in `CapUserInfo`, scoped |
 | `IUserInfo.Authority` | `CAP` once authenticated, `None` otherwise |
 | OpenIddict token storage | Disabled, so no OpenIddict tables are needed |
+| `id_token_hint` at sign-out | Not sent; CAP ends the session on `client_id` and `post_logout_redirect_uri` |
 | Member cache | Enabled, five minutes, one entry per member |
 
 ## Documentation

@@ -229,6 +229,11 @@ public static class ServiceCollectionExtensions
 
                     client.UseDataProtection();
 
+                    // State tokens are self-contained while storage is off, so everything the sign-out
+                    // carries is paid for twice. This drops the identity token from the state token's
+                    // copy of the host properties; id_token_hint itself is unaffected.
+                    client.AddEventHandler(CapLogoutStateTrimmer.Descriptor);
+
                     client.UseAspNetCore()
                           .EnableRedirectionEndpointPassthrough()
                           .EnablePostLogoutRedirectionEndpointPassthrough();

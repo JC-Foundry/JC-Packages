@@ -443,6 +443,16 @@ builder.Services.AddCap(builder.Configuration,
 
 Use it for what a package should not decide for everyone: production certificates in place of the ephemeral keys, a resilience pipeline on the HTTP integration, or re-enabling token storage where an OpenIddict database already exists.
 
+### The sign-out request
+
+The redirect to CAP's end-session endpoint carries `client_id`, `post_logout_redirect_uri` and `state`. It does **not** carry `id_token_hint`, because CAP does not need one: its end-session endpoint ends the session without prompting for confirmation, and it validates the return URL against the application the `client_id` names. OpenIddict's server treats an absent hint as valid rather than as an error.
+
+That matters for length. The hint is a whole identity token carrying the user's roles — one to two kilobytes — and while token storage is disabled the state token is self-contained, so OpenIddict copies the hint into `state` as well, encrypted and base64url encoded and therefore larger again. Sending it would put four kilobytes or so on the query string, past IIS's 2048-character `maxQueryString` default and close to nginx's 8k header buffers. Left off, the sign-out URL stays under a kilobyte.
+
+There is no option to put it back, because there is no authority to put it back for: JC.CAP signs in against CAP and nothing else. An application that signs out through the OpenIddict client scheme itself, rather than through `/cap/signout`, and sets a hint on the properties will find it stripped from the state token before the redirect is built — it would otherwise be sent twice, and nothing reads the second copy back, the post-logout callback wanting only the return URL.
+
+To shrink `state` itself, re-enable token storage through `configureClient`. OpenIddict then issues the logout state token by reference, and `state` becomes a 43-character identifier instead of the whole claims set. It needs `AddCore()`, a store and OpenIddict's tables, which is why it is not the default.
+
 ### Replacing the claims factory
 
 `ICapClaimsPrincipalFactory` is registered with `TryAdd`, so a registration made **before** `AddCap` is kept, and one made after replaces it:

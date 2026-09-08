@@ -120,9 +120,9 @@ public static class EndpointRouteBuilderExtensions
         var properties = new AuthenticationProperties { RedirectUri = target };
         properties.SetString(Properties.RegistrationId, CapDefaults.RegistrationId);
 
-        if (CapTokens.IdentityToken(session.Properties) is { } identityToken)
-            properties.SetString(Properties.IdentityTokenHint, identityToken);
-
+        // No id_token_hint: CAP ends the session on client_id and post_logout_redirect_uri alone, without
+        // prompting, and the hint is a whole identity token carrying the user's roles. Sending it would put
+        // one to two kilobytes on the query string, and OpenIddict copies it into the state token as well.
         return Results.SignOut(properties, [OpenIddictClientAspNetCoreDefaults.AuthenticationScheme]);
     }
 

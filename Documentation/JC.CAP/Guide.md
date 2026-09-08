@@ -27,7 +27,9 @@ What happens between the two: CAP shows its login page if the browser holds no C
 </form>
 ```
 
-POST only, so a link cannot sign a visitor out. The form tag helper adds the antiforgery token, which the endpoint validates. The cookie is cleared first, then CAP is asked to end its own session with the id token as the hint, and CAP returns the browser through `/signout-callback-oidc` to the return URL. `returnUrl` is read from the query first, then the form.
+POST only, so a link cannot sign a visitor out. The form tag helper adds the antiforgery token, which the endpoint validates. The cookie is cleared first, then CAP is asked to end its own session, and CAP returns the browser through `/signout-callback-oidc` to the return URL. `returnUrl` is read from the query first, then the form.
+
+The request to CAP identifies the application by `client_id` and carries no `id_token_hint`: CAP ends the session without one, and the hint is a whole identity token that would otherwise put kilobytes on the query string. See [The sign-out request](Setup.md#the-sign-out-request).
 
 **A request with no session simply redirects** to the return URL. Nothing is sent to CAP, since there is no CAP session to end.
 
